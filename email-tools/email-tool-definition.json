@@ -1,0 +1,39 @@
+{
+  "name": "send_email",
+  "display_name": "Email Sender",
+  "description": "Sends an email to a specified recipient",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "to_email": {
+        "type": "string",
+        "description": "Email address of the recipient"
+      },
+      "subject": {
+        "type": "string",
+        "description": "Subject line of the email"
+      },
+      "content": {
+        "type": "string",
+        "description": "Content of the email (supports plain text)"
+      },
+      "customer_name": {
+        "type": "string",
+        "description": "Name of the customer (optional)"
+      }
+    },
+    "required": ["to_email", "subject", "content"]
+  },
+  "authentication": {
+    "type": "bearer",
+    "authorization_header": "Authorization"
+  },
+  "api": {
+    "url": "{{SERVER_URL}}/api/email/send",
+    "method": "POST"
+  },
+  "environment_variables": {
+    "SERVER_URL": "${SERVER_URL}",
+    "API_KEY": "${EMAIL_API_KEY}"
+  }
+} 

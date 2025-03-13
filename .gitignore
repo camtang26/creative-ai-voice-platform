@@ -1,0 +1,44 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Node.js
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Logs
+logs/
+*.log
+
+# Backup files
+backup-files/
+
+# Editor directories and files
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Google API tokens and credentials
+token.json
+credentials.json
+*-token.json
+*-credentials.json
+
+# Other sensitive files
+.env.backup
+*.pem
+*.key
+*.crt
+*.p12
+.npmrc 
