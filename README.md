@@ -10,6 +10,7 @@ This project enables outbound calling capabilities using ElevenLabs Conversation
 - Secure communication with authenticated requests
 - Real-time bidirectional audio streaming
 - **NEW: Google Sheets integration for bulk outbound calling campaigns**
+- **NEW: Email integration for sending conversation summaries and follow-ups**
 
 ## Implementation Methods
 
@@ -160,20 +161,20 @@ This project includes integration with email services through Amazon SES. This a
 
 The email functionality requires additional environment variables:
 
-```
+```bash
 # Email configuration for Amazon SES
 SES_SMTP_HOST=email-smtp.ap-southeast-2.amazonaws.com
 SES_SMTP_PORT=587
-SES_SMTP_USERNAME=your_ses_smtp_username
-SES_SMTP_PASSWORD=your_ses_smtp_password
+SES_SMTP_USERNAME=your-ses-username
+SES_SMTP_PASSWORD=your-ses-password
 SES_FROM_EMAIL=noreply@yourdomain.com
 SES_REPLY_TO=info@yourdomain.com
-EMAIL_API_KEY=your_secure_api_key
+EMAIL_API_KEY=your-email-api-key
 
 # Additional SES options
 SES_REGION=ap-southeast-2
-SES_DEBUG=false
-EMAIL_FALLBACK_ENABLED=false
+SES_DEBUG=true
+EMAIL_FALLBACK_ENABLED=true
 ```
 
 For more details on the email integration, see the [Email Integration Documentation](./email-tools/README.md).
@@ -202,7 +203,7 @@ npm install
 
 3. **Create a `.env` file with the following variables:**
 
-```
+```bash
 # Twilio credentials
 TWILIO_ACCOUNT_SID=your_twilio_account_sid
 TWILIO_AUTH_TOKEN=your_twilio_auth_token
@@ -332,6 +333,56 @@ curl -X POST https://your-ngrok-url/outbound-call \
 - `number` (required): The phone number to call, in E.164 format (e.g., +12345678990)
 - `prompt` (optional): A custom prompt to override the default agent behavior
 - `first_message` (optional): The first message the agent should say when the call connects
+
+## Email Integration
+
+The server includes email functionality for sending conversation summaries, follow-ups, or notifications. This is implemented using AWS SES (Simple Email Service) with a fallback to a test email account.
+
+### Configuration
+
+Email settings are configured in the `.env` file:
+
+```bash
+# Email configuration for Amazon SES
+SES_SMTP_HOST=email-smtp.ap-southeast-2.amazonaws.com
+SES_SMTP_PORT=587
+SES_SMTP_USERNAME=your-ses-username
+SES_SMTP_PASSWORD=your-ses-password
+SES_FROM_EMAIL=noreply@yourdomain.com
+SES_REPLY_TO=info@yourdomain.com
+EMAIL_API_KEY=your-email-api-key
+
+# Additional SES options
+SES_REGION=ap-southeast-2
+SES_DEBUG=true
+EMAIL_FALLBACK_ENABLED=true
+```
+
+### Using the Email API
+
+You can send emails through the server's API endpoint:
+
+```bash
+curl -X POST https://your-ngrok-url/send-email \
+-H "Content-Type: application/json" \
+-H "Authorization: Bearer your-email-api-key" \
+-d '{
+  "to_email": "recipient@example.com",
+  "subject": "Call Summary from ElevenLabs AI",
+  "content": "<h1>Call Summary</h1><p>This is a summary of your recent conversation...</p>",
+  "customer_name": "John Doe"
+}'
+```
+
+### Fallback Mode
+
+If AWS SES authentication fails, the system can automatically fall back to using a test email account (Ethereal Email). This provides a preview URL instead of sending a real email, which is useful for development and testing.
+
+To enable/disable fallback mode, set `EMAIL_FALLBACK_ENABLED` to `true` or `false` in your `.env` file.
+
+### Email Status
+
+For detailed information about the current email integration status, see the [Email Integration Status](./email-tools/EMAIL_INTEGRATION_STATUS.md) document.
 
 ## Troubleshooting
 

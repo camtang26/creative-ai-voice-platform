@@ -1,5 +1,7 @@
 import WebSocket from "ws";
 import Twilio from "twilio";
+import fetch from 'node-fetch';
+import { createTimer, recordAudioLatency, trackCallStart } from './latency-monitor.js';
 
 export function registerOutboundRoutes(fastify) {
   // Check for required environment variables
@@ -17,8 +19,11 @@ export function registerOutboundRoutes(fastify) {
     throw new Error("Missing required environment variables");
   }
 
-  // Initialize Twilio client
-  const twilioClient = new Twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+  // Initialize Twilio client with Australia region
+  const twilioClient = new Twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, {
+    region: 'au1'  // Specify Australia region for lower latency
+  });
+  console.log("[Twilio] Initialized with Australia region (au1) for lower latency");
 
   // Get the base URL for callbacks (use SERVER_URL if available, otherwise fallback to host header)
   const getBaseUrl = (request) => {
@@ -30,13 +35,16 @@ export function registerOutboundRoutes(fastify) {
 
   // Helper function to get signed URL for authenticated conversations
   async function getSignedUrl() {
+    const timer = createTimer('ElevenLabs getSignedUrl').start();
     try {
       const response = await fetch(
         `https://api.elevenlabs.io/v1/convai/conversation/get_signed_url?agent_id=${ELEVENLABS_AGENT_ID}`,
         {
           method: 'GET',
           headers: {
-            'xi-api-key': ELEVENLABS_API_KEY
+            'xi-api-key': ELEVENLABS_API_KEY,
+            'xi-region-preference': 'ap-southeast', // Request Asia-Pacific region if available
+            'xi-optimize-latency': 'true'           // Request latency optimization
           }
         }
       );
@@ -46,22 +54,78 @@ export function registerOutboundRoutes(fastify) {
       }
 
       const data = await response.json();
-      return data.signed_url;
+      timer.stop();
+      return { 
+        signed_url: data.signed_url,
+        conversation_id: data.conversation_id 
+      };
     } catch (error) {
       console.error("Error getting signed URL:", error);
+      timer.stop();
       throw error;
+    }
+  }
+
+  // Helper function to set dynamic variables for a conversation
+  async function setDynamicVariables(conversationId, variables) {
+    const timer = createTimer('ElevenLabs setDynamicVariables').start();
+    try {
+      const response = await fetch(
+        `https://api.elevenlabs.io/v1/convai/conversations/${conversationId}/dynamic-variables`,
+        {
+          method: 'PUT',
+          headers: {
+            'xi-api-key': ELEVENLABS_API_KEY,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            dynamic_variables: variables
+          })
+        }
+      );
+
+      timer.stop();
+      if (!response.ok) {
+        console.error(`Failed to set dynamic variables: ${response.statusText}`);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error("Error setting dynamic variables:", error);
+      timer.stop();
+      return false;
     }
   }
 
   // Route to initiate outbound calls
   fastify.post("/outbound-call", async (request, reply) => {
-    const { number, prompt, first_message } = request.body;
+    const callTimer = createTimer('Total Call Initiation').start();
+    const { number, prompt, first_message, region, callerId, name } = request.body;
+    // Use region parameter if provided, otherwise default to au1
+    const twilioRegion = region || 'au1';
 
     if (!number) {
       return reply.code(400).send({ error: "Phone number is required" });
     }
 
     try {
+      // Get signed URL and conversation ID
+      const signedUrlTimer = createTimer('Getting Signed URL').start();
+      const { signed_url, conversation_id } = await getSignedUrl();
+      signedUrlTimer.stop();
+      
+      // Set dynamic variables for the conversation
+      const dynamicVarsTimer = createTimer('Setting Dynamic Variables').start();
+      await setDynamicVariables(conversation_id, {
+        phone_number: number,
+        name: name || "Unknown",
+        contact_name: name || "Unknown" // Alternative name field
+      });
+      dynamicVarsTimer.stop();
+      
+      console.log(`[ElevenLabs] Set dynamic variables for conversation ${conversation_id}`);
+      
       // Build URL with both prompt and first_message parameters
       const baseUrl = getBaseUrl(request);
       const twimlUrl = `${baseUrl}/outbound-call-twiml?prompt=${encodeURIComponent(prompt || '')}`;
@@ -69,23 +133,39 @@ export function registerOutboundRoutes(fastify) {
         `${twimlUrl}&first_message=${encodeURIComponent(first_message)}` : 
         twimlUrl;
       
-      console.log(`[Outbound Call] Initiating call to ${number} with URL: ${urlWithFirstMessage}`);
+      console.log(`[Outbound Call] Initiating call to ${number} with URL: ${urlWithFirstMessage} (Region: ${twilioRegion})`);
       
+      // Make the call with Twilio
+      const twilioTimer = createTimer('Twilio Call Creation').start();
       const call = await twilioClient.calls.create({
-        from: TWILIO_PHONE_NUMBER,
+        from: callerId || TWILIO_PHONE_NUMBER,
         to: number,
-        url: urlWithFirstMessage
+        url: urlWithFirstMessage,
+        region: twilioRegion // Use the region from request or default to au1
       });
-
-      console.log(`[Outbound Call] Call initiated successfully. Call SID: ${call.sid}`);
+      twilioTimer.stop();
       
+      // Track this call in our statistics
+      trackCallStart();
+
+      console.log(`[Outbound Call] Call initiated successfully. Call SID: ${call.sid} (using AU region)`);
+      
+      callTimer.stop();
       reply.send({ 
         success: true, 
         message: "Call initiated", 
-        callSid: call.sid 
+        callSid: call.sid,
+        conversationId: conversation_id,
+        timing: {
+          total: callTimer.elapsed(),
+          signedUrl: signedUrlTimer.elapsed(),
+          dynamicVars: dynamicVarsTimer.elapsed(),
+          twilioCall: twilioTimer.elapsed()
+        }
       });
     } catch (error) {
       console.error("Error initiating outbound call:", error);
+      callTimer.stop();
       // Include detailed error information in the response
       reply.code(500).send({ 
         success: false, 
@@ -93,7 +173,10 @@ export function registerOutboundRoutes(fastify) {
         details: error.message || "Unknown error",
         code: error.code,
         statusCode: error.statusCode,
-        moreInfo: error.moreInfo
+        moreInfo: error.moreInfo,
+        timing: {
+          total: callTimer.elapsed()
+        }
       });
     }
   });
@@ -131,13 +214,33 @@ export function registerOutboundRoutes(fastify) {
       // Handle WebSocket errors
       ws.on('error', console.error);
 
+      // Variables for latency tracking
+      let lastSentAudio = 0;
+      let totalLatency = 0;
+      let messageCount = 0;
+      let minLatency = Number.MAX_VALUE;
+      let maxLatency = 0;
+
       // Set up ElevenLabs connection
       const setupElevenLabs = async () => {
         try {
-          const signedUrl = await getSignedUrl();
-          elevenLabsWs = new WebSocket(signedUrl);
+          const wsSetupTimer = createTimer('WebSocket Setup').start();
+          const { signed_url } = await getSignedUrl();
+          
+          // Configure WebSocket with optimized settings
+          const wsOptions = {
+            perMessageDeflate: false,       // Disable compression for real-time audio
+            maxPayload: 64 * 1024,          // 64KB for more efficient chunks
+            handshakeTimeout: 5000,         // 5 seconds
+            timeout: 30000,                 // 30 seconds overall timeout
+            fragmentOutgoingMessages: false, // Avoid message fragmentation
+          };
+          
+          console.log("[ElevenLabs] Creating WebSocket with optimized settings for lower latency");
+          elevenLabsWs = new WebSocket(signed_url, wsOptions);
 
           elevenLabsWs.on("open", () => {
+            wsSetupTimer.stop();
             console.log("[ElevenLabs] Connected to Conversational AI");
 
             // Send initial configuration with first message only, don't override the agent's prompt
@@ -148,16 +251,49 @@ export function registerOutboundRoutes(fastify) {
                   // Don't override the agent's system prompt
                   first_message: customParameters?.first_message || "Hello, this is Investor Signals AI assistant in training. May I please speak with you?",
                 },
+                audio: {
+                  optimize_latency: true,      // Enable latency optimization
+                  stream_chunk_size: 512,      // Smaller chunk size for faster processing
+                  sample_rate: 16000,          // Lower sample rate (vs standard 24000)
+                  silence_threshold: 0.1       // Adjust silence detection threshold
+                }
+              },
+              // Add dynamic variables for current call - duplicating from earlier but good for redundancy
+              dynamic_variables: {
+                phone_number: req.headers['to'] || "Unknown",
+                call_sid: callSid || "Unknown",
+                server_location: process.env.SERVER_LOCATION || "Unknown"
               }
             };
 
             console.log("[ElevenLabs] Using first message:", initialConfig.conversation_config_override.agent.first_message);
+            console.log("[ElevenLabs] Audio settings optimized for lower latency");
+            console.log("[ElevenLabs] Dynamic variables:", initialConfig.dynamic_variables);
 
             // Send the configuration to ElevenLabs
             elevenLabsWs.send(JSON.stringify(initialConfig));
           });
 
           elevenLabsWs.on("message", (data) => {
+            // Track when we receive messages for latency measurement
+            const receivedTime = Date.now();
+            if (lastSentAudio > 0 && data.toString().includes('"type":"audio"')) {
+              const roundTrip = receivedTime - lastSentAudio;
+              totalLatency += roundTrip;
+              messageCount++;
+              minLatency = Math.min(minLatency, roundTrip);
+              maxLatency = Math.max(maxLatency, roundTrip);
+              
+              // Record in our latency monitor
+              recordAudioLatency(roundTrip);
+              
+              // Log every 5th message for readability
+              if (messageCount % 5 === 0) {
+                const avgRoundTrip = (totalLatency / messageCount).toFixed(2);
+                console.log(`[LATENCY] Audio round trip: ${roundTrip}ms, Avg: ${avgRoundTrip}ms, Min: ${minLatency}ms, Max: ${maxLatency}ms`);
+              }
+            }
+            
             try {
               const message = JSON.parse(data);
 
@@ -224,6 +360,18 @@ export function registerOutboundRoutes(fastify) {
 
           elevenLabsWs.on("close", () => {
             console.log("[ElevenLabs] Disconnected");
+            
+            // Log latency statistics at the end of the call
+            if (messageCount > 0) {
+              const avgLatency = (totalLatency / messageCount).toFixed(2);
+              console.log(`\n[LATENCY] Call Performance Summary:`);
+              console.log(`  - Average round trip: ${avgLatency}ms`);
+              console.log(`  - Minimum round trip: ${minLatency}ms`);
+              console.log(`  - Maximum round trip: ${maxLatency}ms`);
+              console.log(`  - Total audio messages: ${messageCount}`);
+              console.log(`  - Server location: ${process.env.SERVER_LOCATION || "Unknown"}`);
+              console.log(`\nTIP: Lower numbers indicate better performance. Under 300ms is good for Australia to US connections.`);
+            }
           });
 
         } catch (error) {
@@ -251,8 +399,12 @@ export function registerOutboundRoutes(fastify) {
 
             case "media":
               if (elevenLabsWs?.readyState === WebSocket.OPEN) {
+                // Record the time we send audio for latency tracking
+                lastSentAudio = Date.now();
+                
+                // Optimize media handling - avoid redundant base64 conversion
                 const audioMessage = {
-                  user_audio_chunk: Buffer.from(msg.media.payload, "base64").toString("base64")
+                  user_audio_chunk: msg.media.payload // Payload is already base64
                 };
                 elevenLabsWs.send(JSON.stringify(audioMessage));
               }
@@ -282,4 +434,4 @@ export function registerOutboundRoutes(fastify) {
       });
     });
   });
-} 
+}

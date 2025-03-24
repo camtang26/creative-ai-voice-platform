@@ -13,11 +13,40 @@ const DEFAULT_DELAY = 10000; // 10 seconds delay between calls by default
 // Get server URL from environment or default to localhost
 const SERVER_URL = process.env.SERVER_URL || DEFAULT_SERVER_URL;
 
+// Function to validate URL
+function isValidUrl(url) {
+  try {
+    new URL(url);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 // Command line arguments
 const args = process.argv.slice(2);
 const spreadsheetId = args[0]; // First argument should be the Google Spreadsheet ID
 const sheetName = args[1] || 'Sheet1'; // Default to Sheet1 if not specified
 const maxCalls = args[2] ? parseInt(args[2]) : undefined; // Optional limit on number of calls to make
+const customServerUrl = args[3]; // Optional server URL override
+
+// Determine which server URL to use
+let effectiveServerUrl = customServerUrl || SERVER_URL;
+
+// Validate URL
+if (!isValidUrl(effectiveServerUrl)) {
+  console.error(`\nERROR: Invalid server URL: ${effectiveServerUrl}`);
+  console.error(`Falling back to default URL: ${DEFAULT_SERVER_URL}\n`);
+  effectiveServerUrl = DEFAULT_SERVER_URL;
+}
+
+// Display header
+console.log('\n==============================================================');
+console.log('  OUTBOUND CALLING FROM GOOGLE SHEETS');
+console.log('==============================================================');
+console.log(`Server URL: ${effectiveServerUrl}`);
+console.log(`Caller ID: ${process.env.TWILIO_PHONE_NUMBER}`);
+console.log('==============================================================\n');
 
 // Initialize Google Sheets API
 let sheetsApi;
@@ -72,7 +101,12 @@ async function setupGoogleSheets() {
 async function getContactsFromSheet() {
   if (!spreadsheetId) {
     console.error('Error: No spreadsheet ID provided.');
-    console.error('Usage: node sheet-call.js <spreadsheetId> [sheetName] [maxCalls]');
+    console.error('Usage: node sheet-call.js <spreadsheetId> [sheetName] [maxCalls] [serverUrl]');
+    console.error('Examples:');
+    console.error('  node sheet-call.js 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms');
+    console.error('  node sheet-call.js 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms Contacts');
+    console.error('  node sheet-call.js 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms Contacts 5');
+    console.error('  node sheet-call.js 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms Contacts 5 http://localhost:8000');
     process.exit(1);
   }
 
@@ -169,10 +203,10 @@ async function makeCall(contact) {
     console.log(`\nCalling ${contact.name || 'contact'} at ${contact.phone}...`);
     console.log(`Using prompt: "${DEFAULT_PROMPT}"`);
     console.log(`First message: "${firstMessage}"`);
-    console.log(`Using server: ${SERVER_URL}`);
+    console.log(`Using server: ${effectiveServerUrl}`);
     
     // Make the API call to your server
-    const response = await fetch(`${SERVER_URL}/outbound-call`, {
+    const response = await fetch(`${effectiveServerUrl}/outbound-call`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -180,7 +214,9 @@ async function makeCall(contact) {
       body: JSON.stringify({
         number: contact.phone,
         prompt: DEFAULT_PROMPT,
-        first_message: firstMessage
+        first_message: firstMessage,
+        // Pass the contact name for the webhook integration
+        name: contact.name || "Unknown"
       }),
     });
 
@@ -191,10 +227,12 @@ async function makeCall(contact) {
       console.log(`Call SID: ${data.callSid}`);
       return {
         success: true,
-        callSid: data.callSid
+        callSid: data.callSid,
+        conversationId: data.conversationId
       };
     } else {
       console.error('Failed to initiate call:', data.error);
+      console.error('Details:', data.details || 'No additional details provided');
       return {
         success: false,
         error: data.error,
@@ -203,7 +241,7 @@ async function makeCall(contact) {
     }
   } catch (error) {
     console.error('Error making API call:', error.message);
-    console.error(`Make sure your server is running at ${SERVER_URL}`);
+    console.error(`Make sure your server is running at ${effectiveServerUrl}`);
     return {
       success: false,
       error: error.message
@@ -222,9 +260,16 @@ async function updateContactStatus(contact, result, columns) {
 
   try {
     const status = result.success ? 'called' : 'failed';
-    const notes = result.success 
-      ? `Called on ${new Date().toISOString()}, Call SID: ${result.callSid}`
-      : `Failed on ${new Date().toISOString()}: ${result.error} ${result.details || ''}`;
+    let notes = '';
+    
+    if (result.success) {
+      notes = `Called on ${new Date().toISOString()}, Call SID: ${result.callSid}`;
+      if (result.conversationId) {
+        notes += `, Conversation ID: ${result.conversationId}`;
+      }
+    } else {
+      notes = `Failed on ${new Date().toISOString()}: ${result.error} ${result.details || ''}`;
+    }
     
     // Update status in spreadsheet
     await sheetsApi.spreadsheets.values.update({
@@ -294,9 +339,9 @@ async function callFromSpreadsheet() {
   console.log('\nAll calls completed!');
 }
 
-// Show usage information
+// Display usage information
 console.log(`
-Usage: node sheet-call.js <spreadsheetId> [sheetName] [maxCalls]
+Usage: node sheet-call.js <spreadsheetId> [sheetName] [maxCalls] [serverUrl]
 Examples:
   node sheet-call.js 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms
   node sheet-call.js 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms Contacts
@@ -310,4 +355,4 @@ Your spreadsheet should have these columns:
 `);
 
 // Start the process
-callFromSpreadsheet(); 
+callFromSpreadsheet();

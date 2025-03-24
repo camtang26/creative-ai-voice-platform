@@ -1,0 +1,29 @@
+name: Deploy to AWS EC2
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Install SSH key
+      uses: shimataro/ssh-key-action@v2
+      with:
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        known_hosts: ${{ secrets.KNOWN_HOSTS }}
+    
+    - name: Deploy to EC2
+      run: |
+        rsync -avz --exclude 'node_modules' --exclude '.env' \
+          --exclude '.git' --exclude 'optimized' \
+          ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/elevenlabs-server/
+    
+    - name: Install dependencies and restart service
+      run: |
+        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "cd ~/elevenlabs-server && npm install && pm2 restart elevenlabs || pm2 start server.js --name elevenlabs"
