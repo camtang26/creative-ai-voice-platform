@@ -16,6 +16,11 @@ const phoneNumberArg = args[0]; // Allows specifying a single number as an argum
 const prompt = args[1] || DEFAULT_PROMPT;
 const firstMessage = args[2] || DEFAULT_FIRST_MESSAGE;
 const serverUrl = args[3] || SERVER_URL;
+// Add new optional arguments
+const name = args[4] || "Unknown"; // Default name if not provided
+const campaignId = args[5] || null; // Default to null if not provided
+const contactId = args[6] || null; // Default to null if not provided
+
 
 // Get verified numbers from environment
 let phoneNumbers = [];
@@ -40,8 +45,8 @@ async function makeCall(phoneNumber) {
     console.log(`Using server: ${serverUrl}`);
     console.log(`Using Twilio region: au1 (Australia) for lower latency`);
     
-    // Make the API call to your server
-    const response = await fetch(`${serverUrl}/outbound-call`, {
+    // Make the API call to your server (Corrected endpoint)
+    const response = await fetch(`${serverUrl}/api/outbound-call`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -51,7 +56,11 @@ async function makeCall(phoneNumber) {
         prompt: prompt,
         first_message: firstMessage,
         region: 'au1',  // Add explicit region for Australia
-        callerId: process.env.TWILIO_PHONE_NUMBER // Use caller ID from environment
+        callerId: process.env.TWILIO_PHONE_NUMBER, // Use caller ID from environment
+        // Add new parameters
+        name: name,
+        campaignId: campaignId,
+        contactId: contactId
       }),
     });
 
@@ -96,13 +105,19 @@ async function callAllNumbers() {
 }
 
 console.log(`
-Usage: node make-call.js [phone_number] [prompt] [first_message] [server_url]
+Usage: node make-call.js [phone_number] [prompt] [first_message] [server_url] [name] [campaignId] [contactId]
+ - Arguments in brackets are optional and positional.
+ - If phone_number is omitted, uses VERIFIED_NUMBERS from .env.
+ - Defaults are used for omitted prompt, first_message, server_url, and name.
+ - campaignId and contactId default to null if omitted.
+
 Examples:
-  node make-call.js                         # Call all numbers in VERIFIED_NUMBERS
-  node make-call.js +1234567890             # Call specific number
-  node make-call.js +1234567890 "Custom prompt" "Custom message"
-  node make-call.js +1234567890 "Default prompt" "Default message" https://your-ngrok-url.ngrok.io
+  node make-call.js                                            # Call all numbers in VERIFIED_NUMBERS with defaults
+  node make-call.js +1234567890                                # Call specific number with defaults
+  node make-call.js +1234567890 "Custom prompt" "Hi {name}"    # Call specific number with custom prompt/message
+  node make-call.js +1234567890 "" "" "" "John Doe"            # Call specific number with default prompt/message, providing name
+  node make-call.js +1234567890 "" "" "" "Jane Doe" camp_abc 123 # Call specific number, providing name, campaignId, contactId
 `);
 
 // Start calling all numbers
-callAllNumbers(); 
+callAllNumbers();

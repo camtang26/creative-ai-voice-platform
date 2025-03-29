@@ -1,4 +1,4 @@
-# ElevenLabs Twilio Outbound Calling
+# ElevenLabs Twilio Outbound Calling - Enhanced Version
 
 This project enables outbound calling capabilities using ElevenLabs Conversational AI and Twilio. It creates a server that can initiate calls to phone numbers and connect them with an AI agent that can engage in natural conversation.
 
@@ -9,27 +9,74 @@ This project enables outbound calling capabilities using ElevenLabs Conversation
 - Customize AI behavior with prompts and first messages
 - Secure communication with authenticated requests
 - Real-time bidirectional audio streaming
-- **NEW: Google Sheets integration for bulk outbound calling campaigns**
-- **NEW: Email integration for sending conversation summaries and follow-ups**
+- Google Sheets integration for bulk outbound calling campaigns
+- Email integration for sending conversation summaries and follow-ups
+- Enhanced data streaming from Twilio for comprehensive call analytics
+- Automatic call recordings with dual-channel support
+- Intelligent call termination when conversations end
+- Advanced architecture with better code organization and error handling
+
+## Major Enhancements
+
+### 1. Enhanced Data Streaming from Twilio
+
+The system now captures and stores comprehensive data from Twilio for better monitoring and analysis:
+
+- **Call Status Tracking**: All call status changes are tracked and stored in an in-memory map (`activeCalls`)
+- **Call Recording**: All calls are recorded by default using Twilio's dual-channel recording
+- **Detailed Analytics**: The system collects data on call duration, outcome, and performance metrics
+- **Accessible API**: New API endpoints offer easy access to all call data and recordings
+
+### 2. Call Recording Implementation
+
+All calls are now automatically recorded, with:
+
+- **Dual-Channel Recording**: Both sides of the conversation are recorded separately
+- **Recording Access**: Recordings are accessible via `/api/calls/:callSid/recordings` API endpoint
+- **Webhook Integration**: Recording information is included in webhook payloads to the CRM
+- **Local Caching**: Recording metadata is stored for quick access
+
+### 3. Automatic Call Termination
+
+The system now properly terminates calls when the ElevenLabs agent ends the conversation:
+
+- **Multiple Detection Methods**:
+  - Direct detection from conversation_completed events
+  - Pattern detection from transcript content (goodbye phrases)
+  - Inactivity detection (60-second timeout)
+
+- **Reliable Termination**: Uses Twilio API to properly end calls
+- **Cross-Module Communication**: Webhook handler and WebSocket handlers can both trigger termination
+
+### 4. Architectural Improvements
+
+- **Module Organization**: Better separation of concerns between modules
+- **Shared Data Structures**: Centralized tracking of call information
+- **Better Error Handling**: Comprehensive error handling across all components
+- **Enhanced Logging**: Detailed logging for debugging and monitoring
+- **Call Statistics**: New module for collecting and analyzing call performance
+- **Configuration**: More flexible configuration options
 
 ## Implementation Methods
 
-This repository includes three different ways to implement outbound calling with ElevenLabs:
+This repository includes four different ways to implement outbound calling with ElevenLabs:
 
-### 1. Server-Based Implementation (Recommended)
+### 1. Enhanced Server Implementation (Recommended)
 
-Uses `server.js` and `outbound.js` to create a local server that bridges Twilio and ElevenLabs. This is the officially recommended approach by ElevenLabs for production use.
+Uses the enhanced architecture with `server.js` to create a robust local server that bridges Twilio and ElevenLabs. This is the recommended approach for production use.
 
 **Benefits:**
 - Full control over the call flow
-- Customizable error handling
-- Supports all ElevenLabs features
-- Better for production deployments
+- Comprehensive data collection
+- Automatic call recording
+- Intelligent call termination
+- Production-ready architecture
 
 **Usage:**
 ```bash
 npm start
-# Then make calls via the API endpoint
+# or use the convenience script
+.\start-enhanced.bat
 ```
 
 ### 2. Direct API Implementation
@@ -76,6 +123,48 @@ Uses `sheet-call.js` to automate outbound calls using contact data from a Google
 ```bash
 npm run sheet-call -- YOUR_SPREADSHEET_ID [SheetName] [MaxCalls]
 ```
+
+## New API Endpoints
+
+### Call Management
+
+- `POST /outbound-call` - Initiate an outbound call
+- `GET /call/:callSid` - Get information about a call
+- `GET /api/calls/:callSid/recordings` - Get recordings for a call
+- `GET /api/call-stats` - Get comprehensive call statistics
+- `POST /api/calls/:callSid/terminate` - Terminate an active call
+
+### Email
+
+- `POST /api/email/send` - Send an email
+- `GET /api/email/health` - Check email service health
+
+### Webhooks
+
+- `POST /webhooks/elevenlabs` - ElevenLabs webhook endpoint
+- `POST /webhooks/elevenlabs-debug` - Debug webhook endpoint
+- `GET /webhooks/elevenlabs/health` - Check webhook health
+
+### WebSocket Endpoints
+
+- `/outbound-media-stream` - WebSocket endpoint for Twilio media streaming
+
+## Testing Enhanced Features
+
+1. **Recording Test**:
+   - Make a test call using `make-call.js`
+   - When the call completes, use `/api/calls/:callSid/recordings` to verify recording data
+   - Download the recording using the provided URLs
+
+2. **Auto-Termination Test**:
+   - Make a test call and wait for the ElevenLabs agent to complete its task
+   - Observe that the call is automatically terminated without human intervention
+   - Check the logs for "[Call Control] Terminating call" messages
+
+3. **Inactivity Test**:
+   - Make a test call but do not respond to the agent
+   - The call should automatically terminate after 60 seconds of inactivity
+   - Check the logs for "[Call Control] Inactivity detected" messages
 
 ## Google Sheets Integration
 
@@ -213,6 +302,10 @@ TWILIO_PHONE_NUMBER=your_twilio_phone_number
 ELEVENLABS_AGENT_ID=your_elevenlabs_agent_id
 ELEVENLABS_API_KEY=your_elevenlabs_api_key
 
+# ElevenLabs webhook settings
+ELEVENLABS_WEBHOOK_SECRET=your_webhook_secret_from_elevenlabs
+CRM_WEBHOOK_URL=https://your-crm-webhook-url
+
 # Optional settings
 VERIFIED_NUMBERS=+1234567890,+0987654321
 CALL_DELAY=60000
@@ -258,10 +351,12 @@ ngrok config add-authtoken YOUR_AUTHTOKEN
 
 ## Running the Server
 
-1. **Start the server:**
+1. **Start the enhanced server:**
 
 ```bash
 npm start
+# or use the convenience script
+.\start-enhanced.bat
 ```
 
 2. **For development with auto-reload:**
@@ -276,6 +371,8 @@ In a new terminal window, run:
 
 ```bash
 ngrok http 8000
+# or use the convenience script
+.\start-ngrok.bat
 ```
 
 4. **Note the forwarding URL:**
@@ -295,7 +392,7 @@ This allows the test script to automatically use your ngrok URL.
 
 ## Making Outbound Calls
 
-You can make outbound calls in two ways:
+You can make outbound calls in several ways:
 
 ### 1. Using the test script:
 
@@ -316,7 +413,14 @@ npm run test-call -- +1234567890 "You are a sales agent" "Hello, I'm calling abo
 npm run test-call -- +1234567890 "Default prompt" "Default message" https://a1b2c3d4.ngrok.io
 ```
 
-### 2. Using curl or any HTTP client:
+### 2. Using the enhanced test script:
+
+```bash
+# Makes a call using the enhanced server features
+.\test-enhanced-call.bat +1234567890
+```
+
+### 3. Using curl or any HTTP client:
 
 ```bash
 curl -X POST https://your-ngrok-url/outbound-call \
@@ -333,37 +437,20 @@ curl -X POST https://your-ngrok-url/outbound-call \
 - `number` (required): The phone number to call, in E.164 format (e.g., +12345678990)
 - `prompt` (optional): A custom prompt to override the default agent behavior
 - `first_message` (optional): The first message the agent should say when the call connects
+- `name` (optional): The name of the person being called (for personalization)
+- `callerId` (optional): A custom caller ID to use for this call
+- `region` (optional): Twilio region to use for the call (defaults to au1 for Australia)
 
 ## Email Integration
 
 The server includes email functionality for sending conversation summaries, follow-ups, or notifications. This is implemented using AWS SES (Simple Email Service) with a fallback to a test email account.
-
-### Configuration
-
-Email settings are configured in the `.env` file:
-
-```bash
-# Email configuration for Amazon SES
-SES_SMTP_HOST=email-smtp.ap-southeast-2.amazonaws.com
-SES_SMTP_PORT=587
-SES_SMTP_USERNAME=your-ses-username
-SES_SMTP_PASSWORD=your-ses-password
-SES_FROM_EMAIL=noreply@yourdomain.com
-SES_REPLY_TO=info@yourdomain.com
-EMAIL_API_KEY=your-email-api-key
-
-# Additional SES options
-SES_REGION=ap-southeast-2
-SES_DEBUG=true
-EMAIL_FALLBACK_ENABLED=true
-```
 
 ### Using the Email API
 
 You can send emails through the server's API endpoint:
 
 ```bash
-curl -X POST https://your-ngrok-url/send-email \
+curl -X POST https://your-ngrok-url/api/email/send \
 -H "Content-Type: application/json" \
 -H "Authorization: Bearer your-email-api-key" \
 -d '{
@@ -379,10 +466,6 @@ curl -X POST https://your-ngrok-url/send-email \
 If AWS SES authentication fails, the system can automatically fall back to using a test email account (Ethereal Email). This provides a preview URL instead of sending a real email, which is useful for development and testing.
 
 To enable/disable fallback mode, set `EMAIL_FALLBACK_ENABLED` to `true` or `false` in your `.env` file.
-
-### Email Status
-
-For detailed information about the current email integration status, see the [Email Integration Status](./email-tools/EMAIL_INTEGRATION_STATUS.md) document.
 
 ## Troubleshooting
 
@@ -406,6 +489,15 @@ For detailed information about the current email integration status, see the [Em
    - If you get "failed to start tunnel", check your firewall settings
    - For "address already in use", make sure no other service is using port 8000
 
+5. **Recording Issues**
+   - If recordings aren't being created, verify Twilio permissions
+   - Check the logs for "[Recording]" entries to diagnose issues
+
+6. **Call Not Ending Automatically**
+   - Check that `ELEVENLABS_WEBHOOK_SECRET` is properly configured
+   - Verify that the webhook is reaching your server
+   - Check logs for "[Webhook]" entries
+
 ## Security Considerations
 
 ### Environment Variables
@@ -420,7 +512,7 @@ This project uses sensitive credentials (Twilio, ElevenLabs, and AWS SES) that s
    # Then edit .env with your actual credentials
    ```
 
-3. When sharing the codebase (like with Craig), ensure all real credentials are removed.
+3. When sharing the codebase, ensure all real credentials are removed.
 
 ### For Production Deployments
 
@@ -442,5 +534,3 @@ MIT
 - [Twilio](https://twilio.com) for their communication APIs
 - [ngrok](https://ngrok.com) for secure tunneling software
 - The open-source community for various tools and libraries used in this project
-
-node sheet-call.js 1gpLvi_KwJpw5EiF2Wnln44wsSOwXVSap2TB2v_oxKiM

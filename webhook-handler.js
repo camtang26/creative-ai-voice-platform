@@ -1,5 +1,14 @@
 import crypto from 'crypto';
 import fetch from 'node-fetch';
+import Twilio from 'twilio';
+
+// Reference to the active calls map from outbound.js (will be set by server.js)
+let activeCalls = null;
+
+// Set the activeCalls reference for data sharing between modules
+export function setActiveCallsReference(callsMap) {
+  activeCalls = callsMap;
+}
 
 // Helper function to verify the webhook signature from ElevenLabs
 export function verifyWebhookSignature(payload, signature, secret) {
@@ -113,8 +122,76 @@ export function extractPhoneNumber(webhookData) {
   }
 }
 
+// Extract the conversation ID from webhook data
+export function extractConversationId(webhookData) {
+  try {
+    // Try to get conversation ID from dynamic variables
+    const dynamicVars = webhookData.data?.conversation_initiation_client_data?.dynamic_variables;
+    if (dynamicVars && dynamicVars.conversation_id) {
+      return dynamicVars.conversation_id;
+    }
+    
+    // If not found, try to get it from the metadata
+    if (webhookData.data?.metadata?.conversation_id) {
+      return webhookData.data.metadata.conversation_id;
+    }
+    
+    // If still not found, check for the conversation ID in the top level
+    if (webhookData.conversation_id) {
+      return webhookData.conversation_id;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('[Webhook] Error extracting conversation ID:', error);
+    return null;
+  }
+}
+
+// Extract call SID information from webhook data
+export function extractCallSid(webhookData) {
+  try {
+    // Try to get call SID from dynamic variables
+    const dynamicVars = webhookData.data?.conversation_initiation_client_data?.dynamic_variables;
+    if (dynamicVars && dynamicVars.call_sid) {
+      return dynamicVars.call_sid;
+    }
+    
+    // If we don't have it, return null
+    return null;
+  } catch (error) {
+    console.error('[Webhook] Error extracting call SID:', error);
+    return null;
+  }
+}
+
+// Function to find call SID by conversation ID in active calls
+function findCallSidByConversationId(conversationId) {
+  if (!activeCalls || !conversationId) return null;
+  
+  for (const [callSid, callInfo] of activeCalls.entries()) {
+    if (callInfo.conversation_id === conversationId) {
+      return callSid;
+    }
+  }
+  
+  return null;
+}
+
+// Function to terminate a call via Twilio API
+export async function terminateCall(twilioClient, callSid) {
+  try {
+    console.log(`[Webhook] Terminating call ${callSid} after conversation completion`);
+    await twilioClient.calls(callSid).update({ status: 'completed' });
+    return true;
+  } catch (error) {
+    console.error(`[Webhook] Error terminating call ${callSid}:`, error);
+    return false;
+  }
+}
+
 // Main function to handle webhooks
-export async function handleElevenLabsWebhook(request, secret, crmEndpoint) {
+export async function handleElevenLabsWebhook(request, secret, crmEndpoint, twilioClient = null) {
   try {
     // Get the signature header
     const signature = request.headers['elevenlabs-signature'];
@@ -138,9 +215,51 @@ export async function handleElevenLabsWebhook(request, secret, crmEndpoint) {
       console.log('[Webhook] Skipping signature verification (no secret or signature)');
     }
     
+    // Handle different webhook types
+    const webhookType = webhookData.type || 'unknown';
+    console.log(`[Webhook] Processing webhook type: ${webhookType}`);
+    
+    // Extract conversation ID and call SID - regardless of webhook type
+    const conversationId = extractConversationId(webhookData);
+    let callSid = extractCallSid(webhookData);
+    
+    // If we have a conversation ID but no call SID, try to find it in active calls
+    if (conversationId && !callSid && activeCalls) {
+      callSid = findCallSidByConversationId(conversationId);
+      console.log(`[Webhook] Found call SID ${callSid} for conversation ID ${conversationId}`);
+    }
+    
+    // Store additional information in call tracking map if needed
+    if (callSid && activeCalls && activeCalls.has(callSid)) {
+      const callInfo = activeCalls.get(callSid);
+      
+      // Update with conversationId if we have it
+      if (conversationId && !callInfo.conversation_id) {
+        callInfo.conversation_id = conversationId;
+        activeCalls.set(callSid, callInfo);
+      }
+    }
+    
+    // Special handling for conversation_completed events
+    if (webhookType === 'conversation_completed') {
+      console.log(`[Webhook] Conversation completed event received for conversation ${conversationId}`);
+      
+      // If we have a call SID and Twilio client, terminate the call
+      if (callSid && twilioClient) {
+        await terminateCall(twilioClient, callSid);
+      }
+      
+      return { 
+        success: true, 
+        message: 'Conversation completed event processed',
+        conversationId,
+        callSid
+      };
+    }
+    
     // Skip if this is not a post-call transcription event
-    if (webhookData.type !== 'post_call_transcription') {
-      console.log(`[Webhook] Ignoring event type: ${webhookData.type}`);
+    if (webhookType !== 'post_call_transcription') {
+      console.log(`[Webhook] Ignoring event type: ${webhookType}`);
       return { success: true, message: 'Event type ignored' };
     }
     
@@ -151,6 +270,9 @@ export async function handleElevenLabsWebhook(request, secret, crmEndpoint) {
     const summary = webhookData.data?.analysis?.transcript_summary || 'No summary available';
     const duration = webhookData.data?.metadata?.call_duration_secs || 0;
     
+    // Get transcripts for enhanced data
+    const transcripts = webhookData.data?.transcript || [];
+    
     // Construct the payload for Craig's endpoint
     const crmPayload = {
       "type": "conversationAICall",
@@ -159,8 +281,29 @@ export async function handleElevenLabsWebhook(request, secret, crmEndpoint) {
       "name": name,
       "summary": summary,
       "status": status,
-      "duration": duration
+      "duration": duration,
+      "conversationId": conversationId,
+      "callSid": callSid,
+      // Add enhanced data
+      "enhanced": {
+        "messageCount": transcripts.length,
+        "userMessageCount": transcripts.filter(msg => msg.role === 'user').length,
+        "agentMessageCount": transcripts.filter(msg => msg.role === 'agent').length,
+        "transcript": transcripts.map(msg => ({
+          role: msg.role,
+          message: msg.message,
+          timestamp: msg.timestamp || null
+        }))
+      }
     };
+    
+    // If we have recording info for this call, include it
+    if (callSid && activeCalls && activeCalls.has(callSid)) {
+      const callInfo = activeCalls.get(callSid);
+      if (callInfo.recordings && callInfo.recordings.length > 0) {
+        crmPayload.enhanced.recordings = callInfo.recordings;
+      }
+    }
     
     console.log('[Webhook] Sending to CRM endpoint:', JSON.stringify(crmPayload, null, 2));
     

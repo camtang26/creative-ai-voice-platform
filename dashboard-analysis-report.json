@@ -1,0 +1,97 @@
+{
+  "timestamp": "2025-03-25T02:38:38.023Z",
+  "serverUrl": "https://a322-117-20-68-34.ngrok-free.app",
+  "queryTimes": [
+    {
+      "query": "Dashboard Overview",
+      "time": 214.62720000000013,
+      "params": {}
+    },
+    {
+      "query": "Dashboard Overview",
+      "time": 172.1735000000001,
+      "params": {
+        "days": 1
+      }
+    },
+    {
+      "query": "Dashboard Overview",
+      "time": 203.22129999999993,
+      "params": {
+        "days": 7
+      }
+    },
+    {
+      "query": "Dashboard Overview",
+      "time": 207.26710000000003,
+      "params": {
+        "days": 30
+      }
+    },
+    {
+      "query": "Dashboard Overview",
+      "time": 199.07929999999988,
+      "params": {
+        "period": "day"
+      }
+    },
+    {
+      "query": "Dashboard Overview",
+      "time": 233.04130000000032,
+      "params": {
+        "period": "week"
+      }
+    },
+    {
+      "query": "Dashboard Overview",
+      "time": 211.3390999999997,
+      "params": {
+        "period": "month"
+      }
+    },
+    {
+      "query": "Dashboard Overview (Empty Database)",
+      "time": 172.66280000000006,
+      "params": {}
+    },
+    {
+      "query": "Dashboard Overview (Large Dataset)",
+      "time": 165.9993999999997,
+      "params": {}
+    }
+  ],
+  "responseStructure": {
+    "topLevel": [
+      "success",
+      "data"
+    ],
+    "dataFields": [
+      "summary",
+      "recentCalls",
+      "sentiment"
+    ],
+    "summaryFields": [
+      "period",
+      "calls",
+      "sentiment"
+    ],
+    "recentCallsCount": 5,
+    "sentimentFields": [
+      "0"
+    ]
+  },
+  "errors": [],
+  "warnings": [
+    {
+      "testCase": "Empty Database",
+      "warning": "Recent calls not empty in empty database"
+    }
+  ],
+  "summary": {
+    "avgQueryTime": 197.7123333333333,
+    "minQueryTime": 165.9993999999997,
+    "maxQueryTime": 233.04130000000032,
+    "errorCount": 0,
+    "warningCount": 1
+  }
+}
