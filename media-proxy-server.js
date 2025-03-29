@@ -11,22 +11,23 @@ import {
   // NOTE: Removed DB repository imports and socket-server imports as this service is isolated
 } from './outbound.js';
 
-// --- Environment Variable Check ---
+// --- Environment Variable Check (Specific to this service) ---
 const {
   ELEVENLABS_API_KEY,
   ELEVENLABS_AGENT_ID,
-  TWILIO_ACCOUNT_SID, // Needed if terminateCall uses a client initialized here
-  TWILIO_AUTH_TOKEN  // Needed if terminateCall uses a client initialized here
+  TWILIO_ACCOUNT_SID, // Only needed if terminateCall requires direct client init here
+  TWILIO_AUTH_TOKEN  // Only needed if terminateCall requires direct client init here
 } = process.env;
 
+// Only check for variables absolutely required by this proxy service's core function
 if (!ELEVENLABS_API_KEY || !ELEVENLABS_AGENT_ID) {
-  console.error("[Media Proxy] Missing required ElevenLabs environment variables (ELEVENLABS_API_KEY, ELEVENLABS_AGENT_ID)");
-  process.exit(1);
+  console.error("[Media Proxy] FATAL: Missing required ElevenLabs environment variables (ELEVENLABS_API_KEY, ELEVENLABS_AGENT_ID)");
+  process.exit(1); // Exit if core variables are missing
 }
 
-// Optional: Initialize Twilio client here if terminateCall needs it and doesn't get it passed
-// If terminateCall is self-contained or relies on env vars, this might not be needed.
-// If the main app handles termination via webhooks/API, this is definitely not needed here.
+// Optional: Initialize Twilio client here ONLY if terminateCall needs it directly
+// AND if the main service isn't handling termination via webhooks/API calls.
+// If the main service handles termination, this client initialization can be removed.
 // For now, initialize it for safety, assuming terminateCall might be used directly.
 let twilioClient = null;
 if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
@@ -118,9 +119,11 @@ proxyServer.get('/outbound-media-stream', { websocket: true }, (connection, req)
         updateActivity();
         let message = null;
         const rawData = data.toString();
+        // proxyServer.log.info('[WS Proxy] Received message RAW from ElevenLabs:', rawData); // Verbose
 
         try {
           message = JSON.parse(rawData);
+          // proxyServer.log.info('[WS Proxy] Parsed message JSON from ElevenLabs:', JSON.stringify(message, null, 2)); // Verbose
         } catch (parseError) {
            proxyServer.log.error('[WS Proxy] Could not parse message from ElevenLabs as JSON:', parseError.message, { rawData });
            if (!initialConfigSent) return; // Critical if first message fails
@@ -172,7 +175,7 @@ proxyServer.get('/outbound-media-stream', { websocket: true }, (connection, req)
         if (message && !conversationId && message.conversation_id) {
            conversationId = message.conversation_id;
            proxyServer.log.info(`[WS Proxy] Received conversation_id ${conversationId} from subsequent message`);
-           // Cannot update DB from here
+           // Cannot update DB from here in split architecture
         }
 
         if (message) {
