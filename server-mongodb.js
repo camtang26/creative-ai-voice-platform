@@ -1,5 +1,5 @@
 /**
- * Enhanced Server with MongoDB Integration
+ * Enhanced Server with MongoDB Integration (Main App Service)
  * 
  * Key Improvements:
  * 1. Enhanced Twilio data collection
@@ -14,19 +14,18 @@
 import 'dotenv/config';
 import fastify from 'fastify';
 import fastifySocketIO from 'fastify-socket.io'; // Import the socket.io plugin
-import fastifyWebsocket from '@fastify/websocket'; // Restore this import
+// Removed @fastify/websocket import - moved to media-proxy-server.js
 import fastifyFormBody from '@fastify/formbody';
 import fetch from 'node-fetch';
 import crypto from 'crypto';
 import Twilio from 'twilio';
-import WebSocket from 'ws'; 
+// Removed WebSocket import - not needed in this service
 import { 
   registerOutboundRoutes, 
   activeCalls, 
-  getSignedUrl, 
-  terminateCall, 
-  isConversationComplete,
-  setDynamicVariables 
+  // Removed getSignedUrl, isConversationComplete as they are likely only needed by proxy
+  terminateCall, // Keep if needed by webhooks/API directly
+  // setDynamicVariables // Likely only needed by proxy
 } from './outbound.js'; 
 import { sendEmail } from './email-tools/api-email-service.js';
 import { sendSESEmail } from './email-tools/aws-ses-email.js';
@@ -99,7 +98,7 @@ server.register(fastifySocketIO, {
   },
   // Force WebSocket transport only
   transports: ['websocket'], 
-  path: '/socket.io/',
+  path: '/socket.io/', // Original path for frontend connection
   pingInterval: 10000,
   pingTimeout: 5000,
   connectTimeout: 5000,
@@ -111,23 +110,13 @@ server.register(fastifySocketIO, {
   randomizationFactor: 0.5
 });
 
-// Register @fastify/websocket AFTER fastify-socket.io
-server.register(fastifyWebsocket, {
-  options: { 
-    perMessageDeflate: false,    
-    maxPayload: 64 * 1024,       
-    handshakeTimeout: 5000,      
-    clientTracking: false,       
-    clientNoContextTakeover: true,
-    serverNoContextTakeover: true 
-  }
-});
+// Removed @fastify/websocket registration - moved to media-proxy-server.js
 server.register(fastifyFormBody);
 
 // Register API middleware
 registerApiMiddleware(server);
 
-// Register outbound calling routes
+// Register outbound calling routes (will need MEDIA_PROXY_SERVICE_URL env var)
 registerOutboundRoutes(server, { skipCallStatusCallback: true });
 
 // Register additional API routes
@@ -152,7 +141,7 @@ callQualityMetrics.setTwilioClientReference(twilioClient);
 // Start the call monitoring heartbeat
 enhancedCallHandler.startCallMonitoringHeartbeat(5000); 
 
-// Helper function to verify webhook signature
+// Helper function to verify webhook signature (kept for ElevenLabs webhook)
 function verifySignature(payload, signature, secret) {
   if (!secret || !signature) {
     console.log('[Webhook] No secret or signature provided, skipping validation');
@@ -173,256 +162,7 @@ function verifySignature(payload, signature, secret) {
   }
 }
 
-// --- WebSocket Proxy Handler ---
-// Restore the route using @fastify/websocket
-server.get('/outbound-media-stream', { websocket: true }, (connection, req) => { 
-  server.log.info('[WS Proxy] Twilio connected to outbound media stream');
-
-  const transcriptRepository = getTranscriptRepository();
-  const callEventRepository = getCallEventRepository();
-  const callRepository = getCallRepository(); 
-
-  let streamSid = null;
-  let callSid = null;
-  let elevenLabsWs = null;
-  let customParameters = {}; 
-  let conversationId = null; 
-  let initialConfigSent = false; // Flag to ensure we only send config once
-  let inactivityTimeout = null; 
-  let lastActivity = Date.now(); 
-
-  const startInactivityTimer = () => {
-    if (inactivityTimeout) clearTimeout(inactivityTimeout);
-    inactivityTimeout = setTimeout(() => {
-      server.log.warn(`[WS Proxy] Inactivity detected for call ${callSid}, terminating call`);
-      if (callSid && twilioClient) { terminateCall(twilioClient, callSid); }
-      if (elevenLabsWs?.readyState === WebSocket.OPEN) elevenLabsWs.close();
-      if (connection.socket.readyState === WebSocket.OPEN) connection.socket.close(); 
-    }, 60000); 
-  };
-
-  const updateActivity = () => {
-    lastActivity = Date.now();
-    startInactivityTimer();
-  };
-
-  connection.socket.on('error', (error) => { 
-    server.log.error('[WS Proxy] Twilio WebSocket error', error);
-  });
-
-  const setupElevenLabs = async () => {
-    try {
-      const { signed_url } = await getSignedUrl(); 
-      
-      server.log.info('[WS Proxy] Creating ElevenLabs WebSocket connection');
-      elevenLabsWs = new WebSocket(signed_url); 
-
-      elevenLabsWs.on("open", () => {
-        server.log.info('[WS Proxy] Connected to ElevenLabs Conversational AI. Waiting for metadata...');
-        updateActivity(); 
-      });
-
-      // SINGLE message handler for ElevenLabs WebSocket
-      elevenLabsWs.on("message", (data) => {
-        updateActivity(); 
-        let message = null;
-        const rawData = data.toString(); 
-        server.log.info('[WS Proxy] Received message RAW from ElevenLabs:', rawData); // Log raw data first
-
-        try {
-          message = JSON.parse(rawData);
-          // Log the parsed object safely using stringify
-          server.log.info('[WS Proxy] Successfully parsed message JSON from ElevenLabs:', JSON.stringify(message, null, 2));
-        } catch (parseError) {
-           server.log.error('[WS Proxy] Could not parse message from ElevenLabs as JSON:', parseError.message, { rawData });
-           // Decide if we should return or try to process based on type if possible
-           // For now, we'll return if parsing fails on the first expected message
-           if (!initialConfigSent) return; 
-        }
-
-        // --- Handle Initial Metadata & Send Minimal Config ---
-        // Check if it's the metadata message AND we haven't sent config yet
-        if (message?.type === "conversation_initiation_metadata" && !initialConfigSent) {
-          initialConfigSent = true; 
-          const metadataEvent = message.conversation_initiation_metadata_event;
-          server.log.info('[WS Proxy] Received conversation_initiation_metadata:', metadataEvent); 
-          
-          if (metadataEvent?.conversation_id) {
-            conversationId = metadataEvent.conversation_id;
-            server.log.info(`[WS Proxy] Extracted conversation_id ${conversationId} from metadata`);
-          } else {
-             server.log.warn('[WS Proxy] conversation_initiation_metadata missing conversation_id', metadataEvent);
-          }
-
-          // Prepare and send config FIRST
-          const initialConfig = {
-            type: "conversation_initiation_client_data",
-            conversation_config_override: {
-              agent: {
-                ...(customParameters?.first_message && { first_message: customParameters.first_message }),
-                ...(customParameters?.prompt && { system_prompt: customParameters.prompt })
-              },
-              // audio: { optimize_latency: true, stream_chunk_size: 512, sample_rate: 16000, silence_threshold: 0.1 } // Commented out based on outbound guide
-            },
-            dynamic_variables: {
-               phone_number: customParameters?.to || "Unknown",
-               name: customParameters?.name || "Unknown",
-               contact_name: customParameters?.name || "Unknown",
-               call_sid: callSid || "Unknown",
-               campaign_id: customParameters?.campaignId || null,
-               contact_id: customParameters?.contactId || null
-            }
-          };
-          const messageToLog = initialConfig.conversation_config_override.agent.first_message;
-          server.log.debug('[WS Proxy] Sending initial config with dynamic variables to ElevenLabs after receiving metadata', {
-              first_message: messageToLog ? messageToLog.substring(0,50) : '<Agent Default>'
-          });
-          server.log.debug('[WS Proxy] Full initialConfig being sent:', JSON.stringify(initialConfig, null, 2));
-          elevenLabsWs.send(JSON.stringify(initialConfig));
-          
-          // Don't process this metadata message further
-          return;
-        }
-        // --- End of Initial Metadata Handling ---
-
-        // --- Process Subsequent Messages ---
-        if (!initialConfigSent) {
-           // If we haven't received metadata and sent config yet, ignore other messages
-           server.log.warn('[WS Proxy] Received message before initial metadata/config sent. Ignoring.', message);
-           return; 
-        }
-
-        // Capture conversation_id if missed (redundancy, only if message is valid JSON)
-        if (message && !conversationId && message.conversation_id) {
-           conversationId = message.conversation_id;
-           server.log.info(`[WS Proxy] Received conversation_id ${conversationId} from subsequent message`);
-           if (callSid) {
-              callRepository.updateCallStatus(callSid, null, { conversationId })
-                 .catch(err => server.log.error(`[WS Proxy] Error updating DB with conversationId for ${callSid}:`, err));
-           }
-        }
-
-        // Only proceed if message was parsed
-        if (message) {
-            if (isConversationComplete(message)) {
-              server.log.info(`[WS Proxy] Conversation complete detected, terminating call ${callSid}`);
-              if (callSid && twilioClient) { terminateCall(twilioClient, callSid); }
-              return; 
-            }
-
-            switch (message.type) {
-              case "audio":
-                if (streamSid && message.audio?.chunk) {
-                  connection.socket.send(JSON.stringify({ event: "media", streamSid, media: { payload: message.audio.chunk } })); 
-                }
-                break;
-              case "interruption":
-                if (streamSid) connection.socket.send(JSON.stringify({ event: "clear", streamSid })); 
-                break;
-              case "ping":
-                if (message.ping_event?.event_id) {
-                  elevenLabsWs.send(JSON.stringify({ type: "pong", event_id: message.ping_event.event_id }));
-                }
-                break;
-              case "transcript_update":
-                const transcriptMsg = message.transcript_update;
-                if (transcriptMsg && transcriptMsg.message && callSid) {
-                   server.log.debug(`[WS Proxy] Transcript: ${transcriptMsg.role}: ${transcriptMsg.message.substring(0,50)}...`);
-                   const messageDetails = { role: transcriptMsg.role, message: transcriptMsg.message, timestamp: transcriptMsg.timestamp || new Date().toISOString() };
-                   transcriptRepository.addMessageToTranscript(callSid, messageDetails)
-                     .catch(err => server.log.error(`[WS Proxy] Error saving transcript message for ${callSid}:`, err));
-                   emitTranscriptMessage(callSid, messageDetails);
-                   const eventType = messageDetails.role === 'agent' ? 'agent_response' : 'user_message';
-                   const eventSource = messageDetails.role === 'agent' ? 'elevenlabs' : 'user';
-                   callEventRepository.logEvent(callSid, eventType, messageDetails, { source: eventSource })
-                     .catch(err => server.log.error(`[WS Proxy] Error logging transcript event for ${callSid}:`, err));
-                }
-                break;
-              default:
-                 // Log other potentially useful events
-                 if (callSid && message.type !== 'audio' && message.type !== 'ping' && message.type !== 'conversation_initiation_metadata') { // Avoid re-logging metadata
-                    callEventRepository.logEvent(callSid, 'custom', message, { source: 'elevenlabs' })
-                      .catch(err => server.log.error(`[WS Proxy] Error logging custom event for ${callSid}:`, err));
-                 }
-                 server.log.debug(`[WS Proxy] Received ElevenLabs message type: ${message.type}`);
-            }
-        }
-        // --- End Process Subsequent Messages ---
-      }); // End of SINGLE on("message") handler
-
-      elevenLabsWs.on("error", (error) => {
-        server.log.error('[WS Proxy] ElevenLabs WebSocket error', error);
-      });
-
-      elevenLabsWs.on("close", () => {
-        server.log.info('[WS Proxy] ElevenLabs WebSocket disconnected');
-        if (inactivityTimeout) clearTimeout(inactivityTimeout);
-        if (callSid && twilioClient) {
-           server.log.info(`[WS Proxy] ElevenLabs WS closed. Ensuring call ${callSid} is terminated.`);
-           terminateCall(twilioClient, callSid);
-        }
-        if (connection.socket.readyState === WebSocket.OPEN) connection.socket.close(); 
-      });
-
-    } catch (error) {
-      server.log.error('[WS Proxy] ElevenLabs setup error', error);
-      if (connection.socket.readyState === WebSocket.OPEN) connection.socket.close(); 
-    }
-  };
-
-  setupElevenLabs(); 
-
-  connection.socket.on("message", (message) => { 
-    updateActivity();
-    try {
-      const msg = JSON.parse(message);
-      switch (msg.event) {
-        case "start":
-          streamSid = msg.start.streamSid;
-          callSid = msg.start.callSid;
-          customParameters = msg.start.customParameters || {}; 
-          server.log.info(`[WS Proxy] Received TwiML Parameters:`, customParameters); 
-          server.log.info(`[WS Proxy] Twilio Stream started`, { streamSid, callSid });
-          if (callSid && activeCalls.has(callSid)) {
-             const callInfo = activeCalls.get(callSid);
-             callInfo.conversation_id = null; 
-             activeCalls.set(callSid, callInfo);
-          }
-          startInactivityTimer();
-          break;
-        case "media":
-          if (elevenLabsWs?.readyState === WebSocket.OPEN && msg.media?.payload) {
-            const audioMessage = { user_audio_chunk: msg.media.payload };
-            elevenLabsWs.send(JSON.stringify(audioMessage));
-          }
-          break;
-        case "stop":
-          server.log.info(`[WS Proxy] Twilio Stream ended`, { streamSid });
-          if (inactivityTimeout) clearTimeout(inactivityTimeout);
-          if (elevenLabsWs?.readyState === WebSocket.OPEN) elevenLabsWs.close();
-          break;
-        case "mark":
-          server.log.debug(`[WS Proxy] Twilio Mark: ${msg.mark?.name}`);
-          break;
-        default:
-          server.log.debug(`[WS Proxy] Unhandled Twilio event: ${msg.event}`);
-      }
-    } catch (error) {
-      server.log.error('[WS Proxy] Error processing Twilio message', error);
-    }
-  });
-
-  connection.socket.on("close", () => { 
-    server.log.info('[WS Proxy] Twilio WebSocket disconnected');
-    if (inactivityTimeout) clearTimeout(inactivityTimeout);
-    if (elevenLabsWs?.readyState === WebSocket.OPEN) elevenLabsWs.close();
-    if (callSid && twilioClient) {
-       server.log.info(`[WS Proxy] Twilio WS closed. Ensuring call ${callSid} is terminated.`);
-       terminateCall(twilioClient, callSid);
-    }
-  });
-}); 
-// --- End WebSocket Proxy Handler ---
+// --- WebSocket Proxy Handler Removed (Moved to media-proxy-server.js) ---
 
 // Simple debug webhook
 server.post('/webhooks/elevenlabs-debug', (request, reply) => {
@@ -615,22 +355,23 @@ const start = async () => {
   try {
     await initializeDatabase();
     
-    const port = process.env.PORT || 8000;
+    const port = process.env.PORT || 8000; // Use PORT from Railway, default to 8000 locally
     const host = '0.0.0.0';
     console.log(`[Server] Attempting to listen on ${host}:${port}...`);
     await server.listen({ port, host }); // Start listening first
-    console.log(`[Server] Enhanced server with MongoDB listening on port ${port}`);
+    // Note: Fastify logs the listening address automatically with logger: true
 
     // Initialize our Socket.IO logic AFTER server is listening AND plugin is registered
     try {
-      // Pass the Fastify server instance which now has server.io decorated by the plugin
       initializeSocketServer(server, activeCalls); 
       console.log('[Server] Socket.IO logic initialized using fastify-socket.io');
     } catch (socketErr) {
        console.error('[Server] Socket.IO logic initialization failed:', socketErr);
-       // Decide if we should exit or continue without Socket.IO
     }
-    console.log('[Server] Enhanced features activated: ...'); 
+    
+    // Removed custom WebSocket server initialization - moved to media-proxy-server.js
+
+    console.log('[Server] Enhanced features activated.'); 
     
   } catch (err) {
     console.error('[Server] Error starting server:', err);
