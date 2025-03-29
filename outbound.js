@@ -366,8 +366,15 @@ export function registerOutboundRoutes(fastify, options = {}) { // Added export
     SERVER_URL
   } = process.env;
 
+  // Add detailed logging before the check
+  console.log(`[Env Check] ELEVENLABS_API_KEY: ${!!ELEVENLABS_API_KEY}`);
+  console.log(`[Env Check] ELEVENLABS_AGENT_ID: ${!!ELEVENLABS_AGENT_ID}`);
+  console.log(`[Env Check] TWILIO_ACCOUNT_SID: ${!!TWILIO_ACCOUNT_SID}`);
+  console.log(`[Env Check] TWILIO_AUTH_TOKEN: ${!!TWILIO_AUTH_TOKEN}`);
+  console.log(`[Env Check] TWILIO_PHONE_NUMBER: ${!!TWILIO_PHONE_NUMBER}`);
+
   if (!ELEVENLABS_API_KEY || !ELEVENLABS_AGENT_ID || !TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_PHONE_NUMBER) {
-    console.error("Missing required environment variables");
+    console.error("Missing required environment variables - check detailed logs above.");
     throw new Error("Missing required environment variables");
   }
 
