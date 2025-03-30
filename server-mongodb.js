@@ -391,10 +391,10 @@ wss.on('connection', (ws, request) => {
       server.log.warn(`[WS Manual][Timer] Timer callback executed for call ${callSid}. Checking inactivity.`);
       const timeSinceLastActivity = Date.now() - lastActivity;
       if (timeSinceLastActivity >= INACTIVITY_TIMEOUT_MS) {
-           server.log.warn(`[WS Manual][Timer] Inactivity confirmed for call ${callSid} (${timeSinceLastActivity}ms >= ${INACTIVITY_TIMEOUT_MS}ms). Terminating.`);
-           if (callSid && twilioClient) { terminateCall(twilioClient, callSid); }
-           if (elevenLabsWs?.readyState === WebSocket.OPEN) elevenLabsWs.close();
-           if (ws.readyState === WebSocket.OPEN) ws.close();
+           server.log.warn(`[WS Manual][Timer] Inactivity confirmed for call ${callSid} (${timeSinceLastActivity}ms >= ${INACTIVITY_TIMEOUT_MS}ms). WOULD TERMINATE HERE (DEBUG).`);
+           // if (callSid && twilioClient) { terminateCall(twilioClient, callSid); } // DEBUG: Commented out termination
+           if (elevenLabsWs?.readyState === WebSocket.OPEN) { server.log.warn('[WS Manual][Timer] Closing ElevenLabs WS due to inactivity.'); elevenLabsWs.close(); }
+           if (ws.readyState === WebSocket.OPEN) { server.log.warn('[WS Manual][Timer] Closing Twilio WS due to inactivity.'); ws.close(); }
       } else {
            // This case should ideally not happen with this simpler logic,
            // but log if it does. It means the timer fired but activity happened
