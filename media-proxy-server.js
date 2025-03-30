@@ -40,7 +40,16 @@ if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
 
 // --- Fastify Server Setup ---
 const proxyServer = fastify({
-  logger: true,
+  logger: {
+    level: 'debug', // Explicitly set log level to debug
+    transport: { // Use pino-pretty for potentially better formatting in logs if available
+      target: 'pino-pretty',
+      options: {
+        translateTime: 'SYS:standard',
+        ignore: 'pid,hostname'
+      }
+    }
+  },
   trustProxy: true, // Important for Railway
   genReqId: req => `req-proxy-${crypto.randomBytes(8).toString('hex')}`
 });
@@ -67,6 +76,7 @@ console.log('[Media Proxy] Registered /healthz endpoint');
 // --- WebSocket Proxy Handler ---
 proxyServer.get('/outbound-media-stream', { websocket: true }, (connection, req) => {
   // Note: 'connection' is the stream from @fastify/websocket
+  proxyServer.log.info('!!!!!! [WS Proxy] WebSocket handler invoked! !!!!!!'); // ADDED DIAGNOSTIC LOG
 
   proxyServer.log.info('[WS Proxy] Twilio connected to /outbound-media-stream');
 
