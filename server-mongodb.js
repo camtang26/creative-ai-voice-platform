@@ -124,11 +124,14 @@ server.addContentTypeParser(
   'application/json',
   { parseAs: 'string', bodyLimit: 5 * 1024 * 1024 }, // Read as string, set body limit (e.g., 5MB)
   (req, body, done) => {
+    server.log.debug(`[ContentTypeParser] Running for URL: ${req.url}`); // Log entry
     // This parser applies globally by default, but we only need the raw body for the webhook
     if (req.url === '/webhooks/elevenlabs') { // Check req.url
       // Attach raw body for signature verification (direct assignment in JS)
       req.rawBodyString = body;
-      server.log.info(`[ContentTypeParser] Attached rawBodyString for ${req.url}`); // Add log
+      server.log.info(`[ContentTypeParser] Attached rawBodyString for ${req.url} (Length: ${body?.length})`); // Log attachment and length
+    } else {
+       server.log.debug(`[ContentTypeParser] Skipping rawBodyString attachment for ${req.url}`); // Log skip
     }
     try {
       // Proceed with standard JSON parsing for request.body
