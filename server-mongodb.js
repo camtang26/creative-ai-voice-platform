@@ -372,40 +372,38 @@ wss.on('connection', (ws, request) => {
 
   const INACTIVITY_TIMEOUT_MS = 300000; // 5 minutes for debugging, revert to 60000 later
 
-  const checkInactivity = () => {
-    if (!callSid) {
-      server.log.debug('[WS Manual][Timer] checkInactivity called before callSid is set. Skipping.');
-      // Reschedule check for later, maybe after a short delay? Or rely on first activity?
-      // For now, just skip. The first call to updateActivity will start the proper timer.
-      return;
-    }
-
-    const timeSinceLastActivity = Date.now() - lastActivity;
-    server.log.debug(`[WS Manual][Timer] Checking inactivity for call ${callSid}. Time since last activity: ${timeSinceLastActivity}ms`);
-
-    if (timeSinceLastActivity >= INACTIVITY_TIMEOUT_MS) {
-      server.log.warn(`[WS Manual][Timer] Inactivity threshold reached for call ${callSid} (${timeSinceLastActivity}ms >= ${INACTIVITY_TIMEOUT_MS}ms). Terminating.`);
-      if (callSid && twilioClient) { terminateCall(twilioClient, callSid); }
-      if (elevenLabsWs?.readyState === WebSocket.OPEN) elevenLabsWs.close();
-      if (ws.readyState === WebSocket.OPEN) ws.close();
-      // No need to clear timeout here as it has already fired
-    } else {
-      // Reschedule the check
-      const nextCheckDelay = INACTIVITY_TIMEOUT_MS - timeSinceLastActivity;
-      server.log.debug(`[WS Manual][Timer] Rescheduling inactivity check for call ${callSid} in ${nextCheckDelay}ms`);
-      inactivityTimeout = setTimeout(checkInactivity, nextCheckDelay);
-    }
-  };
-
+  // Simplified timer logic - closer to original but ensuring clear happens first
   const startInactivityTimer = () => {
-    // Clear any *existing* timer first (using clearTimeout just in case it works sometimes)
-    if (inactivityTimeout) {
-      server.log.debug(`[WS Manual][Timer] Clearing potentially existing timer before starting new check cycle for call ${callSid}`);
-      clearTimeout(inactivityTimeout);
+    if (!callSid) {
+       server.log.debug('[WS Manual][Timer] startInactivityTimer called before callSid is set. Skipping.');
+       return;
     }
-    server.log.debug(`[WS Manual][Timer] Starting inactivity check cycle for call ${callSid}. First check in ${INACTIVITY_TIMEOUT_MS}ms.`);
-    // Start the first check
-    inactivityTimeout = setTimeout(checkInactivity, INACTIVITY_TIMEOUT_MS);
+    // ALWAYS clear the previous timer before setting a new one
+    if (inactivityTimeout) {
+      server.log.debug(`[WS Manual][Timer] Clearing existing timer for call ${callSid}.`);
+      clearTimeout(inactivityTimeout);
+      inactivityTimeout = null; // Explicitly nullify
+    }
+    
+    server.log.debug(`[WS Manual][Timer] Setting new ${INACTIVITY_TIMEOUT_MS}ms timer for call ${callSid}.`);
+    inactivityTimeout = setTimeout(() => {
+      // Log when the timer *callback* starts executing
+      server.log.warn(`[WS Manual][Timer] Timer callback executed for call ${callSid}. Checking inactivity.`);
+      const timeSinceLastActivity = Date.now() - lastActivity;
+      if (timeSinceLastActivity >= INACTIVITY_TIMEOUT_MS) {
+           server.log.warn(`[WS Manual][Timer] Inactivity confirmed for call ${callSid} (${timeSinceLastActivity}ms >= ${INACTIVITY_TIMEOUT_MS}ms). Terminating.`);
+           if (callSid && twilioClient) { terminateCall(twilioClient, callSid); }
+           if (elevenLabsWs?.readyState === WebSocket.OPEN) elevenLabsWs.close();
+           if (ws.readyState === WebSocket.OPEN) ws.close();
+      } else {
+           // This case should ideally not happen with this simpler logic,
+           // but log if it does. It means the timer fired but activity happened
+           // very recently, possibly due to event loop delays.
+           server.log.warn(`[WS Manual][Timer] Timer fired for ${callSid}, but recent activity detected (${timeSinceLastActivity}ms < ${INACTIVITY_TIMEOUT_MS}ms). This might indicate event loop issues. Not terminating.`);
+           // Optionally reschedule here, but let's see if the simple clear/set works first.
+      }
+    }, INACTIVITY_TIMEOUT_MS);
+    server.log.debug(`[WS Manual][Timer] Timer scheduled with ID: ${inactivityTimeout ? 'Set' : 'Failed?'}`); // Check if setTimeout returned a handle
   };
 
   const updateActivity = () => {
@@ -413,12 +411,10 @@ wss.on('connection', (ws, request) => {
       server.log.debug('[WS Manual][Timer] updateActivity called before callSid is set. Skipping timer reset.');
       return; // Don't reset timer if callSid isn't known yet
     }
-    server.log.debug(`[WS Manual][Timer] Activity detected for call ${callSid}. Resetting lastActivity timestamp.`);
+    server.log.debug(`[WS Manual][Timer] Activity detected for call ${callSid}. Resetting timer.`);
     lastActivity = Date.now();
-    // NOTE: We don't immediately restart the timer here.
-    // The currently scheduled checkInactivity will run. When it runs, it will see the updated
-    // lastActivity time and reschedule itself correctly based on the *new* lastActivity time.
-    // This avoids potentially excessive rescheduling if activity happens very frequently.
+    // Restart the timer cycle
+    startInactivityTimer();
   };
 
   const setupElevenLabs = async () => {
