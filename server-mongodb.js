@@ -370,7 +370,7 @@ wss.on('connection', (ws, request) => {
   let inactivityTimeout = null;
   let lastActivity = Date.now();
 
-  const INACTIVITY_TIMEOUT_MS = 300000; // 5 minutes for debugging, revert to 60000 later
+  const INACTIVITY_TIMEOUT_MS = 60000; // Reverted to 60 seconds
   let isTimerActive = false; // Flag to control timer execution
 
   // Flag-based timer logic

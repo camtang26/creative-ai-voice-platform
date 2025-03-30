@@ -151,17 +151,18 @@ export function checkAndTerminateInactiveCalls() {
   for (const [callSid, callInfo] of activeCalls.entries()) {
     // Only check in-progress calls
     if (['in-progress', 'ringing'].includes(callInfo.status)) {
-      // Check for inactivity
+      /* // DISABLED: Inactivity check - This is now handled within the WebSocket handler in server-mongodb.js
       const lastActivity = callActivityTimestamps.get(callSid) || 0;
       if (lastActivity > 0 && now - lastActivity > MAX_INACTIVITY_MS) {
-        console.log(`[Call Control] Call ${callSid} inactive for ${(now - lastActivity)/1000} seconds, terminating`);
-        terminateCall(callSid, { reason: 'inactivity' }).catch(err => {
-          console.error(`[Call Control] Error auto-terminating inactive call ${callSid}:`, err);
-        });
-        continue;
+        console.log(`[Call Control] Call ${callSid} inactive for ${(now - lastActivity)/1000} seconds, terminating (DISABLED)`);
+        // terminateCall(callSid, { reason: 'inactivity' }).catch(err => {
+        //   console.error(`[Call Control] Error auto-terminating inactive call ${callSid}:`, err);
+        // });
+        // continue;
       }
+      */
       
-      // Check for maximum duration
+      // Check for maximum duration (Keep this as a safety net)
       if (callInfo.startTime) {
         const callDuration = now - new Date(callInfo.startTime).getTime();
         if (callDuration > MAX_DURATION_MS) {
