@@ -106,18 +106,27 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
         }
         
         // Fetch transcript (Restored - will fetch from DB API)
-        const transcriptResponse = await fetchCallTranscript(params.id)
-        
-        if (transcriptResponse.success && transcriptResponse.transcript) {
-          // Note: transcriptResponse.transcript will eventually hold the full ElevenLabs object
-          setTranscript(transcriptResponse.transcript)
-        } else if (transcriptResponse.error) {
-           console.warn(`[CallDetailsPage] Failed to load transcript: ${transcriptResponse.error}`);
-           // Optionally set a specific error, but maybe not critical if call/recordings load
+        // Wrap transcript fetch in its own try-catch to isolate its errors
+        try {
+          const transcriptResponse = await fetchCallTranscript(params.id);
+          if (transcriptResponse.success && transcriptResponse.data) { // Check data property based on API response structure
+            // Note: transcriptResponse.data should hold the full TranscriptData object
+            setTranscript(transcriptResponse.data);
+          } else {
+            // Log specific transcript error, but don't set the main page error
+            console.warn(`[CallDetailsPage] Transcript not found or failed to load: ${transcriptResponse.error || 'Unknown transcript error'}`);
+            setTranscript(null); // Ensure transcript state is null if fetch fails
+          }
+        } catch (transcriptErr) {
+           // Catch errors specifically from fetchCallTranscript
+           console.error('[CallDetailsPage] Error fetching transcript:', transcriptErr);
+           setTranscript(null); // Ensure transcript state is null on error
+           // DO NOT set the main 'setError' here
         }
         
       } catch (err) {
-        console.error('Error loading call data:', err)
+        // This catch block now only handles errors from fetchCall and fetchCallRecordings
+        console.error('Error loading core call data (call details or recordings):', err)
         setError('Failed to load call data')
       } finally {
         setLoading(false)
