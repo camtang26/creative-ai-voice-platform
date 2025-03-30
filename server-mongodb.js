@@ -34,7 +34,7 @@ import enhancedCallHandler from './enhanced-call-handler.js';
 import recordingHandler from './recording-handler.js';
 import callQualityMetrics from './call-quality-metrics.js';
 import { registerApiRoutes } from './api-routes.js';
-import { registerElevenLabsApiRoutes } from './elevenlabs-api-routes.js'; // Import new routes
+// Removed import for registerElevenLabsApiRoutes
 import { registerApiMiddleware } from './api-middleware.js';
 import {
   initializeSocketServer,
@@ -126,8 +126,8 @@ registerApiMiddleware(server);
 registerOutboundRoutes(server, { skipCallStatusCallback: true });
 
 // Register additional API routes
-registerApiRoutes(server, twilioClient, activeCalls);
-registerElevenLabsApiRoutes(server); // Register the new ElevenLabs proxy routes
+registerApiRoutes(server, twilioClient, activeCalls); // This now includes the ElevenLabs route
+// Removed call to registerElevenLabsApiRoutes(server);
 
 // Add a simple health check endpoint for Railway
 server.get('/healthz', async (request, reply) => {
