@@ -19,6 +19,7 @@ import { WebSocketServer, WebSocket } from 'ws'; // CORRECTED: Import WebSocketS
 import fastifyFormBody from '@fastify/formbody';
 import fetch from 'node-fetch';
 import crypto from 'crypto';
+import getRawBody from 'raw-body'; // Import raw-body library
 import Twilio from 'twilio';
 import {
   registerOutboundRoutes,
@@ -206,17 +207,33 @@ server.post('/webhooks/elevenlabs-debug', (request, reply) => {
 // MongoDB-enhanced webhook handler
 let enhancedWebhookHandler;
 
+// --- Add onRequest Hook to capture raw body for webhook ---
+server.addHook('onRequest', async (request, reply) => {
+  // Only run for the specific webhook route
+  if (request.url === '/webhooks/elevenlabs' && request.method === 'POST') {
+    try {
+      // Use raw-body to get the buffer/string
+      const rawBodyBuffer = await getRawBody(request.raw, {
+        length: request.headers['content-length'],
+        limit: '5mb', // Adjust limit as needed
+        encoding: 'utf-8' // Ensure correct encoding
+      });
+      // Attach the raw body string to the request object
+      request.rawBodyString = rawBodyBuffer;
+      server.log.info(`[onRequest Hook] Attached rawBodyString for ${request.url}`);
+    } catch (err) {
+      server.log.error('[onRequest Hook] Error reading raw body:', err);
+      // Optionally send an error response if raw body reading fails critically
+      // reply.code(400).send({ error: 'Invalid request body' });
+      // Or just let the request continue and potentially fail at verification/parsing
+    }
+  }
+});
+server.log.info('[Server] Added onRequest hook for webhook raw body');
+// --- End onRequest hook ---
 
 // Main webhook handler
-server.post('/webhooks/elevenlabs',
-  { // Add route config object
-    config: {
-      // Disable default body parsing for this route
-      // We will read the raw body manually in the handler
-      disableBodyParser: true
-    }
-  },
-  async (request, reply) => {
+server.post('/webhooks/elevenlabs', async (request, reply) => { // Removed route config object
   try {
     const webhookSecret = process.env.ELEVENLABS_WEBHOOK_SECRET;
     const signature = request.headers['elevenlabs-signature']; 

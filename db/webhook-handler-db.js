@@ -43,13 +43,17 @@ export function setActiveCallsReference(callsMap) {
     const receivedHash = hashPart.replace('v0=', '');
     
     
-    // Calculate the expected hash using the RAW body string
-    // Ensure rawBodyString is provided, otherwise fallback (though it shouldn't happen with preParsing hook)
-    const bodyToSign = rawBodyString ?? (typeof payload === 'string' ? payload : JSON.stringify(payload));
-    if (!rawBodyString) {
+    // Calculate the expected hash using the RAW body string if available
+    let bodyToSign;
+    if (rawBodyString !== undefined && rawBodyString !== null) {
+       bodyToSign = rawBodyString; // Prioritize raw string
+       console.log('[Webhook Verify] Using provided rawBodyString for signature calculation.');
+    } else {
+       // Fallback to using the potentially parsed payload (should not happen with onRequest hook)
+       bodyToSign = typeof payload === 'string' ? payload : JSON.stringify(payload ?? {});
        console.warn('[Webhook Verify] rawBodyString was not provided to verifyWebhookSignature. Falling back to potentially parsed payload.');
     }
-    const fullPayloadToSign = `${timestamp}.${bodyToSign}`; // Use raw string or fallback
+    const fullPayloadToSign = `${timestamp}.${bodyToSign}`;
     const hmac = crypto.createHmac('sha256', secret);
     hmac.update(fullPayloadToSign);
     const calculatedHash = 'v0=' + hmac.digest('hex');
@@ -440,8 +444,8 @@ async function processTranscriptData(callSid, webhookData) {
      
      // Verify the signature using the RAW body string
      if (secret && signature) {
-       // Pass rawBody to the verification function
-       const isValid = verifyWebhookSignature(null, signature, secret, rawBody); // Pass null for parsed payload
+       // Pass rawBody to the verification function. Pass request.body as the first arg (will be ignored if rawBody exists)
+       const isValid = verifyWebhookSignature(request.body, signature, secret, rawBody);
        if (!isValid) {
          console.error('[Webhook] Invalid signature');
          // Return 200 OK even on invalid signature to prevent ElevenLabs retries, but indicate failure
@@ -452,17 +456,15 @@ async function processTranscriptData(callSid, webhookData) {
       console.log('[Webhook] Skipping signature verification (no secret or signature)');
     }
 
-    // --- Manually parse the JSON body AFTER verification ---
-    let webhookData;
-    try {
-      webhookData = JSON.parse(rawBody || '{}'); // Parse raw body or default to empty object if rawBody is empty/null
-    } catch (parseError) {
-      console.error('[Webhook] Failed to parse raw request body:', parseError);
-      return reply.code(400).send({ success: false, error: 'Invalid request body format' });
+    // --- Use request.body (parsed by Fastify AFTER the onRequest hook) ---
+    const webhookData = request.body;
+    if (!webhookData || typeof webhookData !== 'object') {
+       console.error('[Webhook] Parsed request body is missing or not an object.');
+       return reply.code(400).send({ success: false, error: 'Invalid request body' });
     }
-    // --- End Manual Parsing ---
+    // --- End ---
     
-    // Handle different webhook types using the manually parsed data
+    // Handle different webhook types using the parsed data
     const webhookType = webhookData.type || 'unknown';
     // --- START DEBUG LOGGING ---
     console.log(`[Webhook] Determined webhook type: ${webhookType}`);
