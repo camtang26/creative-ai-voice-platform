@@ -340,20 +340,31 @@ server.get('/outbound-media-stream', { websocket: true }, (connection, req) => {
 
   server.log.info('[WS Proxy] Twilio connected to /outbound-media-stream');
 
-  // --- Send Connected message immediately ---
+  // --- Send Connected message after a short delay ---
   // This is required by the Twilio Media Streams protocol
-  try {
-    connection.socket.send(JSON.stringify({ event: "connected" }));
-    server.log.info('[WS Proxy] Sent "connected" event to Twilio');
-  } catch (err) {
-    server.log.error('[WS Proxy] Failed to send "connected" event to Twilio', err);
-    // Close connection if we can't even send the first message
-    if (connection.socket.readyState === WebSocket.OPEN) connection.socket.close();
-    return; // Stop processing if we can't send connected
-  }
+  // Adding delay to potentially allow socket to stabilize
+  setTimeout(() => {
+    try {
+      server.log.info('[WS Proxy] Attempting to send "connected" event after delay...');
+      connection.socket.send(JSON.stringify({ event: "connected" }), (err) => {
+        if (err) {
+          server.log.error('[WS Proxy] ERROR sending "connected" event after delay:', err);
+          if (connection.socket.readyState === WebSocket.OPEN) connection.socket.close();
+        } else {
+          server.log.info('[WS Proxy] Successfully sent "connected" event after delay.');
+        }
+      });
+    } catch (err) {
+      server.log.error('[WS Proxy] EXCEPTION sending "connected" event after delay:', err);
+      // Close connection if we can't even send the first message
+      if (connection.socket.readyState === WebSocket.OPEN) connection.socket.close();
+      // No return here, let the main handler continue (though it might fail later)
+    }
+  }, 100); // 100ms delay
   // -----------------------------------------
 
   // Now integrate DB repository access if needed for logging/updates
+  // --- WebSocket Handler Logic Continues Here ---
   const callRepository = getCallRepository(); // Get repository instance
   const callEventRepository = getCallEventRepository(); // Get repository instance
 
