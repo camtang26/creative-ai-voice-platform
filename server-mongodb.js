@@ -443,19 +443,29 @@ wss.on('connection', (ws, request) => {
           }
           switch (message.type) {
             case "audio":
-              if (streamSid && message.audio?.chunk) {
-                // Ensure payload is Base64 encoded for Twilio
-                const payloadBase64 = Buffer.isBuffer(message.audio.chunk)
-                  ? message.audio.chunk.toString('base64')
-                  : Buffer.from(message.audio.chunk).toString('base64'); // Handle ArrayBuffer etc. just in case
-                
-                // ADDED: Log the media message before sending
+              // DOCS CONFIRM: audio_event.audio_base_64 is already Base64 encoded.
+              // Do NOT encode it again. Send the received payload directly.
+              // Assuming the received message structure is { type: "audio", audio_event: { audio_base_64: "...", event_id: ... } }
+              // or potentially { type: "audio", audio: { chunk: "..." } } based on older code? Let's use audio_event based on docs.
+              if (streamSid && message.audio_event?.audio_base_64) {
+                const payloadBase64 = message.audio_event.audio_base_64;
                 const mediaEventToSend = { event: "media", streamSid, media: { payload: payloadBase64 } };
+                // Keep the debug log, but use the correct payload variable
                 server.log.debug(`[WS Manual] Sending media event to Twilio. StreamSid: ${streamSid}, Payload (start): ${payloadBase64.substring(0, 20)}...`);
-                
                 ws.send(JSON.stringify(mediaEventToSend), (err) => {
                   if (err) {
                      server.log.error(`[WS Manual] ERROR sending media event (StreamSid: ${streamSid}):`, err);
+                  }
+                });
+              } else if (streamSid && message.audio?.chunk) {
+                // Fallback for older structure just in case, but log a warning
+                server.log.warn('[WS Manual] Received audio chunk in unexpected format (message.audio.chunk). Sending directly.');
+                const payloadBase64 = message.audio.chunk; // Assuming it's already base64
+                const mediaEventToSend = { event: "media", streamSid, media: { payload: payloadBase64 } };
+                server.log.debug(`[WS Manual] Sending media event (fallback format) to Twilio. StreamSid: ${streamSid}, Payload (start): ${payloadBase64.substring(0, 20)}...`);
+                ws.send(JSON.stringify(mediaEventToSend), (err) => {
+                  if (err) {
+                     server.log.error(`[WS Manual] ERROR sending media event (fallback format) (StreamSid: ${streamSid}):`, err);
                   }
                 });
               }
