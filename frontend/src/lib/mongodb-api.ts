@@ -222,12 +222,26 @@ export async function fetchCallTranscript(callSid: string) {
     const response = await fetch(apiUrl);
     
     if (!response.ok) {
-      throw new Error(`Error fetching transcript: ${response.statusText} for URL: ${apiUrl}`);
+      // Don't throw here, return a structured error instead
+      let errorPayload = { message: `API Error: ${response.status} ${response.statusText}` };
+      try {
+        // Try to parse the error response body from the backend API
+        const errorBody = await response.json();
+        errorPayload.message = errorBody?.error || errorPayload.message;
+      } catch (e) {
+        // Ignore if parsing fails, use default message
+      }
+      console.warn(`[API Fetch] Failed fetch for ${apiUrl}. Status: ${response.status}. Error: ${errorPayload.message}`);
+      // Return the standard error structure expected by the calling component
+      return { success: false, error: errorPayload.message, data: null };
     }
     
+    // If response IS ok, parse and return the successful JSON body
     return await response.json();
+    
   } catch (error) {
-    return handleApiError(error, `Failed to fetch transcript for call ${callSid}:`) as any;
+    // This catch block now primarily handles network errors or other unexpected issues during fetch
+    return handleApiError(error, `Network or other error fetching transcript for call ${callSid}:`) as any;
   }
 }
 
