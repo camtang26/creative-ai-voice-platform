@@ -367,9 +367,13 @@ wss.on('connection', (ws, request) => {
   let lastActivity = Date.now();
 
   const startInactivityTimer = () => {
-    if (inactivityTimeout) clearTimeout(inactivityTimeout);
+    if (inactivityTimeout) {
+      server.log.debug(`[WS Manual][Timer] Clearing existing inactivity timer for call ${callSid}`);
+      clearTimeout(inactivityTimeout);
+    }
+    server.log.debug(`[WS Manual][Timer] Setting new 60s inactivity timer for call ${callSid}`);
     inactivityTimeout = setTimeout(() => {
-      server.log.warn(`[WS Manual] Inactivity detected for call ${callSid}, terminating call`);
+      server.log.warn(`[WS Manual][Timer] Inactivity detected for call ${callSid}, terminating call`); // Added [Timer] prefix
       if (callSid && twilioClient) { terminateCall(twilioClient, callSid); }
       if (elevenLabsWs?.readyState === WebSocket.OPEN) elevenLabsWs.close();
       if (ws.readyState === WebSocket.OPEN) ws.close();
@@ -377,6 +381,7 @@ wss.on('connection', (ws, request) => {
   };
 
   const updateActivity = () => {
+    server.log.debug(`[WS Manual][Timer] Activity detected for call ${callSid}. Resetting timer.`); // Added log
     lastActivity = Date.now();
     startInactivityTimer();
   };
