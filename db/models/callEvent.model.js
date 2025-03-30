@@ -30,7 +30,7 @@ const callEventSchema = new Schema({
       'transcript_segment', // ADDED for stream updates
       'agent_response',
       'user_message', // Keep if used elsewhere
-      // 'user_transcript', // Consider if needed, log showed error for transcript_segment
+      'user_transcript', // ADDED based on logs
       'call_quality',
       'error',
       'custom'
