@@ -98,11 +98,12 @@ export function getLatencyStats() {
 export function createTimer(label) {
   if (!latencyStats.debugEnabled) {
     // Return no-op functions if debugging is disabled
-    return {
-      start: () => {},
+    const noOpTimer = {
+      start: function() { return this; }, // Return the no-op object itself
       stop: () => {},
       elapsed: () => 0
     };
+    return noOpTimer;
   }
   
   const timer = {
