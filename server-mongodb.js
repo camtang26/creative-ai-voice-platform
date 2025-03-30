@@ -448,7 +448,16 @@ wss.on('connection', (ws, request) => {
                 const payloadBase64 = Buffer.isBuffer(message.audio.chunk)
                   ? message.audio.chunk.toString('base64')
                   : Buffer.from(message.audio.chunk).toString('base64'); // Handle ArrayBuffer etc. just in case
-                ws.send(JSON.stringify({ event: "media", streamSid, media: { payload: payloadBase64 } }));
+                
+                // ADDED: Log the media message before sending
+                const mediaEventToSend = { event: "media", streamSid, media: { payload: payloadBase64 } };
+                server.log.debug(`[WS Manual] Sending media event to Twilio. StreamSid: ${streamSid}, Payload (start): ${payloadBase64.substring(0, 20)}...`);
+                
+                ws.send(JSON.stringify(mediaEventToSend), (err) => {
+                  if (err) {
+                     server.log.error(`[WS Manual] ERROR sending media event (StreamSid: ${streamSid}):`, err);
+                  }
+                });
               }
               break;
             case "interruption": if (streamSid) { ws.send(JSON.stringify({ event: "clear", streamSid })); } break;
