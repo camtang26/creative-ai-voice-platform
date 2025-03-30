@@ -422,13 +422,14 @@ async function processTranscriptData(callSid, webhookData) {
      console.log('[Webhook] Processing webhook from ElevenLabs');
      console.log('[Webhook] Signature:', signature ? 'Present' : 'Missing');
      
-     // Get the RAW body string captured by the preParsing hook
+     // Get the RAW body string captured by the content type parser hook
      const rawBody = request.rawBodyString;
      
      // Verify the signature using the RAW body string
      if (secret && signature) {
        // Pass rawBody to the verification function
-       const isValid = verifyWebhookSignature(null, signature, secret, rawBody); // Pass null for parsed payload initially
+       // Use request.body (already parsed by custom parser) as the first arg for consistency, though it's not used if rawBody exists
+       const isValid = verifyWebhookSignature(request.body, signature, secret, rawBody);
        if (!isValid) {
          console.error('[Webhook] Invalid signature');
          // Return 200 OK even on invalid signature to prevent ElevenLabs retries, but indicate failure
@@ -439,19 +440,16 @@ async function processTranscriptData(callSid, webhookData) {
       console.log('[Webhook] Skipping signature verification (no secret or signature)');
     }
 
-    // --- Manually parse the JSON body AFTER verification ---
-    let webhookData;
-    try {
-      // Use the rawBody captured by the hook, or fallback to request.body if hook failed (shouldn't happen)
-      const bodyToParse = rawBody || (typeof request.body === 'string' ? request.body : JSON.stringify(request.body || {}));
-      webhookData = JSON.parse(bodyToParse);
-    } catch (parseError) {
-      console.error('[Webhook] Failed to parse raw request body:', parseError);
-      return reply.code(400).send({ success: false, error: 'Invalid request body format' });
+    // --- Use the already parsed request.body (populated by custom content type parser) ---
+    const webhookData = request.body;
+    if (!webhookData || typeof webhookData !== 'object') {
+       // This case should ideally be caught by the parser's error handling, but double-check
+       console.error('[Webhook] Parsed request body is missing or not an object.');
+       return reply.code(400).send({ success: false, error: 'Invalid request body' });
     }
-    // --- End Manual Parsing ---
+    // --- End ---
     
-    // Handle different webhook types using the manually parsed data
+    // Handle different webhook types using the parsed data
     const webhookType = webhookData.type || 'unknown';
     // --- START DEBUG LOGGING ---
     console.log(`[Webhook] Determined webhook type: ${webhookType}`);

@@ -119,21 +119,30 @@ server.register(fastifySocketIO, {
 // REMOVED: @fastify/websocket registration
 server.register(fastifyFormBody);
 
-// --- Add preParsing hook to capture raw body for webhook verification ---
-server.addHook('preParsing', async (request, reply, payload) => {
-  if (request.routerPath === '/webhooks/elevenlabs') {
-    let body = '';
-    for await (const chunk of payload) {
-      body += chunk.toString();
+// --- REMOVED preParsing hook ---
+
+// --- Add Custom Content Type Parser for ElevenLabs Webhook ---
+server.addContentTypeParser(
+  'application/json',
+  { parseAs: 'string', bodyLimit: 5 * 1024 * 1024 }, // Read as string, set body limit (e.g., 5MB)
+  (req, body, done) => {
+    // This parser applies globally by default, but we only need the raw body for the webhook
+    if (req.routerPath === '/webhooks/elevenlabs') {
+      // Attach raw body for signature verification (direct assignment in JS)
+      req.rawBodyString = body;
     }
-    // Attach the raw body string to the request object (JavaScript allows direct assignment)
-    request.rawBodyString = body;
+    try {
+      // Proceed with standard JSON parsing for request.body
+      const json = JSON.parse(body);
+      done(null, json); // Pass parsed JSON to request.body
+    } catch (err) { // Removed ': any' type annotation
+      err.statusCode = 400;
+      done(err, undefined); // Pass error if JSON parsing fails
+    }
   }
-  // IMPORTANT: Return the original payload stream for further processing
-  return payload;
-});
-server.log.info('[Server] Added preParsing hook for webhook raw body');
-// --- End preParsing hook ---
+);
+server.log.info('[Server] Added custom JSON content type parser (captures raw body for webhook)');
+// --- End Custom Content Type Parser ---
 
 // Register API middleware
 registerApiMiddleware(server);
