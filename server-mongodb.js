@@ -15,7 +15,7 @@ import 'dotenv/config';
 import fastify from 'fastify';
 import fastifySocketIO from 'fastify-socket.io'; // Import the socket.io plugin
 // REMOVED: fastifyWebsocket import
-import WebSocket from 'ws'; // Keep ws library import
+import { WebSocketServer, WebSocket } from 'ws'; // CORRECTED: Import WebSocketServer and WebSocket client
 import fastifyFormBody from '@fastify/formbody';
 import fetch from 'node-fetch';
 import crypto from 'crypto';
@@ -330,7 +330,7 @@ server.post('/quality-insights-callback', async (request, reply) => {
 // REMOVED: Old WebSocket Proxy Handler
 
 // --- ADDED: Manual WebSocket Server for Media Stream ---
-const wss = new WebSocket.Server({ noServer: true }); // Create ws server, but don't start it automatically
+const wss = new WebSocketServer({ noServer: true }); // CORRECTED: Use WebSocketServer constructor
 
 wss.on('connection', (ws, request) => {
   // This is the main handler logic, copied and adapted from the previous handler
