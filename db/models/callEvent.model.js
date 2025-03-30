@@ -26,9 +26,11 @@ const callEventSchema = new Schema({
       'status_change',
       'recording',
       'machine_detection',
-      'transcript',
+      // 'transcript', // Use more specific types
+      'transcript_segment', // ADDED for stream updates
       'agent_response',
-      'user_message',
+      'user_message', // Keep if used elsewhere
+      // 'user_transcript', // Consider if needed, log showed error for transcript_segment
       'call_quality',
       'error',
       'custom'
@@ -52,7 +54,7 @@ const callEventSchema = new Schema({
   // Event source
   source: {
     type: String,
-    enum: ['twilio', 'elevenlabs', 'system', 'user', 'test'],
+    enum: ['twilio', 'elevenlabs', 'system', 'user', 'test', 'elevenlabs_stream', 'api'], // ADDED sources
     default: 'system',
     index: true
   }
