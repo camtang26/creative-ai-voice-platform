@@ -8,20 +8,23 @@ export interface CallInfo {
   endTime?: string;
   answeredBy?: string;
   recordings?: RecordingInfo[];
-  conversation_id?: string;
+  conversationId?: string; // Renamed from conversation_id for consistency
   qualityMetrics?: any;
+  transcriptId?: string; // Added link to transcript document
 }
 
-export type CallStatus = 
-  | 'initiated' 
-  | 'queued' 
-  | 'ringing' 
-  | 'in-progress' 
-  | 'completed' 
-  | 'busy' 
-  | 'failed' 
-  | 'no-answer' 
-  | 'canceled';
+export type CallStatus =
+  | 'initiated'
+  | 'queued'
+  | 'ringing'
+  | 'in-progress'
+  | 'completed'
+  | 'busy'
+  | 'failed'
+  | 'no-answer'
+  | 'canceled'
+  | 'held' // Added from webhook logic
+  | 'voicemail'; // Added from webhook logic
 
 export interface RecordingInfo {
   sid: string;
@@ -29,11 +32,11 @@ export interface RecordingInfo {
   mp3Url?: string;
   wavUrl?: string;
   duration?: number;
-  channels?: string;
+  channels?: number; // Changed from string
   status: string;
   timestamp: string;
   // Added optional fields from recordings/page.tsx
-  callSid?: string; 
+  callSid?: string;
   callDetails?: {
     from?: string;
     to?: string;
@@ -64,11 +67,11 @@ export interface CallMetrics {
 }
 
 export interface LiveCallUpdate {
-  type: 'status_update' | 'new_call' | 'call_ended' | 'recording_update';
+  type: 'status_update' | 'new_call' | 'call_ended' | 'recording_update' | 'transcript_update'; // Added transcript_update
   callSid: string;
   status?: CallStatus;
   timestamp: string;
-  data?: any;
+  data?: any; // Can hold call info, recording info, or transcript info
 }
 
 // Recent Call type for dashboard display
@@ -80,38 +83,73 @@ export interface RecentCall {
   duration: number;
   timestamp: string;
   hasRecording: boolean;
+  hasTranscript?: boolean; // Added
+  conversationId?: string; // Added
 }
 
-// Transcript Types for MongoDB Integration
-export interface TranscriptData {
-  callSid: string;
-  transcript: Array<{
-    role: 'assistant' | 'user';
-    text: string;
-    timestamp?: string;
-  }>;
-  // Removed top-level sentiment, now part of analysis
-  // sentiment?: { ... };
-  analysis?: { // Added analysis object
-    transcript_summary?: string;
-    sentiment?: string; // Assuming sentiment string ('positive', 'negative', 'neutral')
-    topics?: string[];
-    callSuccessful?: boolean;
-    criteria?: {
-      confused?: string | null;
-      interested?: string | null;
-      no_call_back?: string | null;
-      // Add other criteria fields if defined in backend model
-    };
-    customFields?: any;
-  };
-  metadata?: {
-    duration?: number;
-    wordCount?: number;
-    callStartTime?: string;
-    callEndTime?: string;
-  };
+// --- Updated Transcript Types (Aligned with ElevenLabs API / New DB Schema) ---
+
+export interface TranscriptItem {
+  role: 'user' | 'agent';
+  time_in_call_secs: number;
+  message?: string; // Optional
+  // Optional fields from ElevenLabs API (can add if needed for display)
+  // tool_calls?: any[];
+  // tool_results?: any[];
+  // feedback?: any;
+  // llm_override?: string;
+  // conversation_turn_metrics?: any;
+  // rag_retrieval_info?: any;
 }
+
+export interface EvaluationCriteriaResult {
+  criteria_id: string;
+  result: 'success' | 'failure' | 'unknown';
+  rationale: string;
+}
+
+export interface DataCollectionResult {
+  data_collection_id: string;
+  rationale: string;
+  value?: any;
+  json_schema?: any;
+}
+
+// This interface now reflects the structure stored in MongoDB,
+// which is based on the full response from the ElevenLabs Conversation API
+export interface TranscriptData {
+  _id?: string; // From MongoDB
+  callSid: string; // Link to Twilio Call
+  conversationId: string; // Link to ElevenLabs Conversation
+  agent_id: string; // From ElevenLabs
+  status: 'processing' | 'done' | 'failed'; // From ElevenLabs
+
+  // Transcript content from ElevenLabs
+  transcript: TranscriptItem[]; // Array of transcript items
+
+  // Metadata from ElevenLabs
+  metadata?: {
+      start_time_unix_secs?: number;
+      call_duration_secs?: number;
+      // Add other known metadata fields if needed
+      [key: string]: any; // Allow other fields
+  };
+
+  // Analysis from ElevenLabs (Optional in API)
+  analysis?: {
+    call_successful?: 'success' | 'failure' | 'unknown';
+    transcript_summary?: string;
+    // Use Record<string, T> for maps/dictionaries
+    evaluation_criteria_results?: Record<string, EvaluationCriteriaResult>;
+    data_collection_results?: Record<string, DataCollectionResult>;
+  };
+
+  createdAt?: string; // From Mongoose timestamps
+  updatedAt?: string; // From Mongoose timestamps
+}
+
+// --- End Updated Transcript Types ---
+
 
 // Analytics Types for Phase 4
 
@@ -270,6 +308,7 @@ export interface ContactFilters {
 }
 
 // Generic API Response structure used by the wrapper
+// Note: The 'data' field in fetchCallTranscript now returns TranscriptData
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;

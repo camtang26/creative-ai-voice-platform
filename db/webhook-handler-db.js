@@ -6,7 +6,8 @@ import crypto from 'crypto';
 import fetch from 'node-fetch';
 import Twilio from 'twilio';
 import { saveCall, updateCallStatus, getCallBySid } from './repositories/call.repository.js';
-import { saveTranscript } from './repositories/transcript.repository.js';
+// Import the new function for saving full ElevenLabs data
+import { createOrUpdateTranscriptFromElevenLabs } from './repositories/transcript.repository.js';
 import { logEvent } from './repositories/callEvent.repository.js';
 import { emitTranscriptUpdate, emitTranscriptMessage } from '../socket-server.js';
 
@@ -263,101 +264,114 @@ export async function terminateCall(twilioClient, callSid) {
  * @returns {Promise<Object>} Processing result
  */
 async function processTranscriptData(callSid, webhookData) {
-  try {
-    const status = determineCallStatus(webhookData);
-    const name = extractName(webhookData);
-    const phoneNumber = extractPhoneNumber(webhookData);
-    const summary = webhookData.data?.analysis?.transcript_summary || 'No summary available';
-    const duration = webhookData.data?.metadata?.call_duration_secs || 0;
-    const conversationId = extractConversationId(webhookData);
-    
-    // Get transcripts
-    const transcripts = webhookData.data?.transcript || [];
-    
-    // Update call in MongoDB
-    const callData = {
-      callSid,
-      conversationId,
-      status: status === 'held' ? 'completed' : status,
-      outcome: status,
-      to: phoneNumber !== 'Unknown' ? phoneNumber : undefined,
-      contactName: name !== 'Unknown' ? name : undefined,
-      duration: duration > 0 ? duration : undefined,
-      endTime: new Date()
-    };
-    
-    // Update the call in MongoDB
-    const updatedCall = await updateCallStatus(callSid, callData.status, callData);
-    
-    // Store transcript in MongoDB if we have transcript data
-    if (transcripts.length > 0) {
-      try {
-        // Prepare transcript data according to the refined schema
-        const analysisData = webhookData.data?.analysis || {};
-        const transcriptData = {
-          callSid,
-          conversationId,
-          messages: transcripts, // Renamed from transcript to messages for clarity
-          analysis: {
-            transcript_summary: analysisData.transcript_summary || summary, // Use extracted summary
-            sentiment: analysisData.sentiment || determineSentiment(transcripts.map(m=>m.message).join(' ')), // Use analysis sentiment or calculate
-            topics: analysisData.topics || extractTopics(transcripts.map(m=>m.message).join(' ')), // Use analysis topics or calculate
-            callSuccessful: analysisData.call_successful === 'success',
-            criteria: {
-              // Map criteria results - adjust field names if different in webhook
-              confused: analysisData.criteria?.confused || analysisData.confused || null,
-              interested: analysisData.criteria?.interested || analysisData.interested || null,
-              no_call_back: analysisData.criteria?.no_call_back || analysisData.no_call_back || null,
-            },
-            customFields: analysisData.custom_fields || {}
-          },
-          // Keep raw data if needed for debugging, otherwise remove
-          // data: webhookData.data
-        };
-        // Save transcript to MongoDB
-        const savedTranscript = await saveTranscript(transcriptData);
-        console.log(`[MongoDB] Saved transcript for call ${callSid}`);
-        
-        // Log transcript event
-        await logEvent(callSid, 'transcript', {
-          transcriptId: savedTranscript._id,
-          summary: summary,
-          messageCount: transcripts.length,
-          userMessageCount: transcripts.filter(msg => msg.role === 'user').length,
-          agentMessageCount: transcripts.filter(msg => msg.role === 'agent').length,
-          sentiment: savedTranscript.analysis?.sentiment || 'neutral',
-          topics: savedTranscript.analysis?.topics || []
-        }, { source: 'elevenlabs' });
-        
-        // Emit transcript update via Socket.IO
-        emitTranscriptUpdate(callSid, savedTranscript); // Emit the final, complete transcript
-        
-        // REMOVED: Redundant emission of individual messages and logging
-        // Real-time messages are now handled by webSocketService.js
-        
-        return {
-          success: true,
-          callSid,
-          status,
-          conversationId,
-          call: updatedCall,
-          transcript: savedTranscript
-        };
-      } catch (transcriptError) {
-        console.error('[MongoDB] Error saving transcript:', transcriptError);
-        // Continue even if transcript saving fails
-      }
-    }
-    
-    return {
-      success: true,
-      callSid,
-      status,
-      conversationId,
-      call: updatedCall
-    };
-  } catch (error) {
-    console.error('[Webhook] Error processing transcript data:', error);
+ try {
+   const conversationId = extractConversationId(webhookData);
+   const apiKey = process.env.ELEVENLABS_API_KEY;
+
+   if (!conversationId) {
+     console.error(`[Webhook] Cannot process transcript for call ${callSid}: Missing conversationId in webhook data.`);
+     throw new Error('Missing conversationId');
+   }
+   if (!apiKey) {
+     console.error(`[Webhook] Cannot process transcript for call ${callSid}: Missing ELEVENLABS_API_KEY environment variable.`);
+     throw new Error('Missing ElevenLabs API Key');
+   }
+
+   // --- Fetch Full Conversation Details from ElevenLabs API ---
+   const elevenLabsUrl = `https://api.elevenlabs.io/v1/convai/conversations/${conversationId}`;
+   let elevenLabsFullData;
+   try {
+     console.log(`[Webhook] Fetching full conversation details from ElevenLabs for ${conversationId} (Call SID: ${callSid})`);
+     const response = await fetch(elevenLabsUrl, {
+       method: 'GET',
+       headers: { 'xi-api-key': apiKey }
+     });
+     elevenLabsFullData = await response.json();
+
+     if (!response.ok) {
+       console.error(`[Webhook] ElevenLabs API error fetching conversation ${conversationId} (${response.status}):`, elevenLabsFullData);
+       throw new Error(`ElevenLabs API error: ${response.status} - ${elevenLabsFullData?.detail?.message || 'Unknown error'}`);
+     }
+     console.log(`[Webhook] Successfully fetched full conversation details for ${conversationId}`);
+
+   } catch (fetchError) {
+     console.error(`[Webhook] Error fetching conversation details from ElevenLabs for ${conversationId}:`, fetchError);
+     throw fetchError; // Propagate error
+   }
+   // --- End Fetch ---
+
+   // --- Update Call Status in DB (using data from API response) ---
+   // Determine status based on the fetched data (more reliable than webhook payload)
+   const status = elevenLabsFullData.analysis?.call_successful === 'success' ? 'completed' :
+                  (elevenLabsFullData.analysis?.call_successful === 'failure' ? 'failed' : 'unknown'); // Or derive more nuanced status if needed
+   const duration = elevenLabsFullData.metadata?.call_duration_secs || 0;
+   const name = extractName(webhookData); // Still rely on webhook for initial name/phone if needed
+   const phoneNumber = extractPhoneNumber(webhookData);
+
+   const callData = {
+     callSid,
+     conversationId, // Ensure this is saved
+     status: status, // Use status derived from API response
+     outcome: status, // Use the same derived status for outcome
+     to: phoneNumber !== 'Unknown' ? phoneNumber : undefined,
+     contactName: name !== 'Unknown' ? name : undefined,
+     duration: duration > 0 ? duration : undefined,
+     endTime: new Date() // Mark end time when processing
+   };
+
+   let updatedCall;
+   try {
+     updatedCall = await updateCallStatus(callSid, callData.status, callData);
+     console.log(`[MongoDB] Updated call status for ${callSid} based on ElevenLabs API data.`);
+   } catch (callUpdateError) {
+      console.error(`[MongoDB] Error updating call status for ${callSid}:`, callUpdateError);
+      // Decide if we should continue or throw
+      throw callUpdateError;
+   }
+   // --- End Call Update ---
+
+
+   // --- Save Full Transcript/Analysis to DB ---
+   let savedTranscript;
+   try {
+     // Use the new repository function with the full data fetched from the API
+     savedTranscript = await createOrUpdateTranscriptFromElevenLabs(callSid, elevenLabsFullData);
+     console.log(`[MongoDB] Saved/Updated transcript from ElevenLabs API for call ${callSid}`);
+
+     // Log transcript event (using data from the saved document)
+     await logEvent(callSid, 'transcript_saved', {
+       transcriptId: savedTranscript._id,
+       conversationId: savedTranscript.conversationId,
+       status: savedTranscript.status,
+       analysisStatus: savedTranscript.analysis?.call_successful || 'unknown',
+       messageCount: savedTranscript.transcript?.length || 0,
+     }, { source: 'elevenlabs_api' });
+
+     // Emit transcript update via Socket.IO using the saved data
+     emitTranscriptUpdate(callSid, savedTranscript);
+
+   } catch (transcriptError) {
+     console.error(`[MongoDB] Error saving transcript from ElevenLabs API for call ${callSid}:`, transcriptError);
+     // Decide if this is fatal or if we can return partial success
+     throw transcriptError; // Make it fatal for now
+   }
+   // --- End Transcript Save ---
+
+   // --- Optional: Send to CRM (using fetched data) ---
+   // (Keep existing CRM logic but adapt it to use elevenLabsFullData if needed)
+   // ... CRM logic here ...
+
+   return {
+     success: true,
+     callSid,
+     status: updatedCall.status, // Return the final status saved to DB
+     conversationId,
+     call: updatedCall,
+     transcript: savedTranscript
+   };
+
+ } catch (error) {
+   console.error(`[Webhook] Error processing transcript data for call ${callSid}:`, error);
     return {
       success: false,
       error: error.message

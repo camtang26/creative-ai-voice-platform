@@ -1,103 +1,138 @@
 /**
  * Transcript Model
- * Mongoose schema for the transcripts collection
+ * Mongoose schema for the transcripts collection, aligned with ElevenLabs Conversation API
  */
 import mongoose from 'mongoose';
 
 const { Schema } = mongoose;
 
 /**
- * Message Schema
- * For transcript messages
+ * Transcript Item Schema (Matches ElevenLabs 'transcript' array items)
  */
-const messageSchema = new Schema({
-  role: { 
-    type: String, 
-    enum: ['agent', 'user'], 
-    required: true 
+const transcriptItemSchema = new Schema({
+  role: {
+    type: String,
+    enum: ['user', 'agent'],
+    required: true
   },
-  message: { 
-    type: String, 
-    required: true 
+  time_in_call_secs: {
+    type: Number,
+    required: true
   },
-  timestamp: { 
-    type: Date, 
-    default: Date.now 
+  message: {
+    type: String // Optional in ElevenLabs API
   },
-  confidence: { 
-    type: Number, 
-    min: 0, 
-    max: 1 
-  }
-});
+  // Optional fields from ElevenLabs API (using Mixed for flexibility)
+  tool_calls: [Schema.Types.Mixed],
+  tool_results: [Schema.Types.Mixed],
+  feedback: Schema.Types.Mixed,
+  llm_override: String,
+  conversation_turn_metrics: Schema.Types.Mixed,
+  rag_retrieval_info: Schema.Types.Mixed
+}, { _id: false }); // Subdocument
 
 /**
- * Analysis Schema
- * For transcript analysis
+ * Evaluation Criteria Result Schema (Matches ElevenLabs 'evaluation_criteria_results' map values)
+ */
+const evaluationCriteriaResultSchema = new Schema({
+  criteria_id: { type: String, required: true },
+  result: {
+    type: String,
+    enum: ['success', 'failure', 'unknown'],
+    required: true
+  },
+  rationale: { type: String, required: true }
+}, { _id: false }); // Subdocument
+
+/**
+ * Data Collection Result Schema (Matches ElevenLabs 'data_collection_results' map values)
+ */
+const dataCollectionResultSchema = new Schema({
+  data_collection_id: { type: String, required: true },
+  rationale: { type: String, required: true },
+  value: Schema.Types.Mixed, // Optional 'any' type
+  json_schema: Schema.Types.Mixed // Optional object
+}, { _id: false }); // Subdocument
+
+/**
+ * Analysis Schema (Matches ElevenLabs 'analysis' object)
  */
 const analysisSchema = new Schema({
-  transcript_summary: String, // Added summary field here
-  sentiment: {
+  call_successful: {
     type: String,
-    enum: ['positive', 'negative', 'neutral']
+    enum: ['success', 'failure', 'unknown'],
+    required: true
   },
-  topics: [String],
-  callSuccessful: Boolean,
-  criteria: { // Added explicit criteria object
-    confused: { type: String, enum: ['Success', 'Failure', 'Unknown', null], default: null },
-    interested: { type: String, enum: ['Success', 'Failure', 'Unknown', null], default: null },
-    no_call_back: { type: String, enum: ['Success', 'Failure', 'Unknown', null], default: null },
-    // Add other criteria fields here if needed
+  transcript_summary: {
+    type: String,
+    required: true
   },
-  customFields: Schema.Types.Mixed // Keep for other potential analysis fields
-}, { _id: false }); // Make this a subdocument without its own _id
+  evaluation_criteria_results: {
+    type: Map,
+    of: evaluationCriteriaResultSchema
+  },
+  data_collection_results: {
+    type: Map,
+    of: dataCollectionResultSchema
+  }
+}, { _id: false }); // Subdocument
 
 /**
- * Transcript Schema
- * Stores detailed conversation transcripts
+ * Transcript Schema (Main Schema)
+ * Stores detailed conversation transcripts fetched from ElevenLabs
  */
 const transcriptSchema = new Schema({
   // Core identifiers
-  callSid: { 
-    type: String, 
-    required: true, 
-    index: true 
+  callSid: { // Link to Twilio Call
+    type: String,
+    required: true,
+    index: true,
+    unique: true // Assuming one transcript per callSid
   },
-  conversationId: { 
-    type: String, 
-    index: true 
+  conversationId: { // Link to ElevenLabs Conversation
+    type: String,
+    required: true,
+    index: true,
+    unique: true // Assuming one transcript per conversationId
   },
-  
-  // Timestamps
-  createdAt: { 
-    type: Date, 
-    default: Date.now,
-    index: true 
+  agent_id: { // From ElevenLabs
+    type: String,
+    required: true,
+    index: true
   },
-  
-  // Transcript content
-  // summary: String, // Removed top-level summary, moved into analysisSchema
-  messages: [messageSchema],
-  analysis: analysisSchema, // Uses updated analysisSchema
-  
-  // Text search fields
-  fullText: { 
-    type: String, 
-    index: 'text' 
+  status: { // From ElevenLabs
+    type: String,
+    enum: ['processing', 'done', 'failed'],
+    required: true,
+    index: true
   },
-  keywords: [{ 
-    type: String, 
-    index: true 
-  }]
+
+  // Transcript content from ElevenLabs
+  transcript: [transcriptItemSchema], // Array of transcript items
+
+  // Metadata from ElevenLabs (using Mixed for flexibility)
+  metadata: Schema.Types.Mixed,
+
+  // Analysis from ElevenLabs (Optional in API, required here for consistency?)
+  // Making it optional to match API, handle missing analysis in application logic
+  analysis: {
+    type: analysisSchema,
+    required: false
+  },
+
+  // Timestamps managed by Mongoose
+  // createdAt and updatedAt will be added automatically by { timestamps: true }
+
 }, {
-  timestamps: true,
+  timestamps: true, // Adds createdAt and updatedAt fields
   collection: 'transcripts'
 });
 
-// Create compound indexes
-transcriptSchema.index({ callSid: 1, createdAt: -1 });
+// Ensure compound indexes are still relevant or update if needed
+// transcriptSchema.index({ callSid: 1, createdAt: -1 }); // Keep if useful for querying
+// transcriptSchema.index({ conversationId: 1, createdAt: -1 }); // Add if useful
 
 // Create the model
-const Transcript = mongoose.model('Transcript', transcriptSchema);
+const Transcript = mongoose.models.Transcript || mongoose.model('Transcript', transcriptSchema);
 
 export default Transcript;

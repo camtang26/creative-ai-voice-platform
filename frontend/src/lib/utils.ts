@@ -21,13 +21,13 @@ export function getApiUrl(): string {
  */
 export function formatDate(date: Date | string | number): string {
   if (!date) return 'Invalid Date'
-  
-  const d = typeof date === 'string' || typeof date === 'number' 
-    ? new Date(date) 
+
+  const d = typeof date === 'string' || typeof date === 'number'
+    ? new Date(date)
     : date
-  
+
   if (isNaN(d.getTime())) return 'Invalid Date'
-  
+
   return d.toLocaleString('en-US', {
     month: 'short',
     day: 'numeric',
@@ -43,10 +43,10 @@ export function formatDate(date: Date | string | number): string {
  */
 export function formatPhoneNumber(phoneNumber: string): string {
   if (!phoneNumber) return '';
-  
+
   // Remove all non-numeric characters
   const cleaned = phoneNumber.replace(/\D/g, '');
-  
+
   // Format based on length and country code
   if (cleaned.length === 10) {
     // US format: (XXX) XXX-XXXX
@@ -58,7 +58,7 @@ export function formatPhoneNumber(phoneNumber: string): string {
     // International format: +X XXX XXX XXXX
     return `+${cleaned.slice(0, cleaned.length - 10)} ${cleaned.slice(-10, -7)} ${cleaned.slice(-7, -4)} ${cleaned.slice(-4)}`;
   }
-  
+
   // Default: just return with + prefix if it doesn't match known formats
   return phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
 }
@@ -73,23 +73,54 @@ export function truncateString(str: string, maxLength: number): string {
 }
 
 /**
- * Formats a duration in seconds to a readable string
+ * Formats a duration in seconds to a readable string (e.g., 1h 5m or 5m 10s)
  */
 export function formatDuration(seconds: number): string {
-  if (!seconds || seconds <= 0) return '0m 0s';
-  
+  if (seconds === undefined || seconds === null || seconds < 0) return '0s';
+  if (seconds === 0) return '0s';
+
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
-  const remainingSeconds = seconds % 60;
-  
+  const remainingSeconds = Math.floor(seconds % 60); // Use floor for whole seconds
+
+  let result = '';
   if (hours > 0) {
-    return `${hours}h ${minutes}m`;
-  } else if (minutes > 0) {
-    return `${minutes}m ${remainingSeconds}s`;
+    result += `${hours}h `;
+  }
+  if (minutes > 0 || hours > 0) { // Show minutes if hours are shown or if minutes > 0
+    result += `${minutes}m `;
+  }
+   // Always show seconds unless only hours/minutes are present and seconds are 0
+  if (remainingSeconds > 0 || result === '') {
+     result += `${remainingSeconds}s`;
+  }
+
+  return result.trim(); // Trim trailing space if only hours/minutes are shown
+}
+
+/**
+ * Formats time in seconds into MM:SS or HH:MM:SS format
+ */
+export function formatTimeInSeconds(totalSeconds: number): string {
+  if (totalSeconds === undefined || totalSeconds === null || totalSeconds < 0) {
+    return '00:00';
+  }
+
+  const seconds = Math.floor(totalSeconds % 60);
+  const minutes = Math.floor((totalSeconds / 60) % 60);
+  const hours = Math.floor(totalSeconds / 3600);
+
+  const paddedSeconds = String(seconds).padStart(2, '0');
+  const paddedMinutes = String(minutes).padStart(2, '0');
+
+  if (hours > 0) {
+    const paddedHours = String(hours).padStart(2, '0');
+    return `${paddedHours}:${paddedMinutes}:${paddedSeconds}`;
   } else {
-    return `${remainingSeconds}s`;
+    return `${paddedMinutes}:${paddedSeconds}`;
   }
 }
+
 
 /**
  * Formats a number to a readable string with commas
@@ -122,13 +153,13 @@ export function debounce<T extends (...args: any[]) => any>(
   wait: number
 ): (...args: Parameters<T>) => void {
   let timeout: NodeJS.Timeout | null = null;
-  
+
   return function(...args: Parameters<T>): void {
     const later = () => {
       timeout = null;
       func(...args);
     };
-    
+
     if (timeout !== null) {
       clearTimeout(timeout);
     }
@@ -144,7 +175,7 @@ export function throttle<T extends (...args: any[]) => any>(
   limit: number
 ): (...args: Parameters<T>) => void {
   let inThrottle = false;
-  
+
   return function(...args: Parameters<T>): void {
     if (!inThrottle) {
       func(...args);

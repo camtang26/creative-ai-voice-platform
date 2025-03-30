@@ -88,41 +88,12 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
         
         if (callResponse.success && callResponse.call) {
           setCall(callResponse.call)
-          
-          // --- NEW: Fetch transcript/analysis from ElevenLabs via backend proxy ---
-          if (callResponse.call.conversationId) {
-            console.log(`[CallDetailsPage] Fetching ElevenLabs data for conversation ID: ${callResponse.call.conversationId}`);
-            try {
-              const elevenLabsResponse = await fetch(`/api/elevenlabs/conversation/${callResponse.call.conversationId}`);
-              const elevenLabsData = await elevenLabsResponse.json();
-
-              if (elevenLabsResponse.ok && elevenLabsData.success) {
-                console.log('[CallDetailsPage] Successfully fetched ElevenLabs data:', elevenLabsData.data);
-                // Assuming elevenLabsData.data contains { transcript: [], analysis: {}, ... }
-                // We might need to adjust the state structure or rendering later
-                setTranscript(elevenLabsData.data);
-              } else {
-                console.error('[CallDetailsPage] Failed to fetch ElevenLabs data:', elevenLabsData.error || `Status: ${elevenLabsResponse.status}`);
-                // Optionally set a specific error for transcript failure
-                // setError(prev => prev ? `${prev}; Failed to load transcript` : 'Failed to load transcript');
-              }
-            } catch (elevenLabsErr) {
-              console.error('[CallDetailsPage] Error fetching ElevenLabs data:', elevenLabsErr);
-              // Optionally set a specific error for transcript failure
-              // setError(prev => prev ? `${prev}; Error loading transcript` : 'Error loading transcript');
-            }
-          } else {
-            console.warn('[CallDetailsPage] No conversationId found in call details, cannot fetch ElevenLabs data.');
-          }
-          // --- END NEW ---
-          
         } else {
           setError(callResponse.error || 'Failed to load call details')
-          setLoading(false); // Stop loading if core call details fail
-          return; // Don't attempt other fetches if call details failed
+          // Removed the early return/setLoading here to allow other fetches even if call details fail initially
         }
         
-        // Fetch recordings (Keep this)
+        // Fetch recordings
         const recordingsResponse = await fetchCallRecordings(params.id)
         
         if (recordingsResponse.success && recordingsResponse.recordings) {
@@ -134,11 +105,19 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
           }
         }
         
-        // REMOVED old transcript fetch logic
+        // Fetch transcript (Restored - will fetch from DB API)
+        const transcriptResponse = await fetchCallTranscript(params.id)
+        
+        if (transcriptResponse.success && transcriptResponse.transcript) {
+          // Note: transcriptResponse.transcript will eventually hold the full ElevenLabs object
+          setTranscript(transcriptResponse.transcript)
+        } else if (transcriptResponse.error) {
+           console.warn(`[CallDetailsPage] Failed to load transcript: ${transcriptResponse.error}`);
+           // Optionally set a specific error, but maybe not critical if call/recordings load
+        }
         
       } catch (err) {
-        // This catch block now primarily handles errors from fetchCall and fetchCallRecordings
-        console.error('Error loading call or recording data:', err)
+        console.error('Error loading call data:', err)
         setError('Failed to load call data')
       } finally {
         setLoading(false)
