@@ -609,21 +609,22 @@ const start = async () => {
     // --- ADDED: Attach manual WebSocket upgrade handler ---
     server.server.on('upgrade', (request, socket, head) => {
       // Use URL constructor for robust parsing
+      // Use http protocol as base, ws/wss is handled by upgrade mechanism
       const { pathname } = new URL(request.url, `http://${request.headers.host}`);
 
+      // *** Only handle the specific path for the Twilio media stream ***
       if (pathname === '/outbound-media-stream') {
-        server.log.info('[Server Upgrade] Handling upgrade request for /outbound-media-stream');
+        server.log.info(`[Server Upgrade] Handling upgrade request for ${pathname}`);
+        // Let our manual WebSocket server handle this specific upgrade
         wss.handleUpgrade(request, socket, head, (ws) => {
           wss.emit('connection', ws, request);
         });
       } else {
-        // IMPORTANT: If you have other WebSocket servers (like Socket.IO),
-        // you might need to handle their upgrades here too or ensure they
-        // handle their own upgrades without conflicting.
-        // fastify-socket.io *should* handle its own upgrade, so destroying
-        // other sockets might be okay, but be cautious.
-        server.log.warn(`[Server Upgrade] Ignoring upgrade request for path: ${pathname}`);
-        socket.destroy();
+        // *** IMPORTANT: If it's not our path, do nothing. ***
+        // This allows other handlers (like fastify-socket.io's internal one)
+        // to process the upgrade request for their paths (e.g., /socket.io/).
+        // Do NOT destroy the socket here.
+        server.log.debug(`[Server Upgrade] Ignoring upgrade request for path ${pathname}, letting other handlers process.`);
       }
     });
     server.log.info('[Server] Attached manual WebSocket upgrade handler');
