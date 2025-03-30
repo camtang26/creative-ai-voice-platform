@@ -53,6 +53,7 @@ interface CallDetailsPageProps {
 }
 
 export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps) {
+  // Removed commented-out debug logs
   const [call, setCall] = useState<any>(null)
   const [recordings, setRecordings] = useState<any[]>([])
   const [transcript, setTranscript] = useState<any>(null)
@@ -71,9 +72,19 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
       setLoading(true)
       setError(null)
       
+      // Removed commented-out debug log
+      
+      // Add a guard clause in case id is truly undefined/null
+      if (!params?.id || params.id === 'undefined') { // Check for literal "undefined" string too
+        console.error('[CallDetailsPage] No valid ID found in params. Cannot load call data.');
+        setError('Invalid Call ID provided in URL.');
+        setLoading(false);
+        return; // Stop execution if no valid ID
+      }
+      
       try {
-        // Fetch call details
-        const callResponse = await fetchCall(params.id)
+        // Fetch call details - use the guarded params.id
+        const callResponse = await fetchCall(params.id) 
         
         if (callResponse.success && callResponse.call) {
           setCall(callResponse.call)

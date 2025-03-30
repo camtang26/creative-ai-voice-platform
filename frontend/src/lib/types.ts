@@ -1,5 +1,5 @@
 export interface CallInfo {
-  sid: string;
+  callSid: string; // Changed from sid to match backend data
   to: string;
   from: string;
   status: CallStatus;

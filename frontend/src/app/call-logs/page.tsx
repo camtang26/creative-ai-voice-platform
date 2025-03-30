@@ -1,16 +1,18 @@
 "use client";
-
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation'; // Import useRouter
 import { DashboardHeader } from '@/components/dashboard-header'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button' // Import buttonVariants
 import Link from 'next/link'
 import { formatDate, formatPhoneNumber, formatDuration } from '@/lib/utils'
+// Removed duplicate import line below
 import { Headphones, Download, PhoneCall, Eye, RefreshCw } from 'lucide-react'
 import { fetchCalls } from '@/lib/mongodb-api';
 import { CallInfo, CallStatus } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 
 export default function CallLogsPage() {
+  const router = useRouter(); // Get router instance
   const [callLogsData, setCallLogsData] = useState<CallInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -25,33 +27,40 @@ export default function CallLogsPage() {
   async function loadCallData() {
     setIsLoading(true);
     setError(null);
-    
+
     try {
       const result = await fetchCalls({
         limit,
         page
       });
-      
+
       console.log('Call logs API response:', result);
-      
+
       if (result.success) {
         // Check the structure of the response
         if (result.data && Array.isArray(result.data.calls)) {
           setCallLogsData(result.data.calls);
           setTotalCalls(result.data.pagination?.total || result.data.calls.length);
         } else if (Array.isArray(result.data)) {
+          // Fallback for older potential structures, though less likely now
           setCallLogsData(result.data);
           setTotalCalls(result.total || result.data.length);
         } else {
           console.error('Unexpected response structure:', result);
           setError('Unexpected response format from server');
+          setCallLogsData([]); // Ensure it's an empty array on error
+          setTotalCalls(0);
         }
       } else {
         setError(result.error || 'Failed to load call logs');
+        setCallLogsData([]); // Ensure it's an empty array on error
+        setTotalCalls(0);
       }
     } catch (err) {
       console.error('Error loading call logs:', err);
       setError('An unexpected error occurred');
+      setCallLogsData([]); // Ensure it's an empty array on error
+      setTotalCalls(0);
     } finally {
       setIsLoading(false);
     }
@@ -99,7 +108,7 @@ export default function CallLogsPage() {
               Refresh
             </Button>
             {/* Changed Button to Link for direct download */}
-            <Button asChild> 
+            <Button asChild>
               <Link href="/api/db/calls/actions/export" target="_blank">  {/* Updated path */}
                 <Download className="mr-2 h-4 w-4" />
                 Export Logs
@@ -108,13 +117,13 @@ export default function CallLogsPage() {
           </div>
         }
       />
-      
+
       {error && (
         <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
           <div className="flex">
             <div>
               <p className="text-red-700">{error}</p>
-              <button 
+              <button
                 className="mt-2 text-sm text-red-700 hover:text-red-500"
                 onClick={() => loadCallData()}
               >
@@ -124,7 +133,7 @@ export default function CallLogsPage() {
           </div>
         </div>
       )}
-      
+
       {isLoading ? (
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full"></div>
@@ -146,44 +155,60 @@ export default function CallLogsPage() {
               </thead>
               <tbody className="[&_tr:last-child]:border-0">
                 {callLogsData.length > 0 ? (
-                  callLogsData.map((call) => (
-                    <tr
-                      key={call.sid || `call-${Math.random().toString(36).substring(2, 9)}`}
-                      className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted"
-                    >
-                      <td className="p-4 align-middle">{call.sid}</td>
-                      <td className="p-4 align-middle">{formatPhoneNumber(call.to)}</td>
-                      <td className="p-4 align-middle">{formatPhoneNumber(call.from)}</td>
-                      <td className="p-4 align-middle">
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusStyles(call.status)}`}>
-                          {call.status}
-                        </span>
-                      </td>
-                      <td className="p-4 align-middle">{call.duration !== undefined ? formatDuration(call.duration) : 'N/A'}</td>
-                      <td className="p-4 align-middle">{formatDate(call.startTime)}</td>
-                      <td className="p-4 align-middle">
-                        <div className="flex items-center gap-2">
-                          <Button size="sm" variant="outline" asChild>
-                            <Link href={`/call-details/${call.sid}`}>
+                  callLogsData.map((call) => {
+                    // --- DEBUG LOG ---
+                    // Log the stringified object to ensure all properties are visible
+                    // console.log('[CallLogsTable] Rendering row for call:', JSON.stringify(call)); // Keep commented out for now
+                    // --- Removed SID check log ---
+                    // --- END DEBUG LOG ---
+                    return (
+                      <tr
+                        key={call.callSid || `call-${Math.random().toString(36).substring(2, 9)}`} // Use callSid as key if available
+                        className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted"
+                      >
+                        <td className="p-4 align-middle">{call.callSid}</td>
+                        <td className="p-4 align-middle">{formatPhoneNumber(call.to)}</td>
+                        <td className="p-4 align-middle">{formatPhoneNumber(call.from)}</td>
+                        <td className="p-4 align-middle">
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusStyles(call.status)}`}>
+                            {call.status}
+                          </span>
+                        </td>
+                        <td className="p-4 align-middle">{call.duration !== undefined ? formatDuration(call.duration) : 'N/A'}</td>
+                        <td className="p-4 align-middle">{formatDate(call.startTime)}</td>
+                        <td className="p-4 align-middle">
+                          {/* Restoring original structure, keeping onClick removed */}
+                          <div className="flex items-center gap-2">
+                            {/* Reverting to Link and using correct property call.callSid */}
+                            <Link
+                              href={call.callSid ? `/call-details/${call.callSid}` : '#'}
+                              className={buttonVariants({ variant: "outline", size: "sm" })}
+                              aria-disabled={!call.callSid}
+                            >
                               <Eye className="h-4 w-4" />
                             </Link>
-                          </Button>
-                          {call.recordings && call.recordings.length > 0 && (
-                            <Button size="sm" variant="outline" asChild>
-                              <Link href={`/recordings/${call.sid}`}>
+                            
+                            {Array.isArray(call.recordings) && call.recordings.length > 0 && (
+                              <Link
+                                href={call.callSid ? `/recordings/${call.callSid}` : '#'}
+                                className={buttonVariants({ variant: "outline", size: "sm" })}
+                                aria-disabled={!call.callSid}
+                              >
                                 <Headphones className="h-4 w-4" />
                               </Link>
-                            </Button>
-                          )}
-                          <Button size="sm" variant="outline" asChild>
-                            <Link href={`/make-call?number=${call.to.replace('+', '')}`}>
+                            )}
+                            <Link
+                              href={call.to ? `/make-call?number=${call.to.replace('+', '')}` : '#'}
+                              className={buttonVariants({ variant: "outline", size: "sm" })}
+                              aria-disabled={!call.to}
+                            >
                               <PhoneCall className="h-4 w-4" />
                             </Link>
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 ) : (
                   <tr>
                     <td colSpan={7} className="p-4 text-center text-muted-foreground">
@@ -196,24 +221,24 @@ export default function CallLogsPage() {
           </div>
         </div>
       )}
-      
+
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
           Showing {callLogsData.length} of {totalCalls} calls
         </div>
-        
+
         {totalCalls > limit && (
           <div className="flex gap-2">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               size="sm"
               onClick={handlePreviousPage}
               disabled={page === 1 || isLoading}
             >
               Previous
             </Button>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               size="sm"
               onClick={handleNextPage}
               disabled={callLogsData.length < limit || isLoading}
