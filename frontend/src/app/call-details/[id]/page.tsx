@@ -84,6 +84,7 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
       
       try {
         // Fetch call details - use the guarded params.id
+        console.log('[CallDetailsPage] Attempting fetchCall...'); // Log before fetch
         const callResponse = await fetchCall(params.id)
         
         if (callResponse.success && callResponse.call) {
@@ -94,6 +95,7 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
         }
         
         // Fetch recordings
+        console.log('[CallDetailsPage] Attempting fetchCallRecordings...'); // Log before fetch
         const recordingsResponse = await fetchCallRecordings(params.id)
         
         if (recordingsResponse.success && recordingsResponse.recordings) {
@@ -124,10 +126,15 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
            // DO NOT set the main 'setError' here
         }
         
-      } catch (err) {
+      } catch (err: any) { // Add type annotation for err
         // This catch block now only handles errors from fetchCall and fetchCallRecordings
-        console.error('Error loading core call data (call details or recordings):', err)
-        setError('Failed to load call data')
+        console.error('Error loading core call data (call details or recordings):', err);
+        // Provide a more specific error message based on context if possible
+        let errorMessage = 'Failed to load essential call data.';
+        if (err && typeof err === 'object' && 'message' in err) {
+           errorMessage = `Error loading call details or recordings: ${err.message}`;
+        }
+        setError(errorMessage); // Sets the main error state
       } finally {
         setLoading(false)
       }
