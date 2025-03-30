@@ -442,7 +442,15 @@ wss.on('connection', (ws, request) => {
             return;
           }
           switch (message.type) {
-            case "audio": if (streamSid && message.audio?.chunk) { ws.send(JSON.stringify({ event: "media", streamSid, media: { payload: message.audio.chunk } })); } break;
+            case "audio":
+              if (streamSid && message.audio?.chunk) {
+                // Ensure payload is Base64 encoded for Twilio
+                const payloadBase64 = Buffer.isBuffer(message.audio.chunk)
+                  ? message.audio.chunk.toString('base64')
+                  : Buffer.from(message.audio.chunk).toString('base64'); // Handle ArrayBuffer etc. just in case
+                ws.send(JSON.stringify({ event: "media", streamSid, media: { payload: payloadBase64 } }));
+              }
+              break;
             case "interruption": if (streamSid) { ws.send(JSON.stringify({ event: "clear", streamSid })); } break;
             case "ping": if (message.ping_event?.event_id) { elevenLabsWs.send(JSON.stringify({ type: "pong", event_id: message.ping_event.event_id })); } break;
             case "transcript_update":
