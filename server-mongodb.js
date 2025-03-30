@@ -340,27 +340,26 @@ server.get('/outbound-media-stream', { websocket: true }, (connection, req) => {
 
   server.log.info('[WS Proxy] Twilio connected to /outbound-media-stream');
 
-  // --- Send Connected message after a short delay ---
+  // --- Send Connected message immediately ---
   // This is required by the Twilio Media Streams protocol
-  // Adding delay to potentially allow socket to stabilize
-  setTimeout(() => {
-    try {
-      server.log.info('[WS Proxy] Attempting to send "connected" event after delay...');
-      connection.socket.send(JSON.stringify({ event: "connected" }), (err) => {
-        if (err) {
-          server.log.error('[WS Proxy] ERROR sending "connected" event after delay:', err);
-          if (connection.socket.readyState === WebSocket.OPEN) connection.socket.close();
-        } else {
-          server.log.info('[WS Proxy] Successfully sent "connected" event after delay.');
-        }
-      });
-    } catch (err) {
-      server.log.error('[WS Proxy] EXCEPTION sending "connected" event after delay:', err);
-      // Close connection if we can't even send the first message
-      if (connection.socket.readyState === WebSocket.OPEN) connection.socket.close();
-      // No return here, let the main handler continue (though it might fail later)
-    }
-  }, 100); // 100ms delay
+  try {
+    server.log.info('[WS Proxy] Attempting to send "connected" event immediately...');
+    connection.socket.send(JSON.stringify({ event: "connected" }), (err) => {
+      if (err) {
+        server.log.error('[WS Proxy] ERROR sending "connected" event immediately:', err);
+        if (connection.socket.readyState === WebSocket.OPEN) connection.socket.close();
+        // If send fails immediately, we likely can't proceed.
+        // Consider if we should 'return' here or let other handlers potentially run.
+      } else {
+        server.log.info('[WS Proxy] Successfully sent "connected" event immediately.');
+      }
+    });
+  } catch (err) {
+    server.log.error('[WS Proxy] EXCEPTION sending "connected" event immediately:', err);
+    // Close connection if we can't even send the first message
+    if (connection.socket.readyState === WebSocket.OPEN) connection.socket.close();
+    return; // Stop processing if the initial try/catch fails
+  }
   // -----------------------------------------
 
   // Now integrate DB repository access if needed for logging/updates
