@@ -69,17 +69,29 @@ console.log('[Media Proxy] Registered /healthz endpoint');
 // --- WebSocket Proxy Handler ---
 proxyServer.get('/outbound-media-stream', { websocket: true }, (connection, req) => {
   // Note: 'connection' is the stream from @fastify/websocket
-  proxyServer.log.info('!!!!!! [WS Proxy] WebSocket handler invoked! !!!!!!'); // ADDED DIAGNOSTIC LOG
+  console.error('!!!!!! [WS Proxy] WebSocket handler invoked! !!!!!!'); // USE CONSOLE.ERROR
+  proxyServer.log.info('!!!!!! [WS Proxy] WebSocket handler invoked! !!!!!!'); // Keep original log too
 
   proxyServer.log.info('[WS Proxy] Twilio connected to /outbound-media-stream');
 
   // --- Send Connected message immediately ---
   // This is required by the Twilio Media Streams protocol
   try {
-    connection.socket.send(JSON.stringify({ event: "connected" }));
-    proxyServer.log.info('[WS Proxy] Sent "connected" event to Twilio');
+    console.error('[WS Proxy] Attempting to send "connected" event...'); // USE CONSOLE.ERROR
+    connection.socket.send(JSON.stringify({ event: "connected" }), (err) => {
+      if (err) {
+        console.error('[WS Proxy] ERROR sending "connected" event:', err); // USE CONSOLE.ERROR
+        proxyServer.log.error('[WS Proxy] ERROR sending "connected" event:', err); // Keep original log too
+        // Close connection if send fails
+        if (connection.socket.readyState === WebSocket.OPEN) connection.socket.close();
+      } else {
+        console.error('[WS Proxy] Successfully sent "connected" event.'); // USE CONSOLE.ERROR
+        proxyServer.log.info('[WS Proxy] Sent "connected" event to Twilio'); // Keep original log too
+      }
+    });
   } catch (err) {
-    proxyServer.log.error('[WS Proxy] Failed to send "connected" event to Twilio', err);
+    console.error('[WS Proxy] EXCEPTION sending "connected" event:', err); // USE CONSOLE.ERROR
+    proxyServer.log.error('[WS Proxy] EXCEPTION sending "connected" event:', err); // Keep original log too
     // Close connection if we can't even send the first message
     if (connection.socket.readyState === WebSocket.OPEN) connection.socket.close();
     return; // Stop processing if we can't send connected
