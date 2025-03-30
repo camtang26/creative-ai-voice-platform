@@ -16,8 +16,10 @@ import {
  * @param {Object} options - Route options
  */
 export async function registerTranscriptApiRoutes(fastify, options = {}) {
+  console.log('[API Register] Attempting to register GET /api/db/calls/:callSid/transcript'); // ADDED LOG
   // Get transcript for a call
   fastify.get('/api/db/calls/:callSid/transcript', async (request, reply) => {
+    console.log(`[API Handler] Received request for GET /api/db/calls/${request.params?.callSid}/transcript`); // ADDED LOG (Use optional chaining)
     try {
       const { callSid } = request.params;
       
