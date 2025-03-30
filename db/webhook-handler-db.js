@@ -46,9 +46,24 @@ export function verifyWebhookSignature(payload, signature, secret) {
     const hmac = crypto.createHmac('sha256', secret);
     hmac.update(fullPayloadToSign);
     const calculatedHash = 'v0=' + hmac.digest('hex');
+
+    // --- START DEBUG LOGGING ---
+    console.log(`[Webhook Verify] Timestamp: ${timestamp}`);
+    console.log(`[Webhook Verify] Received Hash: v0=${receivedHash}`);
+    console.log(`[Webhook Verify] Calculated Hash: ${calculatedHash}`);
+    // Log start/end of payload string to check for subtle differences without logging secrets
+    const payloadStart = fullPayloadToSign.substring(0, 50);
+    const payloadEnd = fullPayloadToSign.substring(fullPayloadToSign.length - 50);
+    console.log(`[Webhook Verify] Payload to Sign (Start): ${payloadStart}...`);
+    console.log(`[Webhook Verify] Payload to Sign (End): ...${payloadEnd}`);
+    // --- END DEBUG LOGGING ---
     
     // Verify the hash
-    return receivedHash === calculatedHash;
+    const isValid = receivedHash === calculatedHash.replace('v0=',''); // Ensure we compare hash values correctly
+    if (!isValid) {
+       console.warn(`[Webhook Verify] HASH MISMATCH! Received: v0=${receivedHash}, Calculated: ${calculatedHash}`);
+    }
+    return isValid;
   } catch (error) {
     console.error('[Webhook] Signature verification error:', error.message);
     return false;
