@@ -387,16 +387,21 @@ async function processTranscriptData(callSid, webhookData) {
  * @param {Object} twilioClient - Twilio client
  * @returns {Promise<Object>} Processing result
  */
-export async function handleElevenLabsWebhook(request, secret, crmEndpoint, twilioClient = null) {
-  try {
-    // Get the signature header
-    const signature = request.headers['elevenlabs-signature'];
-    
-    // Log the received webhook
-    console.log('[Webhook] Processing webhook from ElevenLabs');
-    console.log('[Webhook] Signature:', signature ? 'Present' : 'Missing');
-    
-    // Get the body
+ export async function handleElevenLabsWebhook(request, secret, crmEndpoint, twilioClient = null) {
+   try {
+     // --- START DEBUG LOGGING ---
+     console.log('[Webhook] Received request. Headers:', JSON.stringify(request.headers, null, 2));
+     console.log('[Webhook] Received request. Body:', JSON.stringify(request.body, null, 2));
+     // --- END DEBUG LOGGING ---
+
+     // Get the signature header
+     const signature = request.headers['elevenlabs-signature'];
+     
+     // Log the received webhook
+     console.log('[Webhook] Processing webhook from ElevenLabs');
+     console.log('[Webhook] Signature:', signature ? 'Present' : 'Missing');
+     
+     // Get the body
     const webhookData = request.body;
     
     // Verify the signature if a secret is provided
@@ -413,7 +418,9 @@ export async function handleElevenLabsWebhook(request, secret, crmEndpoint, twil
     
     // Handle different webhook types
     const webhookType = webhookData.type || 'unknown';
-    console.log(`[Webhook] Processing webhook type: ${webhookType}`);
+    // --- START DEBUG LOGGING ---
+    console.log(`[Webhook] Determined webhook type: ${webhookType}`);
+    // --- END DEBUG LOGGING ---
     
     // Extract conversation ID and call SID - regardless of webhook type
     const conversationId = extractConversationId(webhookData);
