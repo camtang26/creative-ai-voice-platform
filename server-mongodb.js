@@ -371,49 +371,57 @@ wss.on('connection', (ws, request) => {
   let lastActivity = Date.now();
 
   const INACTIVITY_TIMEOUT_MS = 300000; // 5 minutes for debugging, revert to 60000 later
+  let isTimerActive = false; // Flag to control timer execution
 
-  // Simplified timer logic - closer to original but ensuring clear happens first
+  // Flag-based timer logic
   const startInactivityTimer = () => {
     if (!callSid) {
        server.log.debug('[WS Manual][Timer] startInactivityTimer called before callSid is set. Skipping.');
        return;
     }
-    // ALWAYS clear the previous timer before setting a new one
-    if (inactivityTimeout) {
-      server.log.debug(`[WS Manual][Timer] Clearing existing timer for call ${callSid}.`);
-      clearTimeout(inactivityTimeout);
-      inactivityTimeout = null; // Explicitly nullify
-    }
     
-    server.log.debug(`[WS Manual][Timer] Setting new ${INACTIVITY_TIMEOUT_MS}ms timer for call ${callSid}.`);
+    // Cancel any pending Node.js timer object (best effort)
+    if (inactivityTimeout) {
+      clearTimeout(inactivityTimeout);
+    }
+
+    server.log.debug(`[WS Manual][Timer] Scheduling inactivity check for call ${callSid} in ${INACTIVITY_TIMEOUT_MS}ms.`);
+    isTimerActive = true; // Set flag *before* scheduling
     inactivityTimeout = setTimeout(() => {
-      // Log when the timer *callback* starts executing
-      server.log.warn(`[WS Manual][Timer] Timer callback executed for call ${callSid}. Checking inactivity.`);
-      const timeSinceLastActivity = Date.now() - lastActivity;
+      server.log.warn(`[WS Manual][Timer] Timer callback executed for call ${callSid}.`);
+      
+      // *** Check the flag ***
+      if (!isTimerActive) {
+        server.log.info(`[WS Manual][Timer] Timer callback for ${callSid} ignored as flag is inactive (recent activity occurred).`);
+        return;
+      }
+
+      // If flag is still active, proceed with termination check
+      isTimerActive = false; // Deactivate flag before terminating
+      const timeSinceLastActivity = Date.now() - lastActivity; // Check time again *inside* callback
+      
       if (timeSinceLastActivity >= INACTIVITY_TIMEOUT_MS) {
-           server.log.warn(`[WS Manual][Timer] Inactivity confirmed for call ${callSid} (${timeSinceLastActivity}ms >= ${INACTIVITY_TIMEOUT_MS}ms). WOULD TERMINATE HERE (DEBUG).`);
-           // if (callSid && twilioClient) { terminateCall(twilioClient, callSid); } // DEBUG: Commented out termination
+           server.log.warn(`[WS Manual][Timer] Inactivity confirmed for call ${callSid} (${timeSinceLastActivity}ms >= ${INACTIVITY_TIMEOUT_MS}ms). Terminating.`);
+           if (callSid && twilioClient) { terminateCall(twilioClient, callSid); } // Restore termination
+           // Also close WebSockets as before
            if (elevenLabsWs?.readyState === WebSocket.OPEN) { server.log.warn('[WS Manual][Timer] Closing ElevenLabs WS due to inactivity.'); elevenLabsWs.close(); }
            if (ws.readyState === WebSocket.OPEN) { server.log.warn('[WS Manual][Timer] Closing Twilio WS due to inactivity.'); ws.close(); }
       } else {
-           // This case should ideally not happen with this simpler logic,
-           // but log if it does. It means the timer fired but activity happened
-           // very recently, possibly due to event loop delays.
-           server.log.warn(`[WS Manual][Timer] Timer fired for ${callSid}, but recent activity detected (${timeSinceLastActivity}ms < ${INACTIVITY_TIMEOUT_MS}ms). This might indicate event loop issues. Not terminating.`);
-           // Optionally reschedule here, but let's see if the simple clear/set works first.
+           // This case means activity happened *just* before the timer callback executed, but *after* the flag was last checked/set.
+           server.log.warn(`[WS Manual][Timer] Timer callback for ${callSid} executed, but recent activity detected (${timeSinceLastActivity}ms < ${INACTIVITY_TIMEOUT_MS}ms). Not terminating. Another timer should have been scheduled by updateActivity.`);
       }
     }, INACTIVITY_TIMEOUT_MS);
-    server.log.debug(`[WS Manual][Timer] Timer scheduled with ID: ${inactivityTimeout ? 'Set' : 'Failed?'}`); // Check if setTimeout returned a handle
   };
 
   const updateActivity = () => {
     if (!callSid) {
       server.log.debug('[WS Manual][Timer] updateActivity called before callSid is set. Skipping timer reset.');
-      return; // Don't reset timer if callSid isn't known yet
+      return;
     }
-    server.log.debug(`[WS Manual][Timer] Activity detected for call ${callSid}. Resetting timer.`);
+    server.log.debug(`[WS Manual][Timer] Activity detected for call ${callSid}. Setting timer flag inactive and updating timestamp.`);
+    isTimerActive = false; // Signal that the currently scheduled timer should ignore itself
     lastActivity = Date.now();
-    // Restart the timer cycle
+    // Schedule the *next* timer check. This replaces the previous one conceptually.
     startInactivityTimer();
   };
 
