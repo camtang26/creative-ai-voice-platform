@@ -14,19 +14,20 @@
 import 'dotenv/config';
 import fastify from 'fastify';
 import fastifySocketIO from 'fastify-socket.io'; // Import the socket.io plugin
-// Removed @fastify/websocket import - moved to media-proxy-server.js
+import fastifyWebsocket from '@fastify/websocket'; // ADDED: Import websocket plugin
+import WebSocket from 'ws'; // ADDED: Import ws library
 import fastifyFormBody from '@fastify/formbody';
 import fetch from 'node-fetch';
 import crypto from 'crypto';
 import Twilio from 'twilio';
-// Removed WebSocket import - not needed in this service
-import { 
-  registerOutboundRoutes, 
-  activeCalls, 
-  // Removed getSignedUrl, isConversationComplete as they are likely only needed by proxy
+import {
+  registerOutboundRoutes,
+  activeCalls,
+  getSignedUrl, // ADDED BACK: Needed by merged WS handler
+  isConversationComplete, // ADDED BACK: Needed by merged WS handler
   terminateCall, // Keep if needed by webhooks/API directly
-  // setDynamicVariables // Likely only needed by proxy
-} from './outbound.js'; 
+  // setDynamicVariables // Keep commented unless needed directly by main server logic
+} from './outbound.js';
 import { sendEmail } from './email-tools/api-email-service.js';
 import { sendSESEmail } from './email-tools/aws-ses-email.js';
 import enhancedCallHandler from './enhanced-call-handler.js';
@@ -110,7 +111,14 @@ server.register(fastifySocketIO, {
   randomizationFactor: 0.5
 });
 
-// Removed @fastify/websocket registration - moved to media-proxy-server.js
+// ADDED: Register @fastify/websocket
+server.register(fastifyWebsocket, {
+  options: {
+    perMessageDeflate: false,
+    maxPayload: 64 * 1024,
+    // Add other relevant options if needed from original media-proxy setup
+  }
+});
 server.register(fastifyFormBody);
 
 // Register API middleware
@@ -325,6 +333,287 @@ server.post('/quality-insights-callback', async (request, reply) => {
     return reply.code(200).send({ success: true, status: 'error', message: error.message });
   }
 });
+
+// --- ADDED: WebSocket Proxy Handler (from media-proxy-server.js) ---
+server.get('/outbound-media-stream', { websocket: true }, (connection, req) => {
+  // Note: 'connection' is the stream from @fastify/websocket
+
+  server.log.info('[WS Proxy] Twilio connected to /outbound-media-stream');
+
+  // --- Send Connected message immediately ---
+  // This is required by the Twilio Media Streams protocol
+  try {
+    connection.socket.send(JSON.stringify({ event: "connected" }));
+    server.log.info('[WS Proxy] Sent "connected" event to Twilio');
+  } catch (err) {
+    server.log.error('[WS Proxy] Failed to send "connected" event to Twilio', err);
+    // Close connection if we can't even send the first message
+    if (connection.socket.readyState === WebSocket.OPEN) connection.socket.close();
+    return; // Stop processing if we can't send connected
+  }
+  // -----------------------------------------
+
+  // Now integrate DB repository access if needed for logging/updates
+  const callRepository = getCallRepository(); // Get repository instance
+  const callEventRepository = getCallEventRepository(); // Get repository instance
+
+  let streamSid = null;
+  let callSid = null;
+  let elevenLabsWs = null;
+  let customParameters = {};
+  let conversationId = null; // Still useful for logging/context
+  let initialConfigSent = false;
+  let inactivityTimeout = null;
+  let lastActivity = Date.now();
+
+  const startInactivityTimer = () => {
+    if (inactivityTimeout) clearTimeout(inactivityTimeout);
+    inactivityTimeout = setTimeout(() => {
+      server.log.warn(`[WS Proxy] Inactivity detected for call ${callSid}, terminating call`);
+      // Use the twilioClient initialized in server-mongodb.js
+      if (callSid && twilioClient) { terminateCall(twilioClient, callSid); } // Assuming terminateCall handles client check
+      if (elevenLabsWs?.readyState === WebSocket.OPEN) elevenLabsWs.close();
+      if (connection.socket.readyState === WebSocket.OPEN) connection.socket.close(); // Close the Twilio connection
+    }, 60000); // 60 seconds inactivity timeout
+  };
+
+  const updateActivity = () => {
+    lastActivity = Date.now();
+    startInactivityTimer();
+  };
+
+  connection.socket.on('error', (error) => { // Attach to raw socket for underlying errors
+    server.log.error('[WS Proxy] Twilio WebSocket error', error);
+    // Attempt to clean up ElevenLabs connection on Twilio error
+     if (elevenLabsWs?.readyState === WebSocket.OPEN) elevenLabsWs.close();
+  });
+
+  const setupElevenLabs = async () => {
+    try {
+      // Assuming getSignedUrl is available in scope (imported from outbound.js)
+      const { signed_url } = await getSignedUrl();
+
+      server.log.info('[WS Proxy] Creating ElevenLabs WebSocket connection');
+      elevenLabsWs = new WebSocket(signed_url);
+
+      elevenLabsWs.on("open", () => {
+        server.log.info('[WS Proxy] Connected to ElevenLabs. Waiting for metadata...');
+        updateActivity();
+      });
+
+      elevenLabsWs.on("message", (data) => {
+        updateActivity();
+        let message = null;
+        const rawData = data.toString();
+        // server.log.info('[WS Proxy] Received message RAW from ElevenLabs:', rawData); // Verbose
+
+        try {
+          message = JSON.parse(rawData);
+          // server.log.info('[WS Proxy] Parsed message JSON from ElevenLabs:', JSON.stringify(message, null, 2)); // Verbose
+        } catch (parseError) {
+           server.log.error('[WS Proxy] Could not parse message from ElevenLabs as JSON:', parseError.message, { rawData });
+           if (!initialConfigSent) return; // Critical if first message fails
+        }
+
+        // Handle Initial Metadata & Send Config
+        if (message?.type === "conversation_initiation_metadata" && !initialConfigSent) {
+          initialConfigSent = true;
+          const metadataEvent = message.conversation_initiation_metadata_event;
+          server.log.info('[WS Proxy] Received conversation_initiation_metadata');
+
+          if (metadataEvent?.conversation_id) {
+            conversationId = metadataEvent.conversation_id;
+            server.log.info(`[WS Proxy] Extracted conversation_id ${conversationId} from metadata`);
+            // Update the call record in MongoDB with the conversation ID
+            if (callSid && callRepository) {
+               callRepository.updateCallStatus(callSid, null, { conversationId: conversationId })
+                 .catch(err => server.log.error(`[WS Proxy][DB] Error updating call ${callSid} with conversationId ${conversationId}:`, err));
+            }
+          } else {
+             server.log.warn('[WS Proxy] conversation_initiation_metadata missing conversation_id');
+          }
+
+          // Prepare and send config using customParameters extracted from Twilio start message
+          const initialConfig = {
+            type: "conversation_initiation_client_data",
+            conversation_config_override: {
+              agent: {
+                ...(customParameters?.first_message && { first_message: customParameters.first_message }),
+                ...(customParameters?.prompt && { system_prompt: customParameters.prompt })
+              },
+            },
+            dynamic_variables: {
+               phone_number: customParameters?.to || "Unknown",
+               name: customParameters?.name || "Unknown",
+               contact_name: customParameters?.name || "Unknown", // Keep both for safety
+               call_sid: callSid || "Unknown",
+               campaign_id: customParameters?.campaignId || null,
+               contact_id: customParameters?.contactId || null
+            }
+          };
+          server.log.debug('[WS Proxy] Sending initial config to ElevenLabs');
+          elevenLabsWs.send(JSON.stringify(initialConfig));
+          return; // Don't process metadata further
+        }
+
+        // Process Subsequent Messages
+        if (!initialConfigSent) {
+           server.log.warn('[WS Proxy] Received message before initial metadata/config sent. Ignoring.');
+           return;
+        }
+
+        // Capture conversation_id if missed
+        if (message && !conversationId && message.conversation_id) {
+           conversationId = message.conversation_id;
+           server.log.info(`[WS Proxy] Received conversation_id ${conversationId} from subsequent message`);
+           // Update the call record in MongoDB
+           if (callSid && callRepository) {
+              callRepository.updateCallStatus(callSid, null, { conversationId: conversationId })
+                .catch(err => server.log.error(`[WS Proxy][DB] Error updating call ${callSid} with conversationId ${conversationId}:`, err));
+           }
+        }
+
+        if (message) {
+            // Assuming isConversationComplete is available in scope (imported from outbound.js)
+            if (isConversationComplete(message)) {
+              server.log.info(`[WS Proxy] Conversation complete detected, terminating call ${callSid}`);
+              if (callSid && twilioClient) { terminateCall(twilioClient, callSid); }
+              // No need to close ws here, ElevenLabs close event will handle it
+              return;
+            }
+
+            switch (message.type) {
+              case "audio":
+                if (streamSid && message.audio?.chunk) {
+                  // Forward audio back to Twilio
+                  connection.socket.send(JSON.stringify({ event: "media", streamSid, media: { payload: message.audio.chunk } }));
+                }
+                break;
+              case "interruption":
+                if (streamSid) connection.socket.send(JSON.stringify({ event: "clear", streamSid }));
+                break;
+              case "ping":
+                if (message.ping_event?.event_id) {
+                  elevenLabsWs.send(JSON.stringify({ type: "pong", event_id: message.ping_event.event_id }));
+                }
+                break;
+              case "transcript_update":
+                // Log transcript and potentially save/emit
+                const transcriptMsg = message.transcript_update;
+                if (transcriptMsg && transcriptMsg.message) {
+                   server.log.debug(`[WS Proxy] Transcript: ${transcriptMsg.role}: ${transcriptMsg.message.substring(0,50)}...`);
+                   // Optionally log to DB events
+                   if (callSid && callEventRepository) {
+                      callEventRepository.logEvent(callSid, 'transcript_segment', {
+                        role: transcriptMsg.role,
+                        text: transcriptMsg.message,
+                        timestamp: new Date().toISOString()
+                      }, { source: 'elevenlabs_stream' })
+                      .catch(err => server.log.error(`[WS Proxy][DB] Error logging transcript segment for ${callSid}:`, err));
+                   }
+                   // Optionally emit via Socket.IO (ensure emitTranscriptMessage is imported/available)
+                   if (callSid && typeof emitTranscriptMessage === 'function') {
+                      emitTranscriptMessage(callSid, transcriptMsg.role, transcriptMsg.message);
+                   }
+                }
+                break;
+              default:
+                 // Log other events for debugging if necessary
+                 server.log.debug(`[WS Proxy] Received ElevenLabs message type: ${message.type}`);
+                 // Optionally log to DB events
+                 if (callSid && callEventRepository) {
+                    callEventRepository.logEvent(callSid, message.type, message, { source: 'elevenlabs_stream' })
+                    .catch(err => server.log.error(`[WS Proxy][DB] Error logging event type ${message.type} for ${callSid}:`, err));
+                 }
+            }
+        }
+      });
+
+      elevenLabsWs.on("error", (error) => {
+        server.log.error('[WS Proxy] ElevenLabs WebSocket error', error);
+        // Attempt to close Twilio connection on ElevenLabs error
+        if (connection.socket.readyState === WebSocket.OPEN) connection.socket.close();
+      });
+
+      elevenLabsWs.on("close", () => {
+        server.log.info('[WS Proxy] ElevenLabs WebSocket disconnected');
+        if (inactivityTimeout) clearTimeout(inactivityTimeout);
+        // Terminate call if ElevenLabs disconnects unexpectedly (unless already handled by conversation complete)
+        if (callSid && twilioClient) {
+           server.log.info(`[WS Proxy] ElevenLabs WS closed. Ensuring call ${callSid} is terminated.`);
+           terminateCall(twilioClient, callSid); // Assuming terminateCall handles already completed calls gracefully
+        }
+        if (connection.socket.readyState === WebSocket.OPEN) connection.socket.close(); // Close Twilio connection
+      });
+
+    } catch (error) {
+      server.log.error('[WS Proxy] ElevenLabs setup error', error);
+      if (connection.socket.readyState === WebSocket.OPEN) connection.socket.close();
+    }
+  };
+
+  // Listen for messages from Twilio
+  connection.socket.on("message", (message) => {
+    updateActivity();
+    try {
+      const msg = JSON.parse(message);
+      switch (msg.event) {
+        case "start":
+          streamSid = msg.start.streamSid;
+          callSid = msg.start.callSid;
+          // Extract custom parameters passed from TwiML
+          customParameters = msg.start.customParameters || {};
+          server.log.info(`[WS Proxy] Received TwiML Parameters:`, customParameters);
+          server.log.info(`[WS Proxy] Twilio Stream started`, { streamSid, callSid });
+          // Update activeCalls map (if still needed, or rely solely on DB)
+          if (activeCalls.has(callSid)) {
+             const callInfo = activeCalls.get(callSid);
+             callInfo.streamSid = streamSid; // Add streamSid if useful
+             activeCalls.set(callSid, callInfo);
+          }
+          startInactivityTimer();
+          // Setup connection to ElevenLabs *after* receiving start message from Twilio
+          setupElevenLabs();
+          break;
+        case "media":
+          // Forward Twilio audio to ElevenLabs
+          if (elevenLabsWs?.readyState === WebSocket.OPEN && msg.media?.payload) {
+            const audioMessage = { user_audio_chunk: msg.media.payload };
+            elevenLabsWs.send(JSON.stringify(audioMessage));
+          }
+          break;
+        case "stop":
+          server.log.info(`[WS Proxy] Twilio Stream ended`, { streamSid });
+          if (inactivityTimeout) clearTimeout(inactivityTimeout);
+          if (elevenLabsWs?.readyState === WebSocket.OPEN) elevenLabsWs.close();
+          // No need to close connection.socket here, the close event handler below will fire
+          break;
+        case "mark":
+          server.log.debug(`[WS Proxy] Twilio Mark: ${msg.mark?.name}`);
+          break;
+        default:
+          server.log.debug(`[WS Proxy] Unhandled Twilio event: ${msg.event}`);
+      }
+    } catch (error) {
+      server.log.error('[WS Proxy] Error processing Twilio message', error);
+      // Attempt to clean up
+      if (elevenLabsWs?.readyState === WebSocket.OPEN) elevenLabsWs.close();
+      if (connection.socket.readyState === WebSocket.OPEN) connection.socket.close();
+    }
+  });
+
+  connection.socket.on("close", () => {
+    server.log.info('[WS Proxy] Twilio WebSocket disconnected');
+    if (inactivityTimeout) clearTimeout(inactivityTimeout);
+    if (elevenLabsWs?.readyState === WebSocket.OPEN) elevenLabsWs.close();
+    // Terminate call if Twilio disconnects unexpectedly
+    if (callSid && twilioClient) {
+       server.log.info(`[WS Proxy] Twilio WS closed. Ensuring call ${callSid} is terminated.`);
+       terminateCall(twilioClient, callSid); // Assuming terminateCall handles already completed calls gracefully
+    }
+  });
+});
+// --- End WebSocket Proxy Handler ---
 
 // Initialize MongoDB
 let mongodbIntegration = null;

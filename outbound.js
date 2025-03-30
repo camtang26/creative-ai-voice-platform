@@ -466,18 +466,10 @@ export function registerOutboundRoutes(fastify, options = {}) { // Added export
     const baseUrl = getBaseUrl(request);
 
     // Determine the correct WebSocket URL for the media stream
-    let streamUrl;
-    const mediaStreamPath = '/outbound-media-stream'; // Define the expected path
-
-    if (process.env.MEDIA_PROXY_SERVICE_URL) {
-      // Extract hostname, removing any existing protocol, and ensure wss:// prefix
-      const hostname = process.env.MEDIA_PROXY_SERVICE_URL.replace(/^(wss?:\/\/|https?:\/\/)/, '');
-      streamUrl = `wss://${hostname}${mediaStreamPath}`; // Append the correct path
-    } else {
-      // Fallback: Construct using the main app's base URL
-      const fallbackHostname = baseUrl.replace(/^(https?:\/\/)/, '');
-      streamUrl = `wss://${fallbackHostname}${mediaStreamPath}`;
-    }
+    // Construct the WebSocket URL using the main app's baseUrl
+    // Ensure wss:// protocol
+    const hostname = baseUrl.replace(/^(https?:\/\/)/, '');
+    const streamUrl = `wss://${hostname}/outbound-media-stream`; // Define streamUrl once
 
     console.log(`[TwiML] Using Stream URL: ${streamUrl}`); // Log the final constructed URL
 
