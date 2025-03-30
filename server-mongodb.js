@@ -119,23 +119,22 @@ server.register(fastifySocketIO, {
 // REMOVED: @fastify/websocket registration
 server.register(fastifyFormBody);
 
-// --- REMOVED preParsing hook ---
-
 // --- Add Custom Content Type Parser for ElevenLabs Webhook ---
 server.addContentTypeParser(
   'application/json',
   { parseAs: 'string', bodyLimit: 5 * 1024 * 1024 }, // Read as string, set body limit (e.g., 5MB)
   (req, body, done) => {
     // This parser applies globally by default, but we only need the raw body for the webhook
-    if (req.routerPath === '/webhooks/elevenlabs') {
+    if (req.url === '/webhooks/elevenlabs') { // Check req.url
       // Attach raw body for signature verification (direct assignment in JS)
       req.rawBodyString = body;
+      server.log.info(`[ContentTypeParser] Attached rawBodyString for ${req.url}`); // Add log
     }
     try {
       // Proceed with standard JSON parsing for request.body
       const json = JSON.parse(body);
       done(null, json); // Pass parsed JSON to request.body
-    } catch (err) { // Removed ': any' type annotation
+    } catch (err) {
       err.statusCode = 400;
       done(err, undefined); // Pass error if JSON parsing fails
     }
@@ -207,11 +206,19 @@ server.post('/webhooks/elevenlabs-debug', (request, reply) => {
 // MongoDB-enhanced webhook handler
 let enhancedWebhookHandler;
 
+
 // Main webhook handler
-server.post('/webhooks/elevenlabs', async (request, reply) => {
+server.post('/webhooks/elevenlabs',
+  { // Add route config object
+    config: {
+      // Disable default body parsing for this route
+      // We will read the raw body manually in the handler
+      disableBodyParser: true
+    }
+  },
+  async (request, reply) => {
   try {
     const webhookSecret = process.env.ELEVENLABS_WEBHOOK_SECRET;
-    const crmEndpoint = process.env.CRM_WEBHOOK_URL || 'https://qr4h1dage6.execute-api.ap-southeast-2.amazonaws.com/crm/calls/webhook/is';
     const signature = request.headers['elevenlabs-signature']; 
     console.log('[Webhook] Received ElevenLabs webhook');
     if (webhookSecret && signature) {

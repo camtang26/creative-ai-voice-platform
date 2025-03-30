@@ -408,13 +408,13 @@ async function processTranscriptData(callSid, webhookData) {
  * @param {Object} twilioClient - Twilio client
  * @returns {Promise<Object>} Processing result
  */
- export async function handleElevenLabsWebhook(request, secret, crmEndpoint, twilioClient = null) {
+ export async function handleElevenLabsWebhook(request, reply, secret, crmEndpoint, twilioClient = null) { // Added reply param
    try {
      // --- START DEBUG LOGGING ---
      console.log('[Webhook] Received request. Headers:', JSON.stringify(request.headers, null, 2));
-     console.log('[Webhook] Received request. Body:', JSON.stringify(request.body, null, 2));
+     // request.body is undefined because disableBodyParser: true for this route
      // --- END DEBUG LOGGING ---
-
+ 
      // Get the signature header
      const signature = request.headers['elevenlabs-signature'];
      
@@ -422,14 +422,26 @@ async function processTranscriptData(callSid, webhookData) {
      console.log('[Webhook] Processing webhook from ElevenLabs');
      console.log('[Webhook] Signature:', signature ? 'Present' : 'Missing');
      
-     // Get the RAW body string captured by the content type parser hook
-     const rawBody = request.rawBodyString;
+     // --- Manually read the raw body ---
+     let rawBody = '';
+     try {
+        // Access underlying Node request stream via request.raw
+        for await (const chunk of request.raw) {
+            rawBody += chunk.toString();
+        }
+        console.log('[Webhook] Raw body read successfully (length:', rawBody.length, ')');
+        // Log start/end for debugging signature issues if they persist
+        console.log('[Webhook] Raw Body Start:', rawBody.substring(0, 100) + '...');
+     } catch (readError) {
+        console.error('[Webhook] Failed to read raw request body stream:', readError);
+        return reply.code(500).send({ success: false, error: 'Failed to read request body' });
+     }
+     // --- End raw body read ---
      
      // Verify the signature using the RAW body string
      if (secret && signature) {
        // Pass rawBody to the verification function
-       // Use request.body (already parsed by custom parser) as the first arg for consistency, though it's not used if rawBody exists
-       const isValid = verifyWebhookSignature(request.body, signature, secret, rawBody);
+       const isValid = verifyWebhookSignature(null, signature, secret, rawBody); // Pass null for parsed payload
        if (!isValid) {
          console.error('[Webhook] Invalid signature');
          // Return 200 OK even on invalid signature to prevent ElevenLabs retries, but indicate failure
@@ -440,16 +452,17 @@ async function processTranscriptData(callSid, webhookData) {
       console.log('[Webhook] Skipping signature verification (no secret or signature)');
     }
 
-    // --- Use the already parsed request.body (populated by custom content type parser) ---
-    const webhookData = request.body;
-    if (!webhookData || typeof webhookData !== 'object') {
-       // This case should ideally be caught by the parser's error handling, but double-check
-       console.error('[Webhook] Parsed request body is missing or not an object.');
-       return reply.code(400).send({ success: false, error: 'Invalid request body' });
+    // --- Manually parse the JSON body AFTER verification ---
+    let webhookData;
+    try {
+      webhookData = JSON.parse(rawBody || '{}'); // Parse raw body or default to empty object if rawBody is empty/null
+    } catch (parseError) {
+      console.error('[Webhook] Failed to parse raw request body:', parseError);
+      return reply.code(400).send({ success: false, error: 'Invalid request body format' });
     }
-    // --- End ---
+    // --- End Manual Parsing ---
     
-    // Handle different webhook types using the parsed data
+    // Handle different webhook types using the manually parsed data
     const webhookType = webhookData.type || 'unknown';
     // --- START DEBUG LOGGING ---
     console.log(`[Webhook] Determined webhook type: ${webhookType}`);
