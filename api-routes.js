@@ -311,4 +311,48 @@ export function registerApiRoutes(server, twilioClient, activeCalls) {
       { providedSid: callSid, twilioClientAvailable: !!twilioClient }
     );
   }));
+  
+  // --- ADDED: Get call transcript ---
+  // Import transcript API functions (assuming they exist or will be created)
+  // We'll need to ensure the repository is attached during initialization
+  // import { getTranscriptRepository } from './db/index.js'; // Or wherever it's exported
+  
+  server.get('/api/db/calls/:callSid/transcript', asyncHandler(async (request, reply) => {
+    const { callSid } = request.params;
+    
+    if (!isValidCallSid(callSid)) {
+      throw ApiError.badRequest(`Invalid call SID format: ${callSid}`, 'INVALID_CALL_SID', { providedSid: callSid });
+    }
+    
+    // Placeholder: Assume getTranscriptRepository exists and is attached to server instance
+    // This attachment needs to happen in server-mongodb.js during initializeDatabase
+    const transcriptRepository = server.transcriptRepository;
+    if (!transcriptRepository) {
+       throw ApiError.internalServerError('Transcript repository not available.', 'REPOSITORY_UNAVAILABLE');
+    }
+    
+    // Fetch transcript segments from the database, ordered by timestamp
+    // We might want full transcript assembly logic here or in the repository
+    const transcriptEvents = await transcriptRepository.findEventsByCallSid(callSid, ['transcript_segment', 'user_transcript', 'agent_response']); // Fetch relevant events
+    
+    if (!transcriptEvents || transcriptEvents.length === 0) {
+      // Return empty array if no segments found, rather than 404, as the call might exist but have no transcript yet
+      return createSuccessResponse({ callSid, transcript: [] }, 'No transcript segments found for this call');
+    }
+    
+    // Basic assembly for now - just return the segments ordered by time
+    // TODO: Consider adding logic to assemble into a coherent transcript string if needed by frontend
+    const formattedTranscript = transcriptEvents
+      .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)) // Ensure order
+      .map(event => ({
+        role: event.data?.role || (event.eventType === 'user_transcript' ? 'user' : 'agent'), // Infer role if missing
+        text: event.data?.text || event.data?.message || '', // Handle different data structures
+        timestamp: event.timestamp,
+        eventType: event.eventType // Include event type for context
+      }));
+    
+    return createSuccessResponse({ callSid, transcript: formattedTranscript }, 'Transcript segments retrieved successfully');
+  }));
+  // --- End Get call transcript ---
+  
 }

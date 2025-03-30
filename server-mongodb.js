@@ -50,11 +50,11 @@ import {
   getEnhancedWebhookHandler,
   getCallRepository,
   getRecordingRepository,
-  getTranscriptRepository, 
-  getCallEventRepository, 
+  getTranscriptRepository, // Ensure this is exported from db/index.js
+  getCallEventRepository,
   getAnalyticsRepository
 } from './db/index.js';
-import { verifyWebhookSignature } from './db/webhook-handler-db.js'; 
+import { verifyWebhookSignature } from './db/webhook-handler-db.js';
 
 // Get Twilio credentials from environment
 const {
@@ -580,9 +580,20 @@ async function initializeDatabase() {
   console.log(`[Server] MongoDB URI: ${process.env.MONGODB_URI ? 'Set (hidden for security)' : 'Not set'}`);
   try {
     console.log('[Server] Calling initializeMongoDB...');
-    mongodbIntegration = await initializeMongoDB(server, { activeCalls, syncExistingCalls: true });
-    console.log('[Server] MongoDB initialized, getting enhanced webhook handler...');
-    enhancedWebhookHandler = getEnhancedWebhookHandler();
+    // Assuming initializeMongoDB returns an object with repositories or sets them up internally
+    const dbIntegrationResult = await initializeMongoDB(server, { activeCalls, syncExistingCalls: true });
+    mongodbIntegration = dbIntegrationResult; // Keep if needed elsewhere
+    
+    // Attach repositories to the server instance for access in routes
+    // Assuming the get... functions return the initialized repositories
+    server.callRepository = getCallRepository();
+    server.recordingRepository = getRecordingRepository();
+    server.transcriptRepository = getTranscriptRepository(); // Get and attach
+    server.callEventRepository = getCallEventRepository();
+    server.analyticsRepository = getAnalyticsRepository();
+    
+    console.log('[Server] MongoDB initialized, repositories attached.');
+    enhancedWebhookHandler = getEnhancedWebhookHandler(); // This likely uses the repositories internally
     console.log('[Server] MongoDB integration initialized successfully');
     return true;
   } catch (error) {
