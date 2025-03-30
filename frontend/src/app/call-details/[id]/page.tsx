@@ -69,6 +69,7 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
   // Fetch call details, recordings, and transcript
   useEffect(() => {
     const loadCallData = async () => {
+      console.log('[CallDetailsPage] loadCallData started. Clearing main error state.'); // Log before clearing
       setLoading(true)
       setError(null)
       
@@ -90,7 +91,9 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
         if (callResponse.success && callResponse.call) {
           setCall(callResponse.call)
         } else {
-          setError(callResponse.error || 'Failed to load call details')
+          const callErrorMsg = callResponse.error || 'Failed to load call details';
+          console.log(`[CallDetailsPage] fetchCall failed. Setting main error state: ${callErrorMsg}`); // Log before setting error
+          setError(callErrorMsg)
           // Removed the early return/setLoading here to allow other fetches even if call details fail initially
         }
         
@@ -134,6 +137,7 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
         if (err && typeof err === 'object' && 'message' in err) {
            errorMessage = `Error loading call details or recordings: ${err.message}`;
         }
+        console.log(`[CallDetailsPage] Outer catch block triggered. Setting main error state: ${errorMessage}`); // Log before setting error
         setError(errorMessage); // Sets the main error state
       } finally {
         setLoading(false)
