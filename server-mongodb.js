@@ -451,8 +451,9 @@ wss.on('connection', (ws, request) => {
                 const payloadBase64 = message.audio_event.audio_base_64;
                 const mediaEventToSend = { event: "media", streamSid, media: { payload: payloadBase64 } };
                 // Keep the debug log, but use the correct payload variable
-                server.log.debug(`[WS Manual] Sending media event to Twilio. StreamSid: ${streamSid}, Payload (start): ${payloadBase64.substring(0, 20)}...`);
-                ws.send(JSON.stringify(mediaEventToSend), (err) => {
+                const mediaJsonString = JSON.stringify(mediaEventToSend); // Stringify once
+                server.log.debug(`[WS Manual] Sending media event to Twilio. StreamSid: ${streamSid}, Payload (start): ${payloadBase64.substring(0, 20)}... Full Message: ${mediaJsonString.substring(0, 100)}...`);
+                ws.send(mediaJsonString, (err) => { // Send the stringified version
                   if (err) {
                      server.log.error(`[WS Manual] ERROR sending media event (StreamSid: ${streamSid}):`, err);
                   }
@@ -462,15 +463,27 @@ wss.on('connection', (ws, request) => {
                 server.log.warn('[WS Manual] Received audio chunk in unexpected format (message.audio.chunk). Sending directly.');
                 const payloadBase64 = message.audio.chunk; // Assuming it's already base64
                 const mediaEventToSend = { event: "media", streamSid, media: { payload: payloadBase64 } };
-                server.log.debug(`[WS Manual] Sending media event (fallback format) to Twilio. StreamSid: ${streamSid}, Payload (start): ${payloadBase64.substring(0, 20)}...`);
-                ws.send(JSON.stringify(mediaEventToSend), (err) => {
+                const mediaJsonStringFallback = JSON.stringify(mediaEventToSend); // Stringify once
+                server.log.debug(`[WS Manual] Sending media event (fallback format) to Twilio. StreamSid: ${streamSid}, Payload (start): ${payloadBase64.substring(0, 20)}... Full Message: ${mediaJsonStringFallback.substring(0, 100)}...`);
+                ws.send(mediaJsonStringFallback, (err) => { // Send the stringified version
                   if (err) {
                      server.log.error(`[WS Manual] ERROR sending media event (fallback format) (StreamSid: ${streamSid}):`, err);
                   }
                 });
               }
               break;
-            case "interruption": if (streamSid) { ws.send(JSON.stringify({ event: "clear", streamSid })); } break;
+            case "interruption":
+              if (streamSid) {
+                const clearEventToSend = { event: "clear", streamSid };
+                const clearJsonString = JSON.stringify(clearEventToSend);
+                server.log.debug(`[WS Manual] Sending clear event to Twilio. StreamSid: ${streamSid}. Full Message: ${clearJsonString}`);
+                ws.send(clearJsonString, (err) => {
+                  if (err) {
+                    server.log.error(`[WS Manual] ERROR sending clear event (StreamSid: ${streamSid}):`, err);
+                  }
+                });
+              }
+              break;
             case "ping": if (message.ping_event?.event_id) { elevenLabsWs.send(JSON.stringify({ type: "pong", event_id: message.ping_event.event_id })); } break;
             case "transcript_update":
               const transcriptMsg = message.transcript_update;
