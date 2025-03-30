@@ -34,7 +34,7 @@ import enhancedCallHandler from './enhanced-call-handler.js';
 import recordingHandler from './recording-handler.js';
 import callQualityMetrics from './call-quality-metrics.js';
 import { registerApiRoutes } from './api-routes.js';
-// Removed import for registerElevenLabsApiRoutes
+import { registerElevenLabsApiRoutes } from './elevenlabs-api-routes.js'; // Import new routes
 import { registerApiMiddleware } from './api-middleware.js';
 import {
   initializeSocketServer,
@@ -126,8 +126,8 @@ registerApiMiddleware(server);
 registerOutboundRoutes(server, { skipCallStatusCallback: true });
 
 // Register additional API routes
-registerApiRoutes(server, twilioClient, activeCalls); // This will now include the ElevenLabs route
-// Removed call to registerElevenLabsApiRoutes(server);
+registerApiRoutes(server, twilioClient, activeCalls);
+registerElevenLabsApiRoutes(server); // Register the new ElevenLabs proxy routes
 
 // Add a simple health check endpoint for Railway
 server.get('/healthz', async (request, reply) => {
@@ -387,7 +387,7 @@ wss.on('connection', (ws, request) => {
       clearTimeout(inactivityTimeout);
     }
 
-    server.log.debug(`[WS Manual][Timer] Scheduling inactivity check for call ${callSid} in ${INACTIVITY_TIMEOUT_MS}ms.`);
+    // REMOVED: server.log.debug(`[WS Manual][Timer] Scheduling inactivity check...`);
     isTimerActive = true; // Set flag *before* scheduling
     inactivityTimeout = setTimeout(() => {
       server.log.warn(`[WS Manual][Timer] Timer callback executed for call ${callSid}.`);
@@ -420,7 +420,7 @@ wss.on('connection', (ws, request) => {
       server.log.debug('[WS Manual][Timer] updateActivity called before callSid is set. Skipping timer reset.');
       return;
     }
-    server.log.debug(`[WS Manual][Timer] Activity detected for call ${callSid}. Setting timer flag inactive and updating timestamp.`);
+    // REMOVED: server.log.debug(`[WS Manual][Timer] Activity detected...`);
     isTimerActive = false; // Signal that the currently scheduled timer should ignore itself
     lastActivity = Date.now();
     // Schedule the *next* timer check. This replaces the previous one conceptually.
