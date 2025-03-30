@@ -119,6 +119,22 @@ server.register(fastifySocketIO, {
 // REMOVED: @fastify/websocket registration
 server.register(fastifyFormBody);
 
+// --- Add preParsing hook to capture raw body for webhook verification ---
+server.addHook('preParsing', async (request, reply, payload) => {
+  if (request.routerPath === '/webhooks/elevenlabs') {
+    let body = '';
+    for await (const chunk of payload) {
+      body += chunk.toString();
+    }
+    // Attach the raw body string to the request object (JavaScript allows direct assignment)
+    request.rawBodyString = body;
+  }
+  // IMPORTANT: Return the original payload stream for further processing
+  return payload;
+});
+server.log.info('[Server] Added preParsing hook for webhook raw body');
+// --- End preParsing hook ---
+
 // Register API middleware
 registerApiMiddleware(server);
 

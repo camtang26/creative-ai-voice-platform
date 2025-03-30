@@ -27,12 +27,13 @@ export function setActiveCallsReference(callsMap) {
  * @param {Object|string} payload - Webhook payload
  * @param {string} signature - Webhook signature
  * @param {string} secret - Webhook secret
+ * @param {string} rawBodyString - The raw request body as a string
  * @returns {boolean} Whether the signature is valid
  */
-export function verifyWebhookSignature(payload, signature, secret) {
-  try {
-    if (!secret || !signature) {
-      console.log('[Webhook] No secret or signature provided, skipping validation');
+ export function verifyWebhookSignature(payload, signature, secret, rawBodyString) { // Added rawBodyString param
+   try {
+     if (!secret || !signature) {
+       console.log('[Webhook] No secret or signature provided, skipping validation');
       return true; // Skip validation if no secret provided
     }
     
@@ -41,12 +42,17 @@ export function verifyWebhookSignature(payload, signature, secret) {
     const timestamp = timestampPart.replace('t=', '');
     const receivedHash = hashPart.replace('v0=', '');
     
-    // Calculate the expected hash
-    const fullPayloadToSign = `${timestamp}.${typeof payload === 'string' ? payload : JSON.stringify(payload)}`;
+    
+    // Calculate the expected hash using the RAW body string
+    // Ensure rawBodyString is provided, otherwise fallback (though it shouldn't happen with preParsing hook)
+    const bodyToSign = rawBodyString ?? (typeof payload === 'string' ? payload : JSON.stringify(payload));
+    if (!rawBodyString) {
+       console.warn('[Webhook Verify] rawBodyString was not provided to verifyWebhookSignature. Falling back to potentially parsed payload.');
+    }
+    const fullPayloadToSign = `${timestamp}.${bodyToSign}`; // Use raw string or fallback
     const hmac = crypto.createHmac('sha256', secret);
     hmac.update(fullPayloadToSign);
     const calculatedHash = 'v0=' + hmac.digest('hex');
-
     // --- START DEBUG LOGGING ---
     console.log(`[Webhook Verify] Timestamp: ${timestamp}`);
     console.log(`[Webhook Verify] Received Hash: v0=${receivedHash}`);
@@ -416,22 +422,36 @@ async function processTranscriptData(callSid, webhookData) {
      console.log('[Webhook] Processing webhook from ElevenLabs');
      console.log('[Webhook] Signature:', signature ? 'Present' : 'Missing');
      
-     // Get the body
-    const webhookData = request.body;
-    
-    // Verify the signature if a secret is provided
-    if (secret && signature) {
-      const isValid = verifyWebhookSignature(webhookData, signature, secret);
-      if (!isValid) {
-        console.error('[Webhook] Invalid signature');
-        return { success: false, error: 'Invalid signature' };
+     // Get the RAW body string captured by the preParsing hook
+     const rawBody = request.rawBodyString;
+     
+     // Verify the signature using the RAW body string
+     if (secret && signature) {
+       // Pass rawBody to the verification function
+       const isValid = verifyWebhookSignature(null, signature, secret, rawBody); // Pass null for parsed payload initially
+       if (!isValid) {
+         console.error('[Webhook] Invalid signature');
+         // Return 200 OK even on invalid signature to prevent ElevenLabs retries, but indicate failure
+         return reply.code(200).send({ success: false, error: 'Invalid signature' });
       }
       console.log('[Webhook] Signature verified successfully');
     } else {
       console.log('[Webhook] Skipping signature verification (no secret or signature)');
     }
+
+    // --- Manually parse the JSON body AFTER verification ---
+    let webhookData;
+    try {
+      // Use the rawBody captured by the hook, or fallback to request.body if hook failed (shouldn't happen)
+      const bodyToParse = rawBody || (typeof request.body === 'string' ? request.body : JSON.stringify(request.body || {}));
+      webhookData = JSON.parse(bodyToParse);
+    } catch (parseError) {
+      console.error('[Webhook] Failed to parse raw request body:', parseError);
+      return reply.code(400).send({ success: false, error: 'Invalid request body format' });
+    }
+    // --- End Manual Parsing ---
     
-    // Handle different webhook types
+    // Handle different webhook types using the manually parsed data
     const webhookType = webhookData.type || 'unknown';
     // --- START DEBUG LOGGING ---
     console.log(`[Webhook] Determined webhook type: ${webhookType}`);
