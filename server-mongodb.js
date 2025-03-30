@@ -72,8 +72,12 @@ if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
 }
 
 // Initialize Fastify
-const server = fastify({ 
-  logger: true,
+const server = fastify({
+  logger: {
+    level: 'debug', // Set log level to debug to see timer/message logs
+    // Consider adding transport for pretty-printing locally if needed:
+    // transport: { target: 'pino-pretty' }
+  },
   trustProxy: true, // Trust proxy headers like X-Forwarded-Proto
   http: {
     connectionTimeout: 30000,       
@@ -377,7 +381,7 @@ wss.on('connection', (ws, request) => {
       if (callSid && twilioClient) { terminateCall(twilioClient, callSid); }
       if (elevenLabsWs?.readyState === WebSocket.OPEN) elevenLabsWs.close();
       if (ws.readyState === WebSocket.OPEN) ws.close();
-    }, 60000);
+    }, 300000); // Increased timeout to 5 minutes (300000ms) for debugging
   };
 
   const updateActivity = () => {
