@@ -31,6 +31,7 @@ const callEventSchema = new Schema({
       'agent_response',
       'user_message', // Keep if used elsewhere
       'user_transcript', // ADDED based on logs
+      'agent_response_correction', // ADDED based on logs
       'call_quality',
       'error',
       'custom'
