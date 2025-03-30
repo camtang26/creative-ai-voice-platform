@@ -41,14 +41,7 @@ if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
 // --- Fastify Server Setup ---
 const proxyServer = fastify({
   logger: {
-    level: 'debug', // Explicitly set log level to debug
-    transport: { // Use pino-pretty for potentially better formatting in logs if available
-      target: 'pino-pretty',
-      options: {
-        translateTime: 'SYS:standard',
-        ignore: 'pid,hostname'
-      }
-    }
+    level: 'debug' // Explicitly set log level to debug, remove pino-pretty transport
   },
   trustProxy: true, // Important for Railway
   genReqId: req => `req-proxy-${crypto.randomBytes(8).toString('hex')}`
