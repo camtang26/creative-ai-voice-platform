@@ -12,6 +12,7 @@ import {
   isValidCallSid,
   validateActiveCall
 } from './api-utils.js';
+import fetch from 'node-fetch'; // Need fetch for the proxy
 import {
   terminateCall
 } from './enhanced-call-handler.js';
@@ -311,5 +312,69 @@ export function registerApiRoutes(server, twilioClient, activeCalls) {
       { providedSid: callSid, twilioClientAvailable: !!twilioClient }
     );
   }));
-  // Transcript route is likely registered within db/api/transcript-api.js via initializeMongoDB
+  
+  // --- NEW: ElevenLabs Conversation Details Proxy Route ---
+  server.get('/api/elevenlabs/conversation/:conversationId', asyncHandler(async (request, reply) => {
+    const { conversationId } = request.params;
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    
+    console.log(`[API Handler] Received request for ElevenLabs conversation: ${conversationId}`);
+    
+    if (!conversationId) {
+      throw ApiError.badRequest('Missing conversationId parameter.', 'MISSING_PARAMETER', { parameter: 'conversationId' });
+    }
+    
+    if (!apiKey) {
+      console.error('[API Proxy] ELEVENLABS_API_KEY is not set in environment variables.');
+      throw ApiError.internalServerError('Server configuration error: Missing ElevenLabs API key.', 'CONFIG_ERROR');
+    }
+    
+    const elevenLabsUrl = `https://api.elevenlabs.io/v1/convai/conversations/${conversationId}`;
+    
+    try {
+      console.log(`[API Proxy] Fetching from ElevenLabs: ${elevenLabsUrl}`);
+      const response = await fetch(elevenLabsUrl, {
+        method: 'GET',
+        headers: {
+          'xi-api-key': apiKey,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const responseData = await response.json();
+      
+      if (!response.ok) {
+        console.error(`[API Proxy] ElevenLabs API Error (${response.status}):`, responseData);
+        // Forward the status code and error message if possible
+        const errorMessage = responseData?.detail?.message || responseData?.message || `ElevenLabs API returned status ${response.status}`;
+        throw new ApiError(
+          errorMessage,
+          response.status, // Use ElevenLabs status code
+          'ELEVENLABS_API_ERROR',
+          { elevenLabsStatus: response.status, elevenLabsResponse: responseData }
+        );
+      }
+      
+      console.log(`[API Proxy] Successfully fetched data for conversation ${conversationId}`);
+      // Return the full data structure from ElevenLabs, wrapped in our standard success response
+      return createSuccessResponse(responseData, 'ElevenLabs conversation details retrieved successfully');
+      
+    } catch (error) {
+      // Handle potential fetch errors or errors thrown from the !response.ok block
+      if (error instanceof ApiError) {
+        // Re-throw ApiErrors to be handled by the global error handler
+        throw error;
+      }
+      
+      console.error(`[API Proxy] Error fetching from ElevenLabs for conversation ${conversationId}:`, error);
+      throw ApiError.internalServerError(
+        `Failed to fetch data from ElevenLabs: ${error.message}`,
+        'PROXY_FETCH_ERROR',
+        { originalError: error.message }
+      );
+    }
+  }));
+  // --- END NEW ---
+  
+  // Note: Transcript route from MongoDB is likely registered elsewhere (e.g., db/index.js or db/api/transcript-api.js)
 }
