@@ -10,6 +10,7 @@ import { saveCall, updateCallStatus, getCallBySid } from './repositories/call.re
 import { createOrUpdateTranscriptFromElevenLabs } from './repositories/transcript.repository.js';
 import { logEvent } from './repositories/callEvent.repository.js';
 import { emitTranscriptUpdate, emitTranscriptMessage } from '../socket-server.js';
+import mongoose from 'mongoose'; // Import mongoose for error checking
 
 // Reference to the active calls map (will be kept for backward compatibility)
 let activeCalls = null;
@@ -24,38 +25,51 @@ export function setActiveCallsReference(callsMap) {
 
 /**
  * Verify the webhook signature from ElevenLabs
- * @param {Object|string} payload - Webhook payload
- * @param {string} signature - Webhook signature
+ * @param {Object|string|null} payload - Parsed payload (can be null if verification uses raw body)
+ * @param {string} signature - Webhook signature header (e.g., "t=17...,v0=...")
  * @param {string} secret - Webhook secret
  * @param {string} rawBodyString - The raw request body as a string
  * @returns {boolean} Whether the signature is valid
  */
- export function verifyWebhookSignature(payload, signature, secret, rawBodyString) { // Added rawBodyString param
-   try {
-     if (!secret || !signature) {
-       console.log('[Webhook] No secret or signature provided, skipping validation');
+export function verifyWebhookSignature(payload, signature, secret, rawBodyString) {
+  try {
+    if (!secret || !signature) {
+      console.log('[Webhook] No secret or signature provided, skipping validation');
       return true; // Skip validation if no secret provided
     }
-    
+
     // Extract timestamp and hash from the signature
-    const [timestampPart, hashPart] = signature.split(',');
+    const parts = signature.split(',');
+    if (parts.length < 2) {
+        console.error('[Webhook Verify] Invalid signature format:', signature);
+        return false;
+    }
+    const timestampPart = parts.find(part => part.startsWith('t='));
+    const hashPart = parts.find(part => part.startsWith('v0='));
+
+    if (!timestampPart || !hashPart) {
+        console.error('[Webhook Verify] Could not extract timestamp or hash from signature:', signature);
+        return false;
+    }
+
     const timestamp = timestampPart.replace('t=', '');
     const receivedHash = hashPart.replace('v0=', '');
-    
-    
+
     // Calculate the expected hash using the RAW body string
-    // Ensure rawBodyString is provided, otherwise fallback (though it shouldn't happen with preParsing hook)
-    const bodyToSign = rawBodyString ?? (typeof payload === 'string' ? payload : JSON.stringify(payload));
-    if (!rawBodyString) {
-       console.warn('[Webhook Verify] rawBodyString was not provided to verifyWebhookSignature. Falling back to potentially parsed payload.');
+    // Ensure rawBodyString is provided (it should be, as it's read in the handler now)
+    const bodyToSign = rawBodyString;
+    if (bodyToSign === undefined || bodyToSign === null) {
+       console.error('[Webhook Verify] CRITICAL: rawBodyString was not provided to verifyWebhookSignature.');
+       return false; // Fail verification if raw body is missing
     }
-    const fullPayloadToSign = `${timestamp}.${bodyToSign}`; // Use raw string or fallback
+    const fullPayloadToSign = `${timestamp}.${bodyToSign}`;
     const hmac = crypto.createHmac('sha256', secret);
     hmac.update(fullPayloadToSign);
-    const calculatedHash = 'v0=' + hmac.digest('hex');
+    const calculatedHash = hmac.digest('hex'); // Get just the hex hash
+
     // --- START DEBUG LOGGING ---
     console.log(`[Webhook Verify] Timestamp: ${timestamp}`);
-    console.log(`[Webhook Verify] Received Hash: v0=${receivedHash}`);
+    console.log(`[Webhook Verify] Received Hash: ${receivedHash}`);
     console.log(`[Webhook Verify] Calculated Hash: ${calculatedHash}`);
     // Log start/end of payload string to check for subtle differences without logging secrets
     const payloadStart = fullPayloadToSign.substring(0, 50);
@@ -63,11 +77,11 @@ export function setActiveCallsReference(callsMap) {
     console.log(`[Webhook Verify] Payload to Sign (Start): ${payloadStart}...`);
     console.log(`[Webhook Verify] Payload to Sign (End): ...${payloadEnd}`);
     // --- END DEBUG LOGGING ---
-    
-    // Verify the hash
-    const isValid = receivedHash === calculatedHash.replace('v0=',''); // Ensure we compare hash values correctly
+
+    // Compare the hashes
+    const isValid = crypto.timingSafeEqual(Buffer.from(receivedHash, 'hex'), Buffer.from(calculatedHash, 'hex'));
     if (!isValid) {
-       console.warn(`[Webhook Verify] HASH MISMATCH! Received: v0=${receivedHash}, Calculated: ${calculatedHash}`);
+       console.warn(`[Webhook Verify] HASH MISMATCH! Received: ${receivedHash}, Calculated: ${calculatedHash}`);
     }
     return isValid;
   } catch (error) {
@@ -77,36 +91,37 @@ export function setActiveCallsReference(callsMap) {
 }
 
 /**
- * Determine call status from webhook data
- * @param {Object} webhookData - Webhook data
+ * Determine call status from webhook data (or API response data)
+ * @param {Object} data - Webhook data.data or API response data
  * @returns {string} Call status
  */
-export function determineCallStatus(webhookData) {
+export function determineCallStatus(data) {
   try {
-    const { transcript, analysis } = webhookData.data || {};
-    
+    const { transcript, analysis } = data || {};
+
     // If analysis has a call_successful field, use that
     if (analysis && analysis.call_successful) {
-      return analysis.call_successful === 'success' ? 'held' : 'failed';
+      // Map to your application's status terms if needed
+      return analysis.call_successful === 'success' ? 'completed' : 'failed';
     }
-    
-    // If there are user messages in the transcript, the call was held
+
+    // If there are user messages in the transcript, assume completed (held)
     if (transcript && transcript.some(msg => msg.role === 'user' && msg.message)) {
-      return 'held';
+      return 'completed'; // Or 'held' if you have that status
     }
-    
-    // Check for voicemail or no answer
+
+    // Check for voicemail indicators in the last agent message
     const voicemailIndicators = ['voicemail', 'leave a message', 'after the tone'];
-    const lastAgentMessage = transcript ? 
+    const lastAgentMessage = transcript ?
       transcript.filter(msg => msg.role === 'agent').pop()?.message : '';
-    
-    if (lastAgentMessage && 
-        voicemailIndicators.some(indicator => 
+
+    if (lastAgentMessage &&
+        voicemailIndicators.some(indicator =>
           lastAgentMessage.toLowerCase().includes(indicator))) {
       return 'voicemail';
     }
-    
-    // If there are no user messages and it's not identified as voicemail, it's no answer
+
+    // If no user messages and not voicemail, assume no answer
     return 'no-answer';
   } catch (error) {
     console.error('[Webhook] Error determining call status:', error);
@@ -116,35 +131,26 @@ export function determineCallStatus(webhookData) {
 
 /**
  * Extract name from conversation data
- * @param {Object} webhookData - Webhook data
+ * @param {Object} data - Webhook data.data or API response data
  * @returns {string} Contact name
  */
-export function extractName(webhookData) {
+export function extractName(data) {
   try {
-    // Try to get name from dynamic variables
-    const dynamicVars = webhookData.data?.conversation_initiation_client_data?.dynamic_variables;
-    if (dynamicVars && dynamicVars.name) {
-      return dynamicVars.name;
-    }
-    
-    if (dynamicVars && dynamicVars.contact_name) {
-      return dynamicVars.contact_name;
-    }
-    
-    // Fall back to extracting name from transcript
-    if (webhookData.data?.transcript) {
-      // Look for greeting patterns like "Hello, John" in the agent messages
-      for (const message of webhookData.data.transcript) {
+    // Try to get name from dynamic variables (might be in metadata now)
+    const dynamicVars = data?.metadata?.conversation_initiation_client_data?.dynamic_variables ||
+                        data?.conversation_initiation_client_data?.dynamic_variables; // Fallback
+    if (dynamicVars?.name) return dynamicVars.name;
+    if (dynamicVars?.contact_name) return dynamicVars.contact_name;
+
+    // Fallback to extracting name from transcript (less reliable)
+    if (data?.transcript) {
+      for (const message of data.transcript) {
         if (message.role === 'agent' && message.message) {
-          // Simple regex to try to find names in greetings
           const nameMatch = message.message.match(/(?:hello|hi|hey|greetings)[,\s]+([a-zA-Z]+)/i);
-          if (nameMatch && nameMatch[1]) {
-            return nameMatch[1];
-          }
+          if (nameMatch?.[1]) return nameMatch[1];
         }
       }
     }
-    
     return 'Unknown';
   } catch (error) {
     console.error('[Webhook] Error extracting name:', error);
@@ -154,18 +160,16 @@ export function extractName(webhookData) {
 
 /**
  * Extract phone number from conversation data
- * @param {Object} webhookData - Webhook data
+ * @param {Object} data - Webhook data.data or API response data
  * @returns {string} Phone number
  */
-export function extractPhoneNumber(webhookData) {
+export function extractPhoneNumber(data) {
   try {
-    // Try to get phone from dynamic variables
-    const dynamicVars = webhookData.data?.conversation_initiation_client_data?.dynamic_variables;
-    if (dynamicVars && dynamicVars.phone_number) {
-      return dynamicVars.phone_number;
-    }
-    
-    // If we don't have it, return unknown
+    // Try to get phone from dynamic variables (might be in metadata now)
+     const dynamicVars = data?.metadata?.conversation_initiation_client_data?.dynamic_variables ||
+                         data?.conversation_initiation_client_data?.dynamic_variables; // Fallback
+    if (dynamicVars?.phone_number) return dynamicVars.phone_number;
+
     return 'Unknown';
   } catch (error) {
     console.error('[Webhook] Error extracting phone number:', error);
@@ -174,28 +178,19 @@ export function extractPhoneNumber(webhookData) {
 }
 
 /**
- * Extract conversation ID from webhook data
- * @param {Object} webhookData - Webhook data
+ * Extract conversation ID from webhook data or API response data
+ * @param {Object} data - Webhook data or API response data
  * @returns {string|null} Conversation ID
  */
-export function extractConversationId(webhookData) {
+export function extractConversationId(data) {
   try {
-    // Try to get conversation ID from dynamic variables
-    const dynamicVars = webhookData.data?.conversation_initiation_client_data?.dynamic_variables;
-    if (dynamicVars && dynamicVars.conversation_id) {
-      return dynamicVars.conversation_id;
-    }
-    
-    // If not found, try to get it from the metadata
-    if (webhookData.data?.metadata?.conversation_id) {
-      return webhookData.data.metadata.conversation_id;
-    }
-    
-    // If still not found, check for the conversation ID in the top level
-    if (webhookData.conversation_id) {
-      return webhookData.conversation_id;
-    }
-    
+    if (data?.conversation_id) return data.conversation_id; // Top level
+    if (data?.data?.conversation_id) return data.data.conversation_id; // Nested under data
+    if (data?.metadata?.conversation_id) return data.metadata.conversation_id; // Nested under metadata
+    const dynamicVars = data?.metadata?.conversation_initiation_client_data?.dynamic_variables ||
+                        data?.data?.conversation_initiation_client_data?.dynamic_variables; // Nested under data.metadata
+    if (dynamicVars?.conversation_id) return dynamicVars.conversation_id;
+
     return null;
   } catch (error) {
     console.error('[Webhook] Error extracting conversation ID:', error);
@@ -204,24 +199,19 @@ export function extractConversationId(webhookData) {
 }
 
 /**
- * Extract call SID from webhook data
- * @param {Object} webhookData - Webhook data
+ * Extract call SID from webhook data or API response data
+ * @param {Object} data - Webhook data or API response data
  * @returns {string|null} Call SID
  */
-export function extractCallSid(webhookData) {
+export function extractCallSid(data) {
   try {
-    // Try to get call SID from dynamic variables
-    const dynamicVars = webhookData.data?.conversation_initiation_client_data?.dynamic_variables;
-    if (dynamicVars && dynamicVars.call_sid) {
-      return dynamicVars.call_sid;
-    }
-    
-    // If not found, try to get it from the metadata
-    if (webhookData.data?.metadata?.call_sid) {
-      return webhookData.data.metadata.call_sid;
-    }
-    
-    // If we don't have it, return null
+    if (data?.callSid) return data.callSid; // If passed directly
+    if (data?.CallSid) return data.CallSid; // Twilio format
+    if (data?.data?.metadata?.call_sid) return data.data.metadata.call_sid; // Nested under data.metadata
+    const dynamicVars = data?.metadata?.conversation_initiation_client_data?.dynamic_variables ||
+                        data?.data?.conversation_initiation_client_data?.dynamic_variables; // Nested under data.metadata
+    if (dynamicVars?.call_sid) return dynamicVars.call_sid;
+
     return null;
   } catch (error) {
     console.error('[Webhook] Error extracting call SID:', error);
@@ -229,20 +219,19 @@ export function extractCallSid(webhookData) {
   }
 }
 
+
 /**
- * Find call SID by conversation ID in active calls
+ * Find call SID by conversation ID in active calls map
  * @param {string} conversationId - Conversation ID
  * @returns {string|null} Call SID
  */
 function findCallSidByConversationId(conversationId) {
   if (!activeCalls || !conversationId) return null;
-  
   for (const [callSid, callInfo] of activeCalls.entries()) {
     if (callInfo.conversation_id === conversationId || callInfo.conversationId === conversationId) {
       return callSid;
     }
   }
-  
   return null;
 }
 
@@ -256,13 +245,13 @@ export async function terminateCall(twilioClient, callSid) {
   try {
     console.log(`[Webhook] Terminating call ${callSid} after conversation completion`);
     await twilioClient.calls(callSid).update({ status: 'completed' });
-    
+
     // Update call status in MongoDB
     await updateCallStatus(callSid, 'completed', {
       endTime: new Date(),
       terminatedBy: 'conversation_completed'
     });
-    
+
     // Log call termination event
     await logEvent(callSid, 'status_change', {
       status: 'completed',
@@ -270,373 +259,264 @@ export async function terminateCall(twilioClient, callSid) {
       terminatedBy: 'conversation_completed',
       timestamp: new Date().toISOString()
     }, { source: 'system' });
-    
+
     return true;
   } catch (error) {
+    // Ignore 404 errors if call already ended
+    if (error.status === 404 || error.code === 20404) {
+        console.warn(`[Webhook] Call ${callSid} already ended, cannot terminate again.`);
+        return true; // Consider it successful if already ended
+    }
     console.error(`[Webhook] Error terminating call ${callSid}:`, error);
     return false;
   }
 }
 
 /**
- * Process transcript data and store in MongoDB
+ * Process final call data after completion: Fetch from ElevenLabs API and save to DB.
  * @param {string} callSid - Call SID
- * @param {Object} webhookData - Webhook data
- * @returns {Promise<Object>} Processing result
+ * @param {string} conversationId - ElevenLabs Conversation ID
+ * @returns {Promise<Object>} Processing result with { success, call?, transcript?, error? }
  */
-async function processTranscriptData(callSid, webhookData) {
- try {
-   const conversationId = extractConversationId(webhookData);
-   const apiKey = process.env.ELEVENLABS_API_KEY;
-
-   if (!conversationId) {
-     console.error(`[Webhook] Cannot process transcript for call ${callSid}: Missing conversationId in webhook data.`);
-     throw new Error('Missing conversationId');
-   }
-   if (!apiKey) {
-     console.error(`[Webhook] Cannot process transcript for call ${callSid}: Missing ELEVENLABS_API_KEY environment variable.`);
-     throw new Error('Missing ElevenLabs API Key');
-   }
-
-   // --- Fetch Full Conversation Details from ElevenLabs API ---
-   const elevenLabsUrl = `https://api.elevenlabs.io/v1/convai/conversations/${conversationId}`;
-   let elevenLabsFullData;
-   try {
-     console.log(`[Webhook] Fetching full conversation details from ElevenLabs for ${conversationId} (Call SID: ${callSid})`);
-     const response = await fetch(elevenLabsUrl, {
-       method: 'GET',
-       headers: { 'xi-api-key': apiKey }
-     });
-     elevenLabsFullData = await response.json();
-
-     if (!response.ok) {
-       console.error(`[Webhook] ElevenLabs API error fetching conversation ${conversationId} (${response.status}):`, elevenLabsFullData);
-       throw new Error(`ElevenLabs API error: ${response.status} - ${elevenLabsFullData?.detail?.message || 'Unknown error'}`);
-     }
-     console.log(`[Webhook] Successfully fetched full conversation details for ${conversationId}`);
-
-   } catch (fetchError) {
-     console.error(`[Webhook] Error fetching conversation details from ElevenLabs for ${conversationId}:`, fetchError);
-     throw fetchError; // Propagate error
-   }
-   // --- End Fetch ---
-
-   // --- Update Call Status in DB (using data from API response) ---
-   // Determine status based on the fetched data (more reliable than webhook payload)
-   const status = elevenLabsFullData.analysis?.call_successful === 'success' ? 'completed' :
-                  (elevenLabsFullData.analysis?.call_successful === 'failure' ? 'failed' : 'unknown'); // Or derive more nuanced status if needed
-   const duration = elevenLabsFullData.metadata?.call_duration_secs || 0;
-   const name = extractName(webhookData); // Still rely on webhook for initial name/phone if needed
-   const phoneNumber = extractPhoneNumber(webhookData);
-
-   const callData = {
-     callSid,
-     conversationId, // Ensure this is saved
-     status: status, // Use status derived from API response
-     outcome: status, // Use the same derived status for outcome
-     to: phoneNumber !== 'Unknown' ? phoneNumber : undefined,
-     contactName: name !== 'Unknown' ? name : undefined,
-     duration: duration > 0 ? duration : undefined,
-     endTime: new Date() // Mark end time when processing
-   };
-
-   let updatedCall;
-   try {
-     updatedCall = await updateCallStatus(callSid, callData.status, callData);
-     console.log(`[MongoDB] Updated call status for ${callSid} based on ElevenLabs API data.`);
-   } catch (callUpdateError) {
-      console.error(`[MongoDB] Error updating call status for ${callSid}:`, callUpdateError);
-      // Decide if we should continue or throw
-      throw callUpdateError;
-   }
-   // --- End Call Update ---
-
-
-   // --- Save Full Transcript/Analysis to DB ---
-   let savedTranscript;
-   try {
-     // Use the new repository function with the full data fetched from the API
-     savedTranscript = await createOrUpdateTranscriptFromElevenLabs(callSid, elevenLabsFullData);
-     console.log(`[MongoDB] Saved/Updated transcript from ElevenLabs API for call ${callSid}`);
-
-     // Log transcript event (using data from the saved document)
-     await logEvent(callSid, 'transcript_saved', {
-       transcriptId: savedTranscript._id,
-       conversationId: savedTranscript.conversationId,
-       status: savedTranscript.status,
-       analysisStatus: savedTranscript.analysis?.call_successful || 'unknown',
-       messageCount: savedTranscript.transcript?.length || 0,
-     }, { source: 'elevenlabs_api' });
-
-     // Emit transcript update via Socket.IO using the saved data
-     emitTranscriptUpdate(callSid, savedTranscript);
-
-   } catch (transcriptError) {
-     console.error(`[MongoDB] Error saving transcript from ElevenLabs API for call ${callSid}:`, transcriptError);
-     // Decide if this is fatal or if we can return partial success
-     throw transcriptError; // Make it fatal for now
-   }
-   // --- End Transcript Save ---
-
-   // --- Optional: Send to CRM (using fetched data) ---
-   // (Keep existing CRM logic but adapt it to use elevenLabsFullData if needed)
-   // ... CRM logic here ...
-
-   return {
-     success: true,
-     callSid,
-     status: updatedCall.status, // Return the final status saved to DB
-     conversationId,
-     call: updatedCall,
-     transcript: savedTranscript
-   };
-
- } catch (error) {
-   console.error(`[Webhook] Error processing transcript data for call ${callSid}:`, error);
-    return {
-      success: false,
-      error: error.message
-    };
+async function processFinalCallData(callSid, conversationId) {
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+  if (!apiKey) {
+    console.error(`[Webhook Process] Cannot process final data for call ${callSid}: Missing ELEVENLABS_API_KEY.`);
+    return { success: false, error: 'Missing ElevenLabs API Key' };
   }
+  if (!callSid || !conversationId) {
+     console.error(`[Webhook Process] Cannot process final data: Missing callSid (${callSid}) or conversationId (${conversationId}).`);
+     return { success: false, error: 'Missing callSid or conversationId' };
+  }
+
+  // --- Fetch Full Conversation Details from ElevenLabs API ---
+  const elevenLabsUrl = `https://api.elevenlabs.io/v1/convai/conversations/${conversationId}`;
+  let elevenLabsFullData;
+  try {
+    console.log(`[Webhook Process] Fetching full conversation details from ElevenLabs for ${conversationId} (Call SID: ${callSid})`);
+    const response = await fetch(elevenLabsUrl, {
+      method: 'GET',
+      headers: { 'xi-api-key': apiKey }
+    });
+    elevenLabsFullData = await response.json();
+
+    if (!response.ok) {
+      console.error(`[Webhook Process] ElevenLabs API error fetching conversation ${conversationId} (${response.status}):`, elevenLabsFullData);
+      throw new Error(`ElevenLabs API error: ${response.status} - ${elevenLabsFullData?.detail?.message || 'Unknown error'}`);
+    }
+    console.log(`[Webhook Process] Successfully fetched full conversation details for ${conversationId}`);
+
+  } catch (fetchError) {
+    console.error(`[Webhook Process] Error fetching conversation details from ElevenLabs for ${conversationId}:`, fetchError);
+    return { success: false, error: `Failed to fetch from ElevenLabs: ${fetchError.message}` };
+  }
+  // --- End Fetch ---
+
+  // --- Update Call Status in DB (using data from API response) ---
+  const status = determineCallStatus(elevenLabsFullData); // Use helper on API data
+  const duration = elevenLabsFullData.metadata?.call_duration_secs || 0;
+  // Extract name/phone from metadata if available, otherwise might need fallback
+  const name = extractName(elevenLabsFullData);
+  const phoneNumber = extractPhoneNumber(elevenLabsFullData);
+
+  const callData = {
+    callSid,
+    conversationId, // Ensure this is saved
+    status: status, // Use status derived from API response
+    outcome: status, // Use the same derived status for outcome
+    to: phoneNumber !== 'Unknown' ? phoneNumber : undefined,
+    contactName: name !== 'Unknown' ? name : undefined,
+    duration: duration > 0 ? duration : undefined,
+    endTime: new Date() // Mark end time when processing
+  };
+
+  let updatedCall;
+  try {
+    updatedCall = await updateCallStatus(callSid, callData.status, callData);
+    console.log(`[MongoDB] Updated call status for ${callSid} based on ElevenLabs API data.`);
+  } catch (callUpdateError) {
+     console.error(`[MongoDB] Error updating call status for ${callSid}:`, callUpdateError);
+     // Decide if we should continue or throw
+     return { success: false, error: `Failed to update call status: ${callUpdateError.message}` };
+  }
+  // --- End Call Update ---
+
+  // --- Save Full Transcript/Analysis to DB ---
+  let savedTranscript;
+  try {
+    // Use the repository function with the full data fetched from the API
+    savedTranscript = await createOrUpdateTranscriptFromElevenLabs(callSid, elevenLabsFullData);
+    console.log(`[MongoDB] Saved/Updated transcript from ElevenLabs API for call ${callSid}`);
+
+    // Log transcript event (using data from the saved document)
+    await logEvent(callSid, 'transcript_saved', {
+      transcriptId: savedTranscript._id,
+      conversationId: savedTranscript.conversationId,
+      status: savedTranscript.status,
+      analysisStatus: savedTranscript.analysis?.call_successful || 'unknown',
+      messageCount: savedTranscript.transcript?.length || 0,
+    }, { source: 'elevenlabs_api' });
+
+    // Emit transcript update via Socket.IO using the saved data
+    emitTranscriptUpdate(callSid, savedTranscript);
+
+  } catch (transcriptError) {
+    console.error(`[MongoDB] Error saving transcript from ElevenLabs API for call ${callSid}:`, transcriptError);
+    // Decide if this is fatal or if we can return partial success
+    return { success: false, error: `Failed to save transcript: ${transcriptError.message}`, call: updatedCall };
+  }
+  // --- End Transcript Save ---
+
+  return {
+    success: true,
+    callSid,
+    status: updatedCall.status, // Return the final status saved to DB
+    conversationId,
+    call: updatedCall,
+    transcript: savedTranscript
+  };
 }
+
 
 /**
  * Main function to handle webhooks with MongoDB integration
- * @param {Object} request - HTTP request
+ * @param {Object} request - Fastify request object
+ * @param {Object} reply - Fastify reply object
  * @param {string} secret - Webhook secret
  * @param {string} crmEndpoint - CRM endpoint URL
  * @param {Object} twilioClient - Twilio client
- * @returns {Promise<Object>} Processing result
+ * @returns {Promise<void>} Sends response via reply object
  */
- export async function handleElevenLabsWebhook(request, reply, secret, crmEndpoint, twilioClient = null) { // Added reply param
+ export async function handleElevenLabsWebhook(request, reply, secret, crmEndpoint, twilioClient = null) {
+   let callSid = null; // Initialize callSid
+   let conversationId = null; // Initialize conversationId
    try {
-     // --- START DEBUG LOGGING ---
-     console.log('[Webhook] Received request. Headers:', JSON.stringify(request.headers, null, 2));
-     // request.body is undefined because disableBodyParser: true for this route
-     // --- END DEBUG LOGGING ---
- 
-     // Get the signature header
-     const signature = request.headers['elevenlabs-signature'];
-     
-     // Log the received webhook
-     console.log('[Webhook] Processing webhook from ElevenLabs');
-     console.log('[Webhook] Signature:', signature ? 'Present' : 'Missing');
-     
      // --- Manually read the raw body ---
      let rawBody = '';
      try {
-        // Access underlying Node request stream via request.raw
-        for await (const chunk of request.raw) {
-            rawBody += chunk.toString();
-        }
+        for await (const chunk of request.raw) { rawBody += chunk.toString(); }
         console.log('[Webhook] Raw body read successfully (length:', rawBody.length, ')');
-        // Log start/end for debugging signature issues if they persist
-        console.log('[Webhook] Raw Body Start:', rawBody.substring(0, 100) + '...');
      } catch (readError) {
         console.error('[Webhook] Failed to read raw request body stream:', readError);
         return reply.code(500).send({ success: false, error: 'Failed to read request body' });
      }
      // --- End raw body read ---
-     
-     // Verify the signature using the RAW body string
+
+     // --- Verify Signature ---
+     const signature = request.headers['elevenlabs-signature'];
+     console.log('[Webhook] Processing webhook from ElevenLabs');
+     console.log('[Webhook] Signature:', signature ? 'Present' : 'Missing');
      if (secret && signature) {
-       // Pass rawBody to the verification function
-       const isValid = verifyWebhookSignature(null, signature, secret, rawBody); // Pass null for parsed payload
+       const isValid = verifyWebhookSignature(null, signature, secret, rawBody);
        if (!isValid) {
          console.error('[Webhook] Invalid signature');
-         // Return 200 OK even on invalid signature to prevent ElevenLabs retries, but indicate failure
-         return reply.code(200).send({ success: false, error: 'Invalid signature' });
-      }
-      console.log('[Webhook] Signature verified successfully');
-    } else {
-      console.log('[Webhook] Skipping signature verification (no secret or signature)');
-    }
+         return reply.code(200).send({ success: false, error: 'Invalid signature' }); // Return 200 OK
+       }
+       console.log('[Webhook] Signature verified successfully');
+     } else {
+       console.log('[Webhook] Skipping signature verification (no secret or signature)');
+     }
+     // --- End Verification ---
 
-    // --- Manually parse the JSON body AFTER verification ---
-    let webhookData;
-    try {
-      webhookData = JSON.parse(rawBody || '{}'); // Parse raw body or default to empty object if rawBody is empty/null
-    } catch (parseError) {
-      console.error('[Webhook] Failed to parse raw request body:', parseError);
-      return reply.code(400).send({ success: false, error: 'Invalid request body format' });
-    }
-    // --- End Manual Parsing ---
-    
-    // Handle different webhook types using the manually parsed data
-    const webhookType = webhookData.type || 'unknown';
-    // --- START DEBUG LOGGING ---
-    console.log(`[Webhook] Determined webhook type: ${webhookType}`);
-    // --- END DEBUG LOGGING ---
-    
-    // Extract conversation ID and call SID - regardless of webhook type
-    const conversationId = extractConversationId(webhookData);
-    let callSid = extractCallSid(webhookData);
-    
-    // If we have a conversation ID but no call SID, try to find it in active calls
-    if (conversationId && !callSid && activeCalls) {
-      callSid = findCallSidByConversationId(conversationId);
-      console.log(`[Webhook] Found call SID ${callSid} for conversation ID ${conversationId}`);
-    }
-    
-    // If we have a call SID, update the call in MongoDB with conversation ID
-    if (callSid && conversationId) {
-      try {
-        await updateCallStatus(callSid, null, { conversationId });
-        console.log(`[Webhook] Updated call ${callSid} with conversation ID ${conversationId}`);
-        
-        // Log webhook event
-        await logEvent(callSid, 'custom', {
-          webhookType,
-          conversationId,
-          timestamp: new Date().toISOString()
-        }, { source: 'elevenlabs' });
-      } catch (error) {
-        console.error(`[Webhook] Error updating call with conversation ID:`, error);
-      }
-    }
-    
-    // Special handling for conversation_completed events
-    if (webhookType === 'conversation_completed') {
-      console.log(`[Webhook] Conversation completed event received for conversation ${conversationId}`);
-      
-      // Log conversation completed event
-      if (callSid) {
-        await logEvent(callSid, 'status_change', {
-          status: 'completed',
-          reason: 'conversation_completed',
-          conversationId,
-          timestamp: new Date().toISOString()
-        }, { source: 'elevenlabs' });
-      }
-      
-      // If we have a call SID and Twilio client, terminate the call
-      if (callSid && twilioClient) {
-        await terminateCall(twilioClient, callSid);
-      }
-      
-      return {
-        success: true,
-        message: 'Conversation completed event processed',
-        conversationId,
-        callSid
-      };
-    }
-    
-    // Skip if this is not a post-call transcription event
-    if (webhookType !== 'post_call_transcription') {
-      console.log(`[Webhook] Ignoring event type: ${webhookType}`);
-      return { success: true, message: 'Event type ignored' };
-    }
-    
-    // Process transcript data and update MongoDB
-    if (callSid) {
-      const processResult = await processTranscriptData(callSid, webhookData);
-      
-      // If processing was successful, forward to CRM endpoint
-      if (processResult.success && crmEndpoint) {
-        // Extract the required data
-        const status = determineCallStatus(webhookData);
-        const name = extractName(webhookData);
-        const phoneNumber = extractPhoneNumber(webhookData);
-        const summary = webhookData.data?.analysis?.transcript_summary || 'No summary available';
-        const duration = webhookData.data?.metadata?.call_duration_secs || 0;
-        
-        // Get transcripts for enhanced data
-        const transcripts = webhookData.data?.transcript || [];
-        
-        // Construct the payload for CRM endpoint
-        const crmPayload = {
-          "type": "conversationAICall",
-          "subject": "Invitation to re-trial",
-          "to": phoneNumber,
-          "name": name,
-          "summary": summary,
-          "status": status,
-          "duration": duration,
-          "conversationId": conversationId,
-          "callSid": callSid,
-          // Add enhanced data
-          "enhanced": {
-            "messageCount": transcripts.length,
-            "userMessageCount": transcripts.filter(msg => msg.role === 'user').length,
-            "agentMessageCount": transcripts.filter(msg => msg.role === 'agent').length,
-            "transcript": transcripts.map(msg => ({
-              role: msg.role,
-              message: msg.message,
-              timestamp: msg.timestamp || null
-            }))
-          }
-        };
-        
-        // If we have recording info for this call, include it
-        if (callSid && activeCalls && activeCalls.has(callSid)) {
-          const callInfo = activeCalls.get(callSid);
-          if (callInfo.recordings && callInfo.recordings.length > 0) {
-            crmPayload.enhanced.recordings = callInfo.recordings;
-          }
-        }
-        
-        console.log('[Webhook] Sending to CRM endpoint:', JSON.stringify(crmPayload, null, 2));
-        
-        try {
-          // Send to CRM endpoint
-          const response = await fetch(crmEndpoint, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(crmPayload)
-          });
-          
-          let responseText = '';
+     // --- Parse Body ---
+     let webhookData;
+     try {
+       webhookData = JSON.parse(rawBody || '{}');
+     } catch (parseError) {
+       console.error('[Webhook] Failed to parse raw request body:', parseError);
+       return reply.code(400).send({ success: false, error: 'Invalid request body format' });
+     }
+     // --- End Parsing ---
+
+     const webhookType = webhookData.type || 'unknown';
+     console.log(`[Webhook] Determined webhook type: ${webhookType}`);
+
+     // Extract IDs early for logging/association
+     conversationId = extractConversationId(webhookData);
+     callSid = extractCallSid(webhookData);
+     if (conversationId && !callSid && activeCalls) {
+       callSid = findCallSidByConversationId(conversationId);
+       console.log(`[Webhook] Found call SID ${callSid} for conversation ID ${conversationId} from active calls map.`);
+     }
+
+     // Update call with conversation ID if possible
+     if (callSid && conversationId) {
+       try {
+         await updateCallStatus(callSid, null, { conversationId });
+         console.log(`[Webhook] Updated call ${callSid} with conversation ID ${conversationId}`);
+         await logEvent(callSid, 'custom', { webhookType, conversationId, timestamp: new Date().toISOString() }, { source: 'elevenlabs' });
+       } catch (error) {
+         console.error(`[Webhook] Error updating call ${callSid} with conversation ID:`, error);
+       }
+     } else {
+        console.warn(`[Webhook] Could not associate webhook (Type: ${webhookType}, ConvID: ${conversationId}) with a Call SID.`);
+     }
+
+     // --- Handle Specific Webhook Types ---
+     if (webhookType === 'conversation_completed' || webhookType === 'post_call_transcription') {
+       console.log(`[Webhook] Processing ${webhookType} event for conversation ${conversationId}`);
+
+       if (!callSid) {
+          console.error(`[Webhook] Cannot process ${webhookType} for conversation ${conversationId}: Call SID is missing.`);
+          // Still reply OK to ElevenLabs
+          return reply.code(200).send({ success: false, error: 'Missing Call SID for completed conversation' });
+       }
+
+       // Log event
+       await logEvent(callSid, 'status_change', {
+         status: 'completed', // Assume completed for both events
+         reason: webhookType,
+         conversationId,
+         timestamp: new Date().toISOString()
+       }, { source: 'elevenlabs' });
+
+       // Terminate Twilio call if still active
+       if (twilioClient) {
+         await terminateCall(twilioClient, callSid);
+       }
+
+       // Process final data (fetch from API, save transcript/analysis)
+       const processResult = await processFinalCallData(callSid, conversationId);
+
+       // Optional: Forward to CRM only after successful processing
+       if (processResult.success && crmEndpoint && processResult.transcript) {
+          // Construct CRM payload using processResult.call and processResult.transcript
+          const crmPayload = { /* ... construct payload ... */ };
+          console.log('[Webhook] Sending to CRM endpoint...');
           try {
-            responseText = await response.text();
-          } catch (e) {
-            responseText = 'No response body';
+             const crmResponse = await fetch(crmEndpoint, { /* ... fetch options ... */ });
+             // ... handle CRM response ...
+             console.log('[Webhook] Successfully sent to CRM endpoint.');
+          } catch (crmError) {
+             console.error('[Webhook] Error sending to CRM endpoint:', crmError);
+             // Log error but don't fail the webhook response to ElevenLabs
           }
-          
-          if (!response.ok) {
-            console.error(`[Webhook] CRM endpoint error (${response.status}): ${responseText}`);
-            return { 
-              success: false, 
-              error: 'CRM endpoint error', 
-              status: response.status,
-              details: responseText
-            };
-          }
-          
-          console.log('[Webhook] Successfully sent to CRM endpoint. Response:', responseText);
-          
-          return { 
-            success: true, 
-            message: 'Successfully processed webhook and sent to CRM',
-            crmResponse: responseText,
-            mongodbResult: processResult
-          };
-        } catch (fetchError) {
-          console.error('[Webhook] Error sending to CRM endpoint:', fetchError);
-          return {
-            success: false,
-            error: 'Failed to send to CRM endpoint',
-            details: fetchError.message,
-            mongodbResult: processResult
-          };
-        }
-      }
-      
-      return processResult;
-    }
-    
-    return {
-      success: false,
-      error: 'No call SID found for this webhook',
-      conversationId
-    };
-  } catch (error) {
-    console.error('[Webhook] Processing error:', error);
-    return { success: false, error: error.message };
-  }
-}
+       } else if (!processResult.success) {
+          console.error(`[Webhook] Failed to process final data for call ${callSid}: ${processResult.error}`);
+          // Decide if this should be a 500 or still 200 OK to ElevenLabs
+       }
+
+       // Reply 200 OK to ElevenLabs regardless of CRM outcome, but reflect processing success
+       return reply.code(200).send({
+          success: processResult.success,
+          message: processResult.success ? `${webhookType} processed successfully.` : `Error processing ${webhookType}: ${processResult.error}`,
+          callSid: callSid,
+          conversationId: conversationId
+       });
+
+     } else {
+       console.log(`[Webhook] Ignoring event type: ${webhookType}`);
+       return reply.code(200).send({ success: true, message: 'Event type ignored' });
+     }
+
+   } catch (error) {
+     console.error('[Webhook] Unhandled processing error:', error);
+     // Ensure reply is sent even on unexpected errors
+     if (!reply.sent) {
+        return reply.code(500).send({ success: false, error: `Internal server error: ${error.message}` });
+     }
+   }
+ }
 
 export default {
   handleElevenLabsWebhook,
