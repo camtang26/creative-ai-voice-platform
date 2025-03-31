@@ -210,9 +210,14 @@ server.post('/webhooks/elevenlabs',
         });
         request.log.info('[Webhook PreHandler] Raw body read and attached to request.rawBodyString');
       } catch (err) {
-        request.log.error('[Webhook PreHandler] Failed to read raw body:', err);
+        // Improved error logging
+        request.log.error({ err }, `[Webhook PreHandler] Failed to read raw body. Error: ${err.message}`);
+        console.error('[Webhook PreHandler] Raw body read error stack:', err.stack); // Also log stack to console
         // Important: Send error response *from the hook* if reading fails
-        reply.code(400).send({ success: false, error: 'Invalid request body (cannot read in preHandler)' });
+        // Avoid sending reply if already sent (though unlikely in preHandler error)
+        if (!reply.sent) {
+          reply.code(400).send({ success: false, error: `Invalid request body (read error: ${err.message})` });
+        }
         // NOTE: This might prevent the main handler from running, which is intended if the body is unreadable.
       }
     }
