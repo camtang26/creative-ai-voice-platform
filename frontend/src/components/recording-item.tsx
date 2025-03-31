@@ -32,13 +32,10 @@ export function RecordingItem({ recording, callSid, callDetails }: RecordingItem
     formatDuration(recording.duration) : 
     'Unknown';
 
-  // Get the appropriate audio URL
-  // Prioritize the main URL and assume it might need .mp3 appended if mp3Url isn't valid
-  const audioUrl = (recording.url && !recording.url.endsWith('.mp3'))
-                   ? `${recording.url}.mp3`
-                   : recording.url; // Use main URL, potentially adding .mp3
-  // Use the backend proxy for download
-  const downloadUrl = `/api/recordings/${recording.recordingSid}/download`;
+  // Use the backend proxy for download AND playback
+  const proxyUrl = `/api/recordings/${recording.recordingSid}/download`;
+  const audioUrl = proxyUrl; // Use proxy for player
+  const downloadUrl = proxyUrl; // Use proxy for download link
 
   return (
     <Card className="mb-4">
