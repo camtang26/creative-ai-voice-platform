@@ -34,7 +34,8 @@ const callEventSchema = new Schema({
       'agent_response_correction', // ADDED based on logs
       'call_quality',
       'error',
-      'custom'
+      'custom',
+      'transcript_saved' // ADDED for when full transcript is saved
     ],
     index: true
   },
@@ -55,7 +56,7 @@ const callEventSchema = new Schema({
   // Event source
   source: {
     type: String,
-    enum: ['twilio', 'elevenlabs', 'system', 'user', 'test', 'elevenlabs_stream', 'api'], // ADDED sources
+    enum: ['twilio', 'elevenlabs', 'system', 'user', 'test', 'elevenlabs_stream', 'api', 'elevenlabs_api'], // ADDED sources
     default: 'system',
     index: true
   }

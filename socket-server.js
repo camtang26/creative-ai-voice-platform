@@ -260,8 +260,9 @@ function formatTranscriptData(transcript) {
     _id: transcript._id,
     callSid: transcript.callSid,
     conversationId: transcript.conversationId,
-    summary: transcript.summary,
-    messages: transcript.messages.map(msg => ({
+    summary: transcript.summary, // Assuming summary is directly on the doc or in analysis
+    // Use the correct field name 'transcript' from the schema
+    messages: transcript.transcript?.map(msg => ({
       role: msg.role,
       message: msg.message,
       timestamp: msg.timestamp
