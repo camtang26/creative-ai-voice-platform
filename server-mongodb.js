@@ -644,7 +644,12 @@ async function initializeDatabase() {
 const start = async () => {
   console.log('[Server] Starting server initialization...');
   try {
-    await initializeDatabase();
+    await initializeDatabase(); // Initialize DB first (which also registers routes internally)
+    
+    // Explicitly register recording routes AGAIN after DB init as a debug step
+    console.log('[Server DEBUG] Explicitly registering recording routes again...');
+    registerRecordingApiRoutes(server);
+    console.log('[Server DEBUG] Explicit registration call complete.');
     
     const port = process.env.PORT || 8000; // Use PORT from Railway, default to 8000 locally
     const host = '0.0.0.0';
