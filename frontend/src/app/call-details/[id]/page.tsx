@@ -209,20 +209,21 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
     if (audioRef.current) {
       if (isPlaying) {
         audioRef.current.pause();
-        // Manually set state here in case pause event doesn't fire quickly
-        setIsPlaying(false);
+        // Rely on 'onpause' event listener to set isPlaying to false
       } else {
         // play() returns a promise which can be interrupted
         const playPromise = audioRef.current.play();
         if (playPromise !== undefined) {
-          playPromise.then(_ => {
-            // Playback started successfully
-            setIsPlaying(true); // Update state on successful start
-          }).catch(error => {
+          playPromise.catch(error => {
             // Auto-play was prevented or interrupted
+            // Log the error but rely on 'onpause' or 'onended' to set isPlaying to false
             console.error("Audio play failed:", error);
-            setIsPlaying(false); // Ensure state reflects that it's not playing
+            // Ensure state is false if play fails immediately
+            if (audioRef.current?.paused) {
+               setIsPlaying(false);
+            }
           });
+          // Rely on 'onplay' event listener to set isPlaying to true
         }
       }
     }

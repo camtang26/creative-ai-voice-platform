@@ -294,6 +294,20 @@ export async function getCallHistory(filters = {}, pagination = { page: 1, limit
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
+      
+    // --- DEBUG LOG: Inspect populated calls ---
+    if (calls && calls.length > 0) {
+      console.log(`[DEBUG getCallHistory] First call object structure after populate:`, JSON.stringify(calls[0], null, 2));
+      // Check if recordingIds looks populated
+      if (calls[0].recordingIds && Array.isArray(calls[0].recordingIds) && calls[0].recordingIds.length > 0) {
+        console.log(`[DEBUG getCallHistory] First recording object within first call:`, JSON.stringify(calls[0].recordingIds[0], null, 2));
+      } else {
+        console.log(`[DEBUG getCallHistory] recordingIds field in first call is empty or not populated correctly.`);
+      }
+    } else {
+      console.log(`[DEBUG getCallHistory] No calls found for query.`);
+    }
+    // --- END DEBUG LOG ---
     
     // Get total count for pagination
     const total = await Call.countDocuments(query);
