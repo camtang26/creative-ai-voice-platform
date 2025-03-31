@@ -204,7 +204,7 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
         // audioRef.current.load() // REMOVED: Explicit load might cause issues, let browser handle it
       }
     }
-  }, [activeRecordingId, recordings])
+  }, [activeRecordingId]) // REMOVED 'recordings' from dependency array
 
   // Handle play/pause
   const togglePlayback = () => {

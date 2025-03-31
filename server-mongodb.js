@@ -35,6 +35,7 @@ import enhancedCallHandler from './enhanced-call-handler.js';
 import recordingHandler from './recording-handler.js';
 import callQualityMetrics from './call-quality-metrics.js';
 import { registerApiRoutes } from './api-routes.js';
+import { registerRecordingApiRoutes } from './db/api/recording-api.js'; // ADDED Import
 // Removed import for registerElevenLabsApiRoutes
 import { registerApiMiddleware } from './api-middleware.js';
 import {
@@ -147,6 +148,7 @@ registerOutboundRoutes(server, { skipCallStatusCallback: true });
 
 // Register additional API routes
 registerApiRoutes(server, twilioClient, activeCalls); // This now includes the ElevenLabs route
+registerRecordingApiRoutes(server); // ADDED call to register recording routes
 // Removed call to registerElevenLabsApiRoutes(server);
 
 // Add a simple health check endpoint for Railway
