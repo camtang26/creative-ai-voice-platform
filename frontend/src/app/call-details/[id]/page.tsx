@@ -107,12 +107,15 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
         console.log('[CallDetailsPage] Attempting fetchCallRecordings...'); // Log before fetch
         const recordingsResponse = await fetchCallRecordings(params.id)
         
-        if (recordingsResponse.success && recordingsResponse.recordings) {
-          setRecordings(recordingsResponse.recordings)
+        // Check the nested 'data.recordings' property
+        if (recordingsResponse.success && recordingsResponse.data?.recordings) {
+          setRecordings(recordingsResponse.data.recordings) // Use recordingsResponse.data.recordings
           
           // Set first recording as active if available
-          if (recordingsResponse.recordings.length > 0) {
-            setActiveRecordingId(recordingsResponse.recordings[0].recordingSid)
+          if (recordingsResponse.data.recordings.length > 0) {
+            // Ensure we access the correct property for the SID (might be recordingSid or sid)
+            const firstRecordingSid = recordingsResponse.data.recordings[0].recordingSid || recordingsResponse.data.recordings[0].sid;
+            setActiveRecordingId(firstRecordingSid)
           }
         }
         
