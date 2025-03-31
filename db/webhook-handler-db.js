@@ -4,6 +4,7 @@
  */
 import crypto from 'crypto';
 import fetch from 'node-fetch';
+import getRawBody from 'raw-body'; // Import raw-body
 import Twilio from 'twilio';
 import { saveCall, updateCallStatus, getCallBySid } from './repositories/call.repository.js';
 // Import the new function for saving full ElevenLabs data
@@ -28,13 +29,13 @@ export function setActiveCallsReference(callsMap) {
  * @param {Object|string|null} payload - Parsed payload (can be null if verification uses raw body)
  * @param {string} signature - Webhook signature header (e.g., "t=17...,v0=...")
  * @param {string} secret - Webhook secret
- * @param {string} rawBodyString - The raw request body as a string
- * @returns {boolean} Whether the signature is valid
+ * @returns {Promise<boolean>} Whether the signature is valid (now async)
  */
-export function verifyWebhookSignature(payload, signature, secret, rawBodyString) {
-  try {
-    if (!secret || !signature) {
-      console.log('[Webhook] No secret or signature provided, skipping validation');
+ // Added request parameter, removed payload and rawBodyString
+ export async function verifyWebhookSignature(request, signature, secret) { // Changed params, added async
+   try {
+     if (!secret || !signature) {
+       console.log('[Webhook] No secret or signature provided, skipping validation');
       return true; // Skip validation if no secret provided
     }
 
@@ -55,14 +56,23 @@ export function verifyWebhookSignature(payload, signature, secret, rawBodyString
     const timestamp = timestampPart.replace('t=', '');
     const receivedHash = hashPart.replace('v0=', '');
 
-    // Calculate the expected hash using the RAW body string
-    // Ensure rawBodyString is provided (it should be, as it's read in the handler now)
-    const bodyToSign = rawBodyString;
-    if (bodyToSign === undefined || bodyToSign === null) {
-       console.error('[Webhook Verify] CRITICAL: rawBodyString was not provided to verifyWebhookSignature.');
-       return false; // Fail verification if raw body is missing
+    // --- Read the raw body directly from the request stream ---
+    let rawBodyString = '';
+    try {
+      rawBodyString = await getRawBody(request.raw, {
+        length: request.headers['content-length'],
+        limit: '5mb', // Adjust as needed
+        encoding: 'utf-8'
+      });
+      console.log('[Webhook Verify] Raw body read successfully inside verify function.');
+    } catch (readError) {
+      console.error('[Webhook Verify] Failed to read raw body inside verify function:', readError);
+      return false; // Cannot verify without raw body
     }
-    const fullPayloadToSign = `${timestamp}.${bodyToSign}`;
+    // --- End raw body read ---
+
+    // Calculate the expected hash using the RAW body string read above
+    const fullPayloadToSign = `${timestamp}.${rawBodyString}`;
     const hmac = crypto.createHmac('sha256', secret);
     hmac.update(fullPayloadToSign);
     const calculatedHash = hmac.digest('hex'); // Get just the hex hash
@@ -391,23 +401,18 @@ async function processFinalCallData(callSid, conversationId) {
    let callSid = null; // Initialize callSid
    let conversationId = null; // Initialize conversationId
    try {
-     // --- Manually read the raw body ---
-     let rawBody = '';
-     try {
-        for await (const chunk of request.raw) { rawBody += chunk.toString(); }
-        console.log('[Webhook] Raw body read successfully (length:', rawBody.length, ')');
-     } catch (readError) {
-        console.error('[Webhook] Failed to read raw request body stream:', readError);
-        return reply.code(500).send({ success: false, error: 'Failed to read request body' });
-     }
-     // --- End raw body read ---
-
+     // --- START DEBUG LOGGING ---
+     console.log('[Webhook] Received request. Headers:', JSON.stringify(request.headers, null, 2));
+     // request.body should be parsed by Fastify now
+     // --- END DEBUG LOGGING ---
+ 
      // --- Verify Signature ---
      const signature = request.headers['elevenlabs-signature'];
      console.log('[Webhook] Processing webhook from ElevenLabs');
      console.log('[Webhook] Signature:', signature ? 'Present' : 'Missing');
      if (secret && signature) {
-       const isValid = verifyWebhookSignature(null, signature, secret, rawBody);
+       // Pass the request object to the verification function, which will read the raw body
+       const isValid = await verifyWebhookSignature(request, signature, secret); // Pass request, added await
        if (!isValid) {
          console.error('[Webhook] Invalid signature');
          return reply.code(200).send({ success: false, error: 'Invalid signature' }); // Return 200 OK
@@ -418,16 +423,15 @@ async function processFinalCallData(callSid, conversationId) {
      }
      // --- End Verification ---
 
-     // --- Parse Body ---
-     let webhookData;
-     try {
-       webhookData = JSON.parse(rawBody || '{}');
-     } catch (parseError) {
-       console.error('[Webhook] Failed to parse raw request body:', parseError);
-       return reply.code(400).send({ success: false, error: 'Invalid request body format' });
+     // --- Use request.body (parsed by Fastify) ---
+     const webhookData = request.body;
+     if (!webhookData || typeof webhookData !== 'object') {
+        console.error('[Webhook] Parsed request body is missing or not an object.');
+        return reply.code(400).send({ success: false, error: 'Invalid request body' });
      }
-     // --- End Parsing ---
-
+     // --- End ---
+     
+     // Handle different webhook types using the parsed data
      const webhookType = webhookData.type || 'unknown';
      console.log(`[Webhook] Determined webhook type: ${webhookType}`);
 
