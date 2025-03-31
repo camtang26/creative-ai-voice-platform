@@ -33,9 +33,12 @@ export function RecordingItem({ recording, callSid, callDetails }: RecordingItem
     'Unknown';
 
   // Get the appropriate audio URL
-  const audioUrl = recording.mp3Url || recording.url;
-  // Get the download URL (could be different format)
-  const downloadUrl = recording.mp3Url || recording.wavUrl || recording.url;
+  // Prioritize the main URL and assume it might need .mp3 appended if mp3Url isn't valid
+  const audioUrl = (recording.url && !recording.url.endsWith('.mp3'))
+                   ? `${recording.url}.mp3`
+                   : recording.url; // Use main URL, potentially adding .mp3
+  // Use the backend proxy for download
+  const downloadUrl = `/api/recordings/${recording.recordingSid}/download`;
 
   return (
     <Card className="mb-4">
@@ -43,7 +46,8 @@ export function RecordingItem({ recording, callSid, callDetails }: RecordingItem
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-2">
             <Headphones className="h-5 w-5 text-primary" />
-            <span className="font-medium">Recording {recording.sid.substring(0, 8)}...</span>
+            {/* Use recordingSid */}
+            <span className="font-medium">Recording {recording.recordingSid?.substring(0, 8) ?? 'ID N/A'}...</span>
           </div>
           <div className="flex items-center space-x-2">
             <Button variant="ghost" size="sm" asChild>
@@ -83,7 +87,8 @@ export function RecordingItem({ recording, callSid, callDetails }: RecordingItem
           <div>{displayDuration}</div>
           
           <div className="text-muted-foreground">Recorded:</div>
-          <div>{formatDate(recording.timestamp)}</div>
+          {/* Use createdAt field, provide fallback */}
+          <div>{formatDate(recording.createdAt ?? 'N/A')}</div>
           
           <div className="text-muted-foreground">Channels:</div>
           <div>{recording.channels || 'Mono'}</div>
@@ -118,10 +123,13 @@ export function RecordingItem({ recording, callSid, callDetails }: RecordingItem
             size="sm" 
             asChild // Use Button styling on the Link
           >
-            <Link 
-              href={downloadUrl} 
-              download={`${recording.sid}.mp3`} // Suggest filename
-              target="_blank" // Keep target blank as fallback
+            <Link
+              // Use the backend proxy URL for href
+              href={`/api/recordings/${recording.recordingSid}/download`}
+              // Keep download attribute for filename suggestion, but target isn't strictly needed
+              download={`recording_${recording.recordingSid ?? 'unknown'}.mp3`}
+              target="_blank"
+              rel="noopener noreferrer" // Good practice for target="_blank"
             >
               <Download className="h-4 w-4 mr-2" />
               Download

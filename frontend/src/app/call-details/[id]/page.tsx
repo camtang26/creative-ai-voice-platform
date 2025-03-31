@@ -198,9 +198,16 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
         setCurrentTime(0)
         
         // Set new audio source
-        const audioUrl = recording.url || recording.mp3Url;
+        // Prioritize the main URL and assume it might need .mp3 appended if mp3Url isn't valid
+        const audioUrl = (recording.url && !recording.url.endsWith('.mp3'))
+                         ? `${recording.url}.mp3`
+                         : recording.url; // Use main URL, potentially adding .mp3
         console.log(`[CallDetailsPage Effect] Setting audio source for recording ${activeRecordingId} to: ${audioUrl}`);
-        audioRef.current.src = audioUrl;
+        if (audioRef.current && audioUrl) { // Check if audioUrl is valid before setting
+           audioRef.current.src = audioUrl;
+        } else {
+           console.error(`[CallDetailsPage Effect] Could not determine valid audio URL for recording ${activeRecordingId}`);
+        }
         // audioRef.current.load() // REMOVED: Explicit load might cause issues, let browser handle it
       }
     }

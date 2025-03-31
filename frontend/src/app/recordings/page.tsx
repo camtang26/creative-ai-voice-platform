@@ -100,7 +100,7 @@ export default function RecordingsPage() {
     if (recording.callDetails?.from?.toLowerCase().includes(query)) return true;
     
     // Search by recording ID
-    if (recording.sid.toLowerCase().includes(query)) return true;
+    if (recording.recordingSid?.toLowerCase().includes(query)) return true; // Use recordingSid
     
     // Search by call ID
     // @ts-ignore
@@ -193,9 +193,9 @@ export default function RecordingsPage() {
           ) : (
             <div>
               {filteredRecordings.map((recording) => (
-                <RecordingItem 
-                  key={recording.sid} 
-                  recording={recording} 
+                <RecordingItem
+                  key={recording.recordingSid} // Use recordingSid for key
+                  recording={recording}
                   // @ts-ignore - callSid is added to RecordingInfo
                   callSid={recording.callSid}
                   // @ts-ignore - callDetails is added to RecordingInfo
@@ -241,9 +241,9 @@ export default function RecordingsPage() {
                   <h3 className="text-lg font-medium mb-4 border-b pb-2">{date}</h3>
                   <div className="space-y-4">
                     {dateRecordings.map((recording) => (
-                      <RecordingItem 
-                        key={recording.sid} 
-                        recording={recording} 
+                      <RecordingItem
+                        key={recording.recordingSid} // Use recordingSid for key
+                        recording={recording}
                         // @ts-ignore - callSid is added to RecordingInfo
                         callSid={recording.callSid}
                         // @ts-ignore - callDetails is added to RecordingInfo

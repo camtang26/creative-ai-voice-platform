@@ -28,7 +28,7 @@ export type CallStatus =
   | 'voicemail'; // Added from webhook logic
 
 export interface RecordingInfo {
-  sid: string;
+  recordingSid: string; // Corrected field name
   url: string;
   mp3Url?: string;
   wavUrl?: string;
@@ -44,6 +44,8 @@ export interface RecordingInfo {
     startTime?: string;
     endTime?: string;
   };
+  createdAt?: string; // Added from backend data
+  updatedAt?: string; // Added from backend data
 }
 
 export interface CallMetrics {
