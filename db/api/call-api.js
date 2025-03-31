@@ -22,9 +22,9 @@ import { Readable } from 'stream'; // Import Readable stream
 export async function registerCallApiRoutes(fastify, options = {}) {
   // Get call by SID
   fastify.get('/api/db/calls/:callSid', async (request, reply) => {
+    const { callSid } = request.params;
+    request.log.info(`[API /calls/:callSid] Received request for Call SID: ${callSid}`); // Log received SID
     try {
-      const { callSid } = request.params;
-      
       if (!callSid) {
         return reply.code(400).send({
           success: false,
@@ -34,6 +34,7 @@ export async function registerCallApiRoutes(fastify, options = {}) {
       }
       
       const call = await getCallBySid(callSid);
+      request.log.info(`[API /calls/:callSid] Result from getCallBySid for ${callSid}: ${call ? 'Found' : 'Not Found'}`); // Log result
       
       if (!call) {
         return reply.code(404).send({
