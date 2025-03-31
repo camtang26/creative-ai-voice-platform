@@ -198,14 +198,17 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
         setCurrentTime(0)
         
         // Set new audio source
-        audioRef.current.src = recording.url || recording.mp3Url
-        audioRef.current.load()
+        const audioUrl = recording.url || recording.mp3Url;
+        console.log(`[CallDetailsPage Effect] Setting audio source for recording ${activeRecordingId} to: ${audioUrl}`);
+        audioRef.current.src = audioUrl;
+        // audioRef.current.load() // REMOVED: Explicit load might cause issues, let browser handle it
       }
     }
   }, [activeRecordingId, recordings])
 
   // Handle play/pause
   const togglePlayback = () => {
+    console.log(`[CallDetailsPage togglePlayback] Called. isPlaying: ${isPlaying}, activeRecordingId: ${activeRecordingId}`); // Log state
     if (audioRef.current) {
       if (isPlaying) {
         audioRef.current.pause();

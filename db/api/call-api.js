@@ -114,6 +114,7 @@ export async function registerCallApiRoutes(fastify, options = {}) {
       
       // Get call history
       const result = await getCallHistory(filters, pagination);
+      request.log.info({ data: result }, `[API /calls] Returning call history result.`); // Log the result being returned
       
       return {
         success: true,

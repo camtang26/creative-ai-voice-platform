@@ -41,6 +41,7 @@ export default function RecordingsPage() {
         } else {
           throw new Error('Unexpected response format');
         }
+        console.log('[RecordingsPage] Received calls from API:', calls); // Log received calls
         
         // Filter calls that have populated recordingIds
         // Use 'recordingIds' which is the actual field name populated by Mongoose
