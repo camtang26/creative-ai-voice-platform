@@ -148,7 +148,7 @@ registerOutboundRoutes(server, { skipCallStatusCallback: true });
 
 // Register additional API routes
 registerApiRoutes(server, twilioClient, activeCalls); // This now includes the ElevenLabs route
-registerRecordingApiRoutes(server); // ADDED call to register recording routes
+// registerRecordingApiRoutes(server); // REMOVED: This is called within initializeMongoDB
 // Removed call to registerElevenLabsApiRoutes(server);
 
 // Add a simple health check endpoint for Railway
