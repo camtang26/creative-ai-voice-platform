@@ -184,6 +184,12 @@ server.post('/webhooks/elevenlabs-debug', (request, reply) => {
 // MongoDB-enhanced webhook handler
 let enhancedWebhookHandler;
 
+// Define CRM Endpoint from environment variable
+const crmEndpoint = process.env.CRM_WEBHOOK_URL;
+if (!crmEndpoint) {
+  console.warn('[Server Config] CRM_WEBHOOK_URL environment variable is not set. CRM forwarding will be disabled.');
+}
+
 
 // Main webhook handler
 server.post('/webhooks/elevenlabs',
@@ -197,23 +203,22 @@ server.post('/webhooks/elevenlabs',
   async (request, reply) => {
   try {
     const webhookSecret = process.env.ELEVENLABS_WEBHOOK_SECRET;
-    const signature = request.headers['elevenlabs-signature']; 
-    console.log('[Webhook] Received ElevenLabs webhook');
-    if (webhookSecret && signature) {
-      const isValid = verifyWebhookSignature(request.body, signature, webhookSecret);
-      if (!isValid) {
-        console.error('[Webhook] Invalid signature received from ElevenLabs');
-        return reply.code(200).send({ success: false, error: 'Invalid signature' }); 
-      }
-      console.log('[Webhook] ElevenLabs signature verified successfully');
-    } else {
-      console.warn('[Webhook] Skipping ElevenLabs signature verification (no secret or signature)');
-    }
+    // Removed signature reading and verification logic from here.
+    // It's now handled entirely within handleElevenLabsWebhook.
+    console.log('[Webhook] Received ElevenLabs webhook. Forwarding to handler...');
+
     if (!enhancedWebhookHandler) {
-        enhancedWebhookHandler = getEnhancedWebhookHandler();
+        enhancedWebhookHandler = getEnhancedWebhookHandler(); // Ensure handler is initialized
+        if (!enhancedWebhookHandler || typeof enhancedWebhookHandler.handleElevenLabsWebhook !== 'function') {
+           console.error('[Webhook] CRITICAL: Enhanced webhook handler or handleElevenLabsWebhook function not available.');
+           return reply.code(500).send({ success: false, error: 'Webhook handler configuration error' });
+        }
     }
-    const result = await enhancedWebhookHandler.handleElevenLabsWebhook(request, webhookSecret, crmEndpoint, twilioClient);
-    return reply.code(200).send(result);
+    
+    // Call the handler from db/webhook-handler-db.js, passing the reply object
+    // The handler is now responsible for reading raw body, verifying, parsing, and replying.
+    await enhancedWebhookHandler.handleElevenLabsWebhook(request, reply, webhookSecret, crmEndpoint, twilioClient);
+    // No need to send reply here, the handler does it.
   } catch (error) {
     console.error('[Webhook] Processing error:', error);
     return reply.code(200).send({ status: 'error', message: error.message });

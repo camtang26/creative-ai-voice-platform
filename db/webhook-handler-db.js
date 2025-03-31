@@ -422,6 +422,9 @@ async function processFinalCallData(callSid, conversationId) {
      if (secret && signature) {
        // Pass the rawBodyString read earlier to the verification function
        // Note: verifyWebhookSignature is now synchronous
+       // --- Add Debug Log ---
+       console.log(`[Webhook Debug] Value of rawBodyString before calling verify: ${rawBodyString === undefined ? 'undefined' : rawBodyString === null ? 'null' : `Present (Type: ${typeof rawBodyString}, Length: ${rawBodyString.length})`}`);
+       // --- End Debug Log ---
        const isValid = verifyWebhookSignature(null, signature, secret, rawBodyString); // Pass rawBodyString, removed await
        if (!isValid) {
          console.error('[Webhook] Invalid signature');
