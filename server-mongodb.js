@@ -19,6 +19,7 @@ import { WebSocketServer, WebSocket } from 'ws'; // CORRECTED: Import WebSocketS
 import fastifyFormBody from '@fastify/formbody';
 import fetch from 'node-fetch';
 import crypto from 'crypto';
+import getRawBody from 'raw-body'; // Import raw-body library
 import Twilio from 'twilio';
 import {
   registerOutboundRoutes,
@@ -196,12 +197,32 @@ server.post('/webhooks/elevenlabs',
   { // Add route config object
     config: {
       // Disable default body parsing for this route
-      // We will read the raw body manually in the handler
+      // We will read the raw body manually in the preHandler hook
       disableBodyParser: true
+    },
+    // Add preHandler hook to read raw body
+    preHandler: async (request, reply) => {
+      try {
+        request.rawBodyString = await getRawBody(request.raw, {
+          length: request.headers['content-length'],
+          limit: '5mb' // Ensure this matches needs
+          // No encoding option here
+        });
+        request.log.info('[Webhook PreHandler] Raw body read and attached to request.rawBodyString');
+      } catch (err) {
+        request.log.error('[Webhook PreHandler] Failed to read raw body:', err);
+        // Important: Send error response *from the hook* if reading fails
+        reply.code(400).send({ success: false, error: 'Invalid request body (cannot read in preHandler)' });
+        // NOTE: This might prevent the main handler from running, which is intended if the body is unreadable.
+      }
     }
   },
   async (request, reply) => {
   try {
+    // Check if the preHandler already sent a reply (due to error)
+    if (reply.sent) {
+      return; // Stop processing if reply already sent by hook
+    }
     const webhookSecret = process.env.ELEVENLABS_WEBHOOK_SECRET;
     // Removed signature reading and verification logic from here.
     // It's now handled entirely within handleElevenLabsWebhook.

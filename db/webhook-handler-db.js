@@ -394,23 +394,21 @@ async function processFinalCallData(callSid, conversationId) {
  export async function handleElevenLabsWebhook(request, reply, secret, crmEndpoint, twilioClient = null) {
    let callSid = null; // Initialize callSid
    let conversationId = null; // Initialize conversationId
-   let rawBodyString = ''; // Initialize rawBodyString
+   // Raw body should now be available on request.rawBodyString via preHandler hook
+   const rawBodyString = request.rawBodyString;
+   
+   // Check if preHandler failed to read the body
+   if (rawBodyString === undefined || rawBodyString === null) {
+       // Log this specific case, although the preHandler should have already replied
+       console.error('[Webhook Handler] rawBodyString not found on request object. preHandler likely failed.');
+       // Avoid sending another reply if preHandler already did
+       if (!reply.sent) {
+           return reply.code(500).send({ success: false, error: 'Internal server error reading request body' });
+       }
+       return; // Stop execution if reply already sent
+   }
+   
    try {
-     // --- Read Raw Body FIRST (since disableBodyParser is true) ---
-     try {
-       rawBodyString = await getRawBody(request.raw, {
-         length: request.headers['content-length'],
-         limit: '5mb' // Match limit in verify function if needed
-         // Removed encoding: 'utf-8' to let raw-body handle it or respect existing stream encoding
-       });
-       console.log('[Webhook] Raw body read successfully in handler.');
-     } catch (readError) {
-       console.error('[Webhook] Failed to read raw body in handler:', readError);
-       // Send 400 Bad Request if body cannot be read
-       return reply.code(400).send({ success: false, error: 'Invalid request body (cannot read)' });
-     }
-     // --- End Raw Body Read ---
- 
      // --- START DEBUG LOGGING ---
      console.log('[Webhook] Received request. Headers:', JSON.stringify(request.headers, null, 2));
      // --- END DEBUG LOGGING ---
