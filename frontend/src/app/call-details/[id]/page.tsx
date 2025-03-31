@@ -91,8 +91,9 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
         console.log('[CallDetailsPage] Attempting fetchCall...'); // Log before fetch
         const callResponse = await fetchCall(params.id)
         
-        if (callResponse.success && callResponse.call) {
-          setCall(callResponse.call)
+        // Check the 'data' property for the call object, not 'call'
+        if (callResponse.success && callResponse.data) {
+          setCall(callResponse.data) // Use callResponse.data
         } else {
           const callErrorMsg = callResponse.error || 'Failed to load call details';
           // Log failure but DON'T set the main error state if core call details aren't found
