@@ -288,8 +288,9 @@ export async function getCallHistory(filters = {}, pagination = { page: 1, limit
     const limit = parseInt(pagination.limit) || 20;
     const skip = (page - 1) * limit;
     
-    // Execute query with pagination
+    // Execute query with pagination and populate recordingIds
     const calls = await Call.find(query)
+      .populate('recordingIds') // Add populate here
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
