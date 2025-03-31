@@ -136,10 +136,11 @@ const callSchema = new Schema({
   }],
   
   // References to related collections (will be implemented in later phases)
-  recordingIds: [{ 
-    type: Schema.Types.ObjectId 
+  recordingIds: [{
+    type: Schema.Types.ObjectId,
+    ref: 'Recording' // Added ref to enable population
   }],
-  transcriptId: { 
+  transcriptId: {
     type: Schema.Types.ObjectId 
   },
   eventIds: [{ 
