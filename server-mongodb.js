@@ -120,7 +120,24 @@ server.register(fastifySocketIO, {
 // REMOVED: @fastify/websocket registration
 server.register(fastifyFormBody);
 
-// --- REMOVED Custom Content Type Parser ---
+// --- Add Content Type Parser to capture raw body buffer ---
+server.addContentTypeParser('application/json', { parseAs: 'buffer' }, (req, body, done) => {
+  try {
+    // Attach the raw buffer to the request object
+    req.rawBuffer = body;
+    // Log for debugging
+    req.log.info('[ContentTypeParser] Attached raw buffer to request.rawBuffer');
+    // Parse the JSON using the default parser (or handle potential errors)
+    const json = JSON.parse(body.toString());
+    done(null, json); // Pass the parsed JSON to the handler (request.body)
+  } catch (err) {
+    req.log.error({ err }, '[ContentTypeParser] Error parsing JSON body after capturing buffer');
+    err.statusCode = 400;
+    done(err, undefined); // Signal error to Fastify
+  }
+});
+console.log('[Server] Added application/json content type parser to capture raw buffer.');
+// --- End Content Type Parser ---
 
 // Register API middleware
 registerApiMiddleware(server);
@@ -194,37 +211,10 @@ if (!crmEndpoint) {
 
 // Main webhook handler
 server.post('/webhooks/elevenlabs',
-  { // Add route config object
-    config: {
-      // Disable default body parsing for this route
-      // We will read the raw body manually in the preHandler hook
-      disableBodyParser: true
-    },
-    // Add preHandler hook to read raw body
-    preHandler: async (request, reply) => {
-      try {
-        request.rawBodyString = await getRawBody(request.raw, {
-          length: request.headers['content-length'],
-          limit: '5mb' // Ensure this matches needs
-          // No encoding option here
-        });
-        request.log.info('[Webhook PreHandler] Raw body read and attached to request.rawBodyString');
-      } catch (err) {
-        // Improved error logging
-        request.log.error({ err }, `[Webhook PreHandler] Failed to read raw body. Error: ${err.message}`);
-        console.error('[Webhook PreHandler] Raw body read error stack:', err.stack); // Also log stack to console
-        // Important: Send error response *from the hook* if reading fails
-        // Avoid sending reply if already sent (though unlikely in preHandler error)
-        if (!reply.sent) {
-          reply.code(400).send({ success: false, error: `Invalid request body (read error: ${err.message})` });
-        }
-        // NOTE: This might prevent the main handler from running, which is intended if the body is unreadable.
-      }
-    }
-  },
+  // Removed config object and preHandler hook
   async (request, reply) => {
   try {
-    // Check if the preHandler already sent a reply (due to error)
+    // Removed check for reply.sent as preHandler is gone
     if (reply.sent) {
       return; // Stop processing if reply already sent by hook
     }

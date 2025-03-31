@@ -394,21 +394,30 @@ async function processFinalCallData(callSid, conversationId) {
  export async function handleElevenLabsWebhook(request, reply, secret, crmEndpoint, twilioClient = null) {
    let callSid = null; // Initialize callSid
    let conversationId = null; // Initialize conversationId
-   // Raw body should now be available on request.rawBodyString via preHandler hook
-   const rawBodyString = request.rawBodyString;
-   
-   // Check if preHandler failed to read the body
-   if (rawBodyString === undefined || rawBodyString === null) {
-       // Log this specific case, although the preHandler should have already replied
-       console.error('[Webhook Handler] rawBodyString not found on request object. preHandler likely failed.');
-       // Avoid sending another reply if preHandler already did
-       if (!reply.sent) {
-           return reply.code(500).send({ success: false, error: 'Internal server error reading request body' });
-       }
-       return; // Stop execution if reply already sent
-   }
+   let rawBodyString = ''; // Initialize rawBodyString
    
    try {
+     // --- Get Raw Body String from Buffer (populated by addContentTypeParser) ---
+     if (!request.rawBuffer || !Buffer.isBuffer(request.rawBuffer)) {
+       console.error('[Webhook Handler] CRITICAL: request.rawBuffer is missing or not a Buffer. ContentTypeParser might have failed.');
+       // Avoid sending another reply if parser already did
+       if (!reply.sent) {
+         return reply.code(500).send({ success: false, error: 'Internal server error processing request body' });
+       }
+       return; // Stop execution
+     }
+     try {
+       rawBodyString = request.rawBuffer.toString('utf-8');
+       console.log('[Webhook Handler] Converted rawBuffer to rawBodyString successfully.');
+     } catch (bufferErr) {
+       console.error('[Webhook Handler] Error converting rawBuffer to string:', bufferErr);
+       if (!reply.sent) {
+         return reply.code(500).send({ success: false, error: 'Internal server error processing request body buffer' });
+       }
+       return; // Stop execution
+     }
+     // --- End Raw Body String ---
+ 
      // --- START DEBUG LOGGING ---
      console.log('[Webhook] Received request. Headers:', JSON.stringify(request.headers, null, 2));
      // --- END DEBUG LOGGING ---
@@ -434,22 +443,19 @@ async function processFinalCallData(callSid, conversationId) {
      }
      // --- End Verification ---
  
-     // --- Manually parse the rawBodyString AFTER verification ---
-     let webhookData;
-     try {
-       webhookData = JSON.parse(rawBodyString);
-       console.log('[Webhook] Raw body parsed successfully in handler.');
-     } catch (parseError) {
-       console.error('[Webhook] Failed to parse raw body JSON in handler:', parseError);
-       // Send 400 Bad Request if JSON is invalid
-       return reply.code(400).send({ success: false, error: 'Invalid request body (JSON parse failed)' });
-     }
- 
+     // --- Use request.body (parsed by Fastify via addContentTypeParser) ---
+     const webhookData = request.body;
+     // Basic validation that parsing worked and gave an object
      if (!webhookData || typeof webhookData !== 'object') {
-        console.error('[Webhook] Parsed webhook data is missing or not an object.');
-        return reply.code(400).send({ success: false, error: 'Invalid webhook data structure' });
+        console.error('[Webhook Handler] Parsed request.body is missing or not an object. ContentTypeParser might have failed or returned invalid data.');
+        // Avoid sending another reply if parser already did
+        if (!reply.sent) {
+          return reply.code(400).send({ success: false, error: 'Invalid webhook data structure' });
+        }
+        return; // Stop execution
      }
-     // --- End Manual Parse ---
+     console.log('[Webhook Handler] Using parsed request.body.');
+     // --- End Use request.body ---
      
      // Handle different webhook types using the parsed data
      const webhookType = webhookData.type || 'unknown';
