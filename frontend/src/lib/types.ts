@@ -7,7 +7,8 @@ export interface CallInfo {
   startTime: string;
   endTime?: string;
   answeredBy?: string;
-  recordings?: RecordingInfo[];
+  // recordings?: RecordingInfo[]; // Keep commented out or remove if no longer used elsewhere
+  recordingIds?: RecordingInfo[]; // ADDED: Populated recording documents
   conversationId?: string; // Renamed from conversation_id for consistency
   qualityMetrics?: any;
   transcriptId?: string; // Added link to transcript document

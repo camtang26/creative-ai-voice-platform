@@ -208,9 +208,22 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
   const togglePlayback = () => {
     if (audioRef.current) {
       if (isPlaying) {
-        audioRef.current.pause()
+        audioRef.current.pause();
+        // Manually set state here in case pause event doesn't fire quickly
+        setIsPlaying(false);
       } else {
-        audioRef.current.play()
+        // play() returns a promise which can be interrupted
+        const playPromise = audioRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.then(_ => {
+            // Playback started successfully
+            setIsPlaying(true); // Update state on successful start
+          }).catch(error => {
+            // Auto-play was prevented or interrupted
+            console.error("Audio play failed:", error);
+            setIsPlaying(false); // Ensure state reflects that it's not playing
+          });
+        }
       }
     }
   }
@@ -365,8 +378,9 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
                       </div>
                     )}
                     <div className="flex justify-end">
+                      {/* Update href to point to the backend download proxy endpoint */}
                       <Button variant="outline" size="sm" asChild disabled={!activeRecordingId}>
-                        <a href={recordings.find(r => (r.sid || r.recordingSid) === activeRecordingId)?.url} download target="_blank"><DownloadCloud className="h-4 w-4 mr-2" />Download</a>
+                        <a href={activeRecordingId ? `/api/recordings/${activeRecordingId}/download` : '#'} download target="_blank" rel="noopener noreferrer"><DownloadCloud className="h-4 w-4 mr-2" />Download</a>
                       </Button>
                     </div>
                   </div>

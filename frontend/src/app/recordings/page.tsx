@@ -42,29 +42,34 @@ export default function RecordingsPage() {
           throw new Error('Unexpected response format');
         }
         
-        // Filter calls that have recordings
-        const callsWithRecs = calls.filter(call => 
-          call.recordings && call.recordings.length > 0);
+        // Filter calls that have populated recordingIds
+        // Use 'recordingIds' which is the actual field name populated by Mongoose
+        const callsWithRecs = calls.filter(call =>
+          call.recordingIds && Array.isArray(call.recordingIds) && call.recordingIds.length > 0);
         
         setCallsWithRecordings(callsWithRecs);
         
         // Flatten all recordings
         const allRecordings: RecordingInfo[] = [];
         callsWithRecs.forEach(call => {
-          if (call.recordings) {
-            call.recordings.forEach(recording => {
-              // @ts-ignore - extending RecordingInfo with callSid and callDetails
-              allRecordings.push({
-                ...recording,
-                callSid: call.sid, // Add callSid to recording for reference
-                callDetails: {
-                  from: call.from,
-                  to: call.to,
-                  startTime: call.startTime,
-                  endTime: call.endTime
-                }
-              });
-            });
+          // Iterate over the populated 'recordingIds' field
+          if (call.recordingIds && Array.isArray(call.recordingIds)) {
+            call.recordingIds.forEach((recording: any) => { // Use populated recordingIds array and type recording
+              // Ensure recording is an object before spreading
+              if (recording && typeof recording === 'object') {
+                allRecordings.push({
+                  ...(recording as RecordingInfo), // Spread the actual recording document
+                  callSid: call.callSid, // Use call.callSid (corrected field name)
+                  // Correctly include callDetails within the pushed object
+                  callDetails: {
+                    from: call.from,
+                    to: call.to,
+                    startTime: call.startTime,
+                    endTime: call.endTime
+                  }
+                });
+              } // Close if (recording && typeof recording === 'object')
+            }); // Close call.recordingIds.forEach
           }
         });
         
