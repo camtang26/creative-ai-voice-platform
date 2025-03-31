@@ -400,8 +400,8 @@ async function processFinalCallData(callSid, conversationId) {
      try {
        rawBodyString = await getRawBody(request.raw, {
          length: request.headers['content-length'],
-         limit: '5mb', // Match limit in verify function if needed
-         encoding: 'utf-8'
+         limit: '5mb' // Match limit in verify function if needed
+         // Removed encoding: 'utf-8' to let raw-body handle it or respect existing stream encoding
        });
        console.log('[Webhook] Raw body read successfully in handler.');
      } catch (readError) {
