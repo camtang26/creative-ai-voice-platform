@@ -200,11 +200,11 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
         
         // Set new audio source
         // Use the RAILWAY backend URL (defined above) for the audio source
-        // Use the v2 backend proxy path structure
-        const proxyUrl_v2 = activeRecordingId ? `/api/recordings/download/${activeRecordingId}` : null;
-        console.log(`[CallDetailsPage Effect] Setting audio source for recording ${activeRecordingId} to v2 proxy: ${proxyUrl_v2}`);
-        if (audioRef.current && proxyUrl_v2) { // Check if proxyUrl_v2 is valid before setting
-           audioRef.current.src = proxyUrl_v2;
+        // Use path without /api prefix
+        const proxyUrlNoApi = activeRecordingId ? `/recordings/${activeRecordingId}/download` : null;
+        console.log(`[CallDetailsPage Effect] Setting audio source for recording ${activeRecordingId} to path without /api: ${proxyUrlNoApi}`);
+        if (audioRef.current && proxyUrlNoApi) { // Check if proxyUrlNoApi is valid before setting
+           audioRef.current.src = proxyUrlNoApi;
         } else {
            console.error(`[CallDetailsPage Effect] Could not determine valid audio URL for recording ${activeRecordingId}`);
         }
@@ -391,7 +391,7 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
                     <div className="flex justify-end">
                       {/* Update href to point to the backend download proxy endpoint */}
                       <Button variant="outline" size="sm" asChild disabled={!activeRecordingId}>
-                        <a href={activeRecordingId ? `/api/recordings/download/${activeRecordingId}` : '#'} download target="_blank" rel="noopener noreferrer"><DownloadCloud className="h-4 w-4 mr-2" />Download</a>
+                        <a href={activeRecordingId ? `/recordings/${activeRecordingId}/download` : '#'} download target="_blank" rel="noopener noreferrer"><DownloadCloud className="h-4 w-4 mr-2" />Download</a>
                       </Button>
                     </div>
                   </div>

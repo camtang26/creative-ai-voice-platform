@@ -33,10 +33,11 @@ export function RecordingItem({ recording, callSid, callDetails }: RecordingItem
     'Unknown';
 
   // Use the backend proxy for download AND playback
-  // Use the v2 backend proxy path structure
-  const proxyUrl_v2 = `/api/recordings/download/${recording.recordingSid}`;
-  const audioUrl = proxyUrl_v2; // Use v2 proxy path for player
-  const downloadUrl = proxyUrl_v2; // Use v2 proxy path for download link
+  // Use the original backend proxy path
+  // Use path without /api prefix
+  const proxyUrlNoApi = `/recordings/${recording.recordingSid}/download`;
+  const audioUrl = proxyUrlNoApi; // Use path without /api
+  const downloadUrl = proxyUrlNoApi; // Use path without /api
 
   return (
     <Card className="mb-4">
@@ -123,7 +124,7 @@ export function RecordingItem({ recording, callSid, callDetails }: RecordingItem
           >
             <Link
               // Use the backend proxy URL for href
-              href={downloadUrl} // Use the v2 backend proxy path variable
+              href={downloadUrl} // Use the original backend proxy path variable
               // Keep download attribute for filename suggestion, but target isn't strictly needed
               download={`recording_${recording.recordingSid ?? 'unknown'}.mp3`}
               target="_blank"

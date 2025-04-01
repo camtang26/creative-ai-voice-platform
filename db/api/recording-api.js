@@ -191,11 +191,11 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
   });
 
   // Download recording proxy
-  fastify.get('/api/recordings/download/:recordingSid', async (request, reply) => { // Changed path structure
+  fastify.get('/recordings/:recordingSid/download', async (request, reply) => { // REMOVED /api prefix
     const { recordingSid } = request.params;
     // ADDED log at the very start
-    console.log(`[API Download Handler v2] Route hit for recordingSid: ${recordingSid}`); // Updated log message
-    request.log.info(`[API Download v2] Received request for Recording SID: ${recordingSid}`); // Updated log message
+    console.log(`[API Download Handler] Route hit for recordingSid: ${recordingSid}`); // Reverted log message
+    request.log.info(`[API Download] Received request for Recording SID: ${recordingSid}`); // Reverted log message
     
     try {
       if (!recordingSid) {
@@ -205,7 +205,7 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
       // 1. Fetch recording details from DB
       const recording = await getRecordingBySid(recordingSid);
       if (!recording || !recording.url) {
-        request.log.warn(`[API Download v2] Recording not found or URL missing for SID: ${recordingSid}`); // Updated log message
+        request.log.warn(`[API Download] Recording not found or URL missing for SID: ${recordingSid}`); // Reverted log message
         return reply.code(404).send({ success: false, error: 'Recording not found or URL missing' });
       }
       
@@ -214,12 +214,12 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
       const accountSid = process.env.TWILIO_ACCOUNT_SID;
       const authToken = process.env.TWILIO_AUTH_TOKEN;
       if (!accountSid || !authToken) {
-        request.log.error('[API Download v2] Missing Twilio credentials for download'); // Updated log message
+        request.log.error('[API Download] Missing Twilio credentials for download'); // Reverted log message
         return reply.code(500).send({ success: false, error: 'Server configuration error' });
       }
       
       const twilioUrl = recording.url.endsWith('.mp3') ? recording.url : `${recording.url}.mp3`; // Prefer MP3 if available
-      request.log.info(`[API Download v2] Fetching audio from Twilio URL: ${twilioUrl}`); // Updated log message
+      request.log.info(`[API Download] Fetching audio from Twilio URL: ${twilioUrl}`); // Reverted log message
       
       const response = await fetch(twilioUrl, {
         headers: {
@@ -228,7 +228,7 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
       });
       
       if (!response.ok) {
-        request.log.error(`[API Download v2] Failed to fetch audio from Twilio. Status: ${response.status} ${response.statusText}`); // Updated log message
+        request.log.error(`[API Download] Failed to fetch audio from Twilio. Status: ${response.status} ${response.statusText}`); // Reverted log message
         return reply.code(502).send({ success: false, error: 'Failed to retrieve audio from source' });
       }
       
@@ -241,11 +241,11 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
       reply.header('Content-Disposition', `attachment; filename="recording_${recordingSid}.${fileExtension}"`);
 
       // Send the stream using reply.send() - Fastify handles piping
-      request.log.info(`[API Download v2] Sending stream via reply.send() for ${recordingSid}`); // Updated log message
+      request.log.info(`[API Download] Sending stream via reply.send() for ${recordingSid}`); // Reverted log message
       return reply.send(response.body);
       
     } catch (error) {
-      request.log.error(`[API Download v2] Error processing download for ${recordingSid}:`, error); // Updated log message
+      request.log.error(`[API Download] Error processing download for ${recordingSid}:`, error); // Reverted log message
       if (!reply.sent) {
         reply.code(500).send({
           success: false,
