@@ -191,7 +191,7 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
   });
 
   // Download recording proxy
-  fastify.get('/recordings/:recordingSid/download', async (request, reply) => { // REMOVED /api prefix
+  fastify.get('/api/recordings/:recordingSid/download', async (request, reply) => { // Original path
     const { recordingSid } = request.params;
     // ADDED log at the very start
     console.log(`[API Download Handler] Route hit for recordingSid: ${recordingSid}`); // Reverted log message
