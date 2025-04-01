@@ -33,13 +33,17 @@ export function RecordingItem({ recording, callSid, callDetails }: RecordingItem
     'Unknown';
 
   // Use the backend proxy for download AND playback
-  // Use the original backend proxy path
-  // Use the original backend proxy path
-  // Use the original backend proxy path
-  // Use the original backend proxy path
-  const proxyUrl = `/api/recordings/${recording.recordingSid}/download`;
-  const audioUrl = proxyUrl; // Use original proxy path for player
-  const downloadUrl = proxyUrl; // Use original proxy path for download link
+  // Use the new stable URL pattern that should work on all platforms
+  // We'll use the first alternative route: /api/download/recordings/:recordingSid
+  const primaryProxyUrl = `/api/download/recordings/${recording.recordingSid}`;
+  
+  // Fallback URLs in case we need to dynamically switch later
+  const fallbackQueryUrl = `/api/recordings/download?recordingSid=${recording.recordingSid}`;
+  const originalProxyUrl = `/api/recordings/${recording.recordingSid}/download`;
+  
+  // Use the new primary URL for both audio player and download
+  const audioUrl = primaryProxyUrl;
+  const downloadUrl = primaryProxyUrl;
 
   return (
     <Card className="mb-4">

@@ -190,7 +190,7 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
     }
   });
 
-  // Download recording proxy
+  // Download recording proxy - ORIGINAL PATH (kept for backward compatibility)
   fastify.get('/api/recordings/:recordingSid/download', async (request, reply) => { // Original path
     const { recordingSid } = request.params;
     // ADDED log at the very start
@@ -246,6 +246,128 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
       
     } catch (error) {
       request.log.error(`[API Download] Error processing download for ${recordingSid}:`, error); // Original log message
+      if (!reply.sent) {
+        reply.code(500).send({
+          success: false,
+          error: 'Error processing recording download',
+          details: error.message
+        });
+      }
+    }
+  });
+  
+  // NEW ALTERNATIVE PATH 1: Move 'download' before parameter for better routing
+  fastify.get('/api/download/recordings/:recordingSid', async (request, reply) => {
+    const { recordingSid } = request.params;
+    console.log(`[API Download Alt1] Route hit for recordingSid: ${recordingSid}`);
+    
+    try {
+      if (!recordingSid) {
+        return reply.code(400).send({ success: false, error: 'Recording SID is required' });
+      }
+      
+      // 1. Fetch recording details from DB
+      const recording = await getRecordingBySid(recordingSid);
+      if (!recording || !recording.url) {
+        request.log.warn(`[API Download Alt1] Recording not found or URL missing for SID: ${recordingSid}`);
+        return reply.code(404).send({ success: false, error: 'Recording not found or URL missing' });
+      }
+      
+      // 2. Fetch audio data from Twilio URL
+      const accountSid = process.env.TWILIO_ACCOUNT_SID;
+      const authToken = process.env.TWILIO_AUTH_TOKEN;
+      if (!accountSid || !authToken) {
+        request.log.error('[API Download Alt1] Missing Twilio credentials for download');
+        return reply.code(500).send({ success: false, error: 'Server configuration error' });
+      }
+      
+      const twilioUrl = recording.url.endsWith('.mp3') ? recording.url : `${recording.url}.mp3`;
+      request.log.info(`[API Download Alt1] Fetching audio from Twilio URL: ${twilioUrl}`);
+      
+      const response = await fetch(twilioUrl, {
+        headers: {
+          'Authorization': `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`
+        }
+      });
+      
+      if (!response.ok) {
+        request.log.error(`[API Download Alt1] Failed to fetch audio from Twilio. Status: ${response.status} ${response.statusText}`);
+        return reply.code(502).send({ success: false, error: 'Failed to retrieve audio from source' });
+      }
+      
+      // 3. Stream response back to client
+      const contentType = response.headers.get('content-type') || 'audio/mpeg';
+      const fileExtension = contentType.includes('wav') ? 'wav' : 'mp3';
+      
+      reply.header('Content-Type', contentType);
+      reply.header('Content-Disposition', `attachment; filename="recording_${recordingSid}.${fileExtension}"`);
+
+      request.log.info(`[API Download Alt1] Sending stream via reply.send() for ${recordingSid}`);
+      return reply.send(response.body);
+      
+    } catch (error) {
+      request.log.error(`[API Download Alt1] Error processing download for ${recordingSid}:`, error);
+      if (!reply.sent) {
+        reply.code(500).send({
+          success: false,
+          error: 'Error processing recording download',
+          details: error.message
+        });
+      }
+    }
+  });
+  
+  // NEW ALTERNATIVE PATH 2: Using query parameter approach
+  fastify.get('/api/recordings/download', async (request, reply) => {
+    const { recordingSid } = request.query;
+    console.log(`[API Download Alt2] Route hit with query param recordingSid: ${recordingSid}`);
+    
+    try {
+      if (!recordingSid) {
+        return reply.code(400).send({ success: false, error: 'Recording SID is required as a query parameter' });
+      }
+      
+      // 1. Fetch recording details from DB
+      const recording = await getRecordingBySid(recordingSid);
+      if (!recording || !recording.url) {
+        request.log.warn(`[API Download Alt2] Recording not found or URL missing for SID: ${recordingSid}`);
+        return reply.code(404).send({ success: false, error: 'Recording not found or URL missing' });
+      }
+      
+      // 2. Fetch audio data from Twilio URL
+      const accountSid = process.env.TWILIO_ACCOUNT_SID;
+      const authToken = process.env.TWILIO_AUTH_TOKEN;
+      if (!accountSid || !authToken) {
+        request.log.error('[API Download Alt2] Missing Twilio credentials for download');
+        return reply.code(500).send({ success: false, error: 'Server configuration error' });
+      }
+      
+      const twilioUrl = recording.url.endsWith('.mp3') ? recording.url : `${recording.url}.mp3`;
+      request.log.info(`[API Download Alt2] Fetching audio from Twilio URL: ${twilioUrl}`);
+      
+      const response = await fetch(twilioUrl, {
+        headers: {
+          'Authorization': `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`
+        }
+      });
+      
+      if (!response.ok) {
+        request.log.error(`[API Download Alt2] Failed to fetch audio from Twilio. Status: ${response.status} ${response.statusText}`);
+        return reply.code(502).send({ success: false, error: 'Failed to retrieve audio from source' });
+      }
+      
+      // 3. Stream response back to client
+      const contentType = response.headers.get('content-type') || 'audio/mpeg';
+      const fileExtension = contentType.includes('wav') ? 'wav' : 'mp3';
+      
+      reply.header('Content-Type', contentType);
+      reply.header('Content-Disposition', `attachment; filename="recording_${recordingSid}.${fileExtension}"`);
+
+      request.log.info(`[API Download Alt2] Sending stream via reply.send() for ${recordingSid}`);
+      return reply.send(response.body);
+      
+    } catch (error) {
+      request.log.error(`[API Download Alt2] Error processing download for ${recordingSid}:`, error);
       if (!reply.sent) {
         reply.code(500).send({
           success: false,
