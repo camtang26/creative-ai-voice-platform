@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import WaveSurfer from 'wavesurfer.js';
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -23,69 +23,115 @@ export function WaveformPlayer({ audioUrl, title, downloadUrl, onPlaybackComplet
   const [volume, setVolume] = useState(80);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+
+  // Fetch audio data and create blob URL
+  const fetchAudioData = useCallback(async (sourceUrl: string) => {
+    if (!sourceUrl) return null;
+    
+    try {
+      console.log(`[WaveformPlayer] Fetching audio from: ${sourceUrl}`);
+      const response = await fetch(sourceUrl);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch audio: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.arrayBuffer();
+      const blob = new Blob([data], { type: 'audio/mpeg' });
+      const blobUrl = URL.createObjectURL(blob);
+      
+      setBlobUrl(blobUrl);
+      return blobUrl;
+    } catch (error) {
+      console.error('Error fetching audio data:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load audio');
+      return null;
+    }
+  }, []);
 
   // Initialize WaveSurfer
   useEffect(() => {
-    if (!waveformRef.current) return;
+    if (!waveformRef.current || !audioUrl) return;
+    
     setIsLoading(true);
     setError(null);
+    
+    let localBlobUrl: string | null = null;
 
-    try {
-      // Create WaveSurfer instance
-      const wavesurfer = WaveSurfer.create({
-        container: waveformRef.current,
-        waveColor: '#CBD5E0',
-        progressColor: '#3B82F6',
-        cursorColor: '#4F46E5',
-        barWidth: 2,
-        barGap: 1,
-        barRadius: 2,
-        responsive: true,
-        height: 80,
-        normalize: true,
-        partialRender: true
-      });
-
-      // Set the audio file
-      wavesurfer.load(audioUrl);
-
-      // Event listeners
-      wavesurfer.on('ready', () => {
-        wavesurferRef.current = wavesurfer;
-        setDuration(wavesurfer.getDuration());
-        setIsLoading(false);
-        wavesurfer.setVolume(volume / 100);
-      });
-
-      wavesurfer.on('play', () => setIsPlaying(true));
-      wavesurfer.on('pause', () => setIsPlaying(false));
-      wavesurfer.on('finish', () => {
-        setIsPlaying(false);
-        if (onPlaybackComplete) onPlaybackComplete();
-      });
-
-      wavesurfer.on('audioprocess', () => {
-        setCurrentTime(wavesurfer.getCurrentTime());
-      });
-
-      wavesurfer.on('error', (err) => {
-        console.error('WaveSurfer error:', err);
-        setError('Failed to load audio file');
-        setIsLoading(false);
-      });
-
-      // Cleanup on unmount
-      return () => {
-        if (wavesurferRef.current) {
-          wavesurferRef.current.destroy();
+    const initWaveSurfer = async () => {
+      try {
+        // Fetch audio and create blob URL
+        localBlobUrl = await fetchAudioData(audioUrl);
+        if (!localBlobUrl) {
+          setIsLoading(false);
+          return;
         }
-      };
-    } catch (err) {
-      console.error('Error creating WaveSurfer instance:', err);
-      setError('Failed to initialize audio player');
-      setIsLoading(false);
-    }
-  }, [audioUrl, onPlaybackComplete, volume]);
+        
+        // Create WaveSurfer instance with type-safe options
+        const wavesurfer = WaveSurfer.create({
+          container: waveformRef.current!,
+          waveColor: '#CBD5E0',
+          progressColor: '#3B82F6',
+          cursorColor: '#4F46E5',
+          barWidth: 2,
+          barGap: 1,
+          barRadius: 2,
+          height: 80,
+          normalize: true
+        });
+
+        // Set the audio file using the blob URL
+        wavesurfer.load(localBlobUrl);
+
+        // Event listeners
+        wavesurfer.on('ready', () => {
+          wavesurferRef.current = wavesurfer;
+          setDuration(wavesurfer.getDuration());
+          setIsLoading(false);
+          wavesurfer.setVolume(volume / 100);
+        });
+
+        wavesurfer.on('play', () => setIsPlaying(true));
+        wavesurfer.on('pause', () => setIsPlaying(false));
+        wavesurfer.on('finish', () => {
+          setIsPlaying(false);
+          if (onPlaybackComplete) onPlaybackComplete();
+        });
+
+        wavesurfer.on('audioprocess', () => {
+          setCurrentTime(wavesurfer.getCurrentTime());
+        });
+
+        wavesurfer.on('error', (err) => {
+          console.error('WaveSurfer error:', err);
+          setError('Failed to load audio file');
+          setIsLoading(false);
+        });
+      } catch (err) {
+        console.error('Error creating WaveSurfer instance:', err);
+        setError('Failed to initialize audio player');
+        setIsLoading(false);
+      }
+    };
+
+    initWaveSurfer();
+
+    // Cleanup on unmount
+    return () => {
+      if (wavesurferRef.current) {
+        wavesurferRef.current.destroy();
+      }
+      
+      // Revoke any existing blob URLs
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+      }
+      if (localBlobUrl && localBlobUrl !== blobUrl) {
+        URL.revokeObjectURL(localBlobUrl);
+      }
+    };
+  }, [audioUrl, onPlaybackComplete, volume, fetchAudioData, blobUrl]);
 
   // Handler functions
   const togglePlayPause = () => {
@@ -128,9 +174,21 @@ export function WaveformPlayer({ audioUrl, title, downloadUrl, onPlaybackComplet
   };
 
   const handleDownload = () => {
-    if (downloadUrl) {
+    // Use the blob URL for direct download if available
+    if (blobUrl) {
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `recording_${Date.now()}.mp3`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } 
+    // Fallback to the provided download URL
+    else if (downloadUrl) {
       window.open(downloadUrl, '_blank');
-    } else {
+    } 
+    // Last resort: use the original audio URL
+    else {
       window.open(audioUrl, '_blank');
     }
   };

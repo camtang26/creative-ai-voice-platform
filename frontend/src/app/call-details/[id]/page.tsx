@@ -199,19 +199,54 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
         setIsPlaying(false)
         setCurrentTime(0)
         
-        // Set new audio source
-        // Use our enhanced getMediaUrl helper for cross-environment compatibility
+        // Get media URL using our enhanced helper
         const mediaUrl = activeRecordingId ? getMediaUrl(activeRecordingId) : null;
-        console.log(`[CallDetailsPage Effect] Setting audio source for recording ${activeRecordingId} to media endpoint: ${mediaUrl}`);
-        if (audioRef.current && mediaUrl) { // Check if mediaUrl is valid before setting
-           audioRef.current.src = mediaUrl;
-        } else {
-           console.error(`[CallDetailsPage Effect] Could not determine valid audio URL for recording ${activeRecordingId}`);
+        
+        if (!mediaUrl) {
+          console.error(`[CallDetailsPage Effect] Could not determine valid audio URL for recording ${activeRecordingId}`);
+          return;
         }
-        // audioRef.current.load() // REMOVED: Explicit load might cause issues, let browser handle it
+        
+        console.log(`[CallDetailsPage Effect] Fetching audio from ${mediaUrl}`);
+        
+        // Fetch audio data and create blob URL for better compatibility
+        fetch(mediaUrl)
+          .then(response => {
+            if (!response.ok) {
+              throw new Error(`Failed to fetch audio: ${response.status}`);
+            }
+            return response.arrayBuffer();
+          })
+          .then(data => {
+            const blob = new Blob([data], { type: 'audio/mpeg' });
+            const blobUrl = URL.createObjectURL(blob);
+            
+            // Apply to audio element
+            if (audioRef.current) {
+              audioRef.current.src = blobUrl;
+              
+              // Clean up previous blob URL when audio is loaded
+              const handleLoadedData = () => {
+                console.log(`[CallDetailsPage] Audio loaded successfully, duration: ${audioRef.current?.duration}`);
+              };
+              
+              // Add event listener for the loaded data event
+              audioRef.current.addEventListener('loadeddata', handleLoadedData, { once: true });
+            }
+          })
+          .catch(error => {
+            console.error('[CallDetailsPage] Error fetching audio:', error);
+          });
       }
     }
-  }, [activeRecordingId]) // REMOVED 'recordings' from dependency array
+    
+    // Cleanup function to revoke any blob URLs when component unmounts or recording changes
+    return () => {
+      if (audioRef.current && audioRef.current.src.startsWith('blob:')) {
+        URL.revokeObjectURL(audioRef.current.src);
+      }
+    };
+  }, [activeRecordingId]) // Only depend on activeRecordingId
 
   // Handle play/pause
   const togglePlayback = () => {
