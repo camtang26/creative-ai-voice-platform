@@ -26,8 +26,8 @@ const routesToTest = [
   // Original path (known to be problematic)
   `/api/recordings/${testRecordingSid}/download`,
   
-  // Alternative 1: Verb-first pattern 
-  `/api/download/recordings/${testRecordingSid}`,
+  // Alternative 1: Standard media route (avoiding 'download' keyword)
+  `/api/media/recordings/${testRecordingSid}`,
   
   // Alternative 2: Query parameter approach
   `/api/recordings/download?recordingSid=${testRecordingSid}`

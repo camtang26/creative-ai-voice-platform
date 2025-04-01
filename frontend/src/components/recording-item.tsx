@@ -33,11 +33,11 @@ export function RecordingItem({ recording, callSid, callDetails }: RecordingItem
     'Unknown';
 
   // Use the backend proxy for download AND playback
-  // Use the new stable URL pattern that should work on all platforms
-  // We'll use the first alternative route: /api/download/recordings/:recordingSid
-  const primaryProxyUrl = `/api/download/recordings/${recording.recordingSid}`;
+  // Use the new stable URL pattern that should work on all platforms (avoiding 'download' keyword)
+  // We'll use a standard media route pattern
+  const primaryProxyUrl = `/api/media/recordings/${recording.recordingSid}`;
   
-  // Fallback URLs in case we need to dynamically switch later
+  // Fallback URLs in case the primary URL doesn't work
   const fallbackQueryUrl = `/api/recordings/download?recordingSid=${recording.recordingSid}`;
   const originalProxyUrl = `/api/recordings/${recording.recordingSid}/download`;
   

@@ -256,8 +256,8 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
     }
   });
   
-  // NEW ALTERNATIVE PATH 1: Move 'download' before parameter for better routing
-  fastify.get('/api/download/recordings/:recordingSid', async (request, reply) => {
+  // NEW ALTERNATIVE PATH 1: Standard media route pattern (avoiding "download" word)
+  fastify.get('/api/media/recordings/:recordingSid', async (request, reply) => {
     const { recordingSid } = request.params;
     console.log(`[API Download Alt1] Route hit for recordingSid: ${recordingSid}`);
     
