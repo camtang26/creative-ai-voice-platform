@@ -41,7 +41,7 @@
   "type": "module",
   "dependencies": {
     "@aws-sdk/client-ses": "^3.758.0",
-    "@fastify/formbody": "^8.0.2",
+    "@fastify/formbody": "^7.4.0",
     "@radix-ui/react-alert-dialog": "^1.1.6",
     "@radix-ui/react-progress": "^1.1.2",
     "@radix-ui/react-slot": "^1.1.2",
