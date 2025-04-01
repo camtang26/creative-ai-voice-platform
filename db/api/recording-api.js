@@ -21,7 +21,7 @@ import { Readable } from 'stream'; // Import Readable stream
  */
 export async function registerRecordingApiRoutes(fastify, options = {}) {
   // Get recordings for a call
-  fastify.get('/db/calls/:callSid/recordings', async (request, reply) => {
+  fastify.get('/api/db/calls/:callSid/recordings', async (request, reply) => {
     try {
       const { callSid } = request.params;
       
@@ -56,7 +56,7 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
   });
   
   // Get a recording by SID
-  fastify.get('/db/recordings/:recordingSid', async (request, reply) => {
+  fastify.get('/api/db/recordings/:recordingSid', async (request, reply) => {
     try {
       const { recordingSid } = request.params;
       
@@ -95,7 +95,7 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
   });
   
   // Update recording processing status
-  fastify.put('/db/recordings/:recordingSid/processing-status', async (request, reply) => {
+  fastify.put('/api/db/recordings/:recordingSid/processing-status', async (request, reply) => {
     try {
       const { recordingSid } = request.params;
       const { status } = request.body;
@@ -143,7 +143,7 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
   });
   
   // Update recording transcription status
-  fastify.put('/db/recordings/:recordingSid/transcription-status', async (request, reply) => {
+  fastify.put('/api/db/recordings/:recordingSid/transcription-status', async (request, reply) => {
     try {
       const { recordingSid } = request.params;
       const { status } = request.body;
@@ -191,7 +191,7 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
   });
 
   // Download recording proxy
-  fastify.get('/recordings/:recordingSid/download', async (request, reply) => {
+  fastify.get('/api/recordings/:recordingSid/download', async (request, reply) => {
     const { recordingSid } = request.params;
     // ADDED log at the very start
     console.log(`[API Download Handler] Route hit for recordingSid: ${recordingSid}`);
@@ -259,7 +259,7 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
   });
 
   // Export all recordings as CSV
-  fastify.get('/db/recordings/actions/export', async (request, reply) => { // Changed path
+  fastify.get('/api/db/recordings/actions/export', async (request, reply) => { // Changed path
     try {
       console.log('[API] Starting recording log export');
       // Fetch all recordings directly from the model
