@@ -83,12 +83,20 @@ export function RecordingItem({ recording, callSid, callDetails }: RecordingItem
     };
   }, [blobUrl]);
   
-  // When expanded, fetch the audio data
+  // When expanded, fetch the audio data - only if we haven't already
   useEffect(() => {
+    // Only fetch when expanded and we don't have a blob yet
     if (expanded && !audioBlob && !isLoading) {
       fetchAudioData();
     }
-  }, [expanded, audioBlob, isLoading]);
+    
+    // If collapsed, clean up any blobs to avoid multiple active audio contexts
+    if (!expanded && blobUrl) {
+      URL.revokeObjectURL(blobUrl);
+      setBlobUrl('');
+      setAudioBlob(null);
+    }
+  }, [expanded, audioBlob, isLoading, blobUrl]);
   
   // URLs for audio player and download - now using blob URLs
   const audioUrl = blobUrl || ''; // Empty string as placeholder while loading

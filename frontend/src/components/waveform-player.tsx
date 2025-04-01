@@ -29,8 +29,13 @@ export function WaveformPlayer({ audioUrl, title, downloadUrl, onPlaybackComplet
   const fetchAudioData = useCallback(async (sourceUrl: string) => {
     if (!sourceUrl) return null;
     
+    // Don't re-fetch if we already have a blob URL
+    if (blobUrl) return blobUrl;
+    
     try {
       console.log(`[WaveformPlayer] Fetching audio from: ${sourceUrl}`);
+      setIsLoading(true);
+      
       const response = await fetch(sourceUrl);
       
       if (!response.ok) {
@@ -39,10 +44,10 @@ export function WaveformPlayer({ audioUrl, title, downloadUrl, onPlaybackComplet
       
       const data = await response.arrayBuffer();
       const blob = new Blob([data], { type: 'audio/mpeg' });
-      const blobUrl = URL.createObjectURL(blob);
+      const newBlobUrl = URL.createObjectURL(blob);
       
-      setBlobUrl(blobUrl);
-      return blobUrl;
+      setBlobUrl(newBlobUrl);
+      return newBlobUrl;
     } catch (error) {
       console.error('Error fetching audio data:', error);
       setError(error instanceof Error ? error.message : 'Failed to load audio');
