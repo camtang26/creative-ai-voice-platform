@@ -46,6 +46,7 @@ import { CallTranscript } from "@/components/call-transcript" // Import static t
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { fetchCall, fetchCallRecordings, fetchCallTranscript } from "@/lib/mongodb-api"
 import { cn, formatTimeInSeconds } from "@/lib/utils" // Ensure formatTimeInSeconds is imported
+import { getMediaUrl } from "@/lib/api" // Import getMediaUrl helper
 // Import necessary types
 import { CallInfo, RecordingInfo, TranscriptData, EvaluationCriteriaResult, DataCollectionResult } from "@/lib/types"
 
@@ -199,8 +200,8 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
         setCurrentTime(0)
         
         // Set new audio source
-        // Use the enhanced media endpoint which has better streaming compatibility
-        const mediaUrl = activeRecordingId ? `/api/media/recordings/${activeRecordingId}` : null;
+        // Use our enhanced getMediaUrl helper for cross-environment compatibility
+        const mediaUrl = activeRecordingId ? getMediaUrl(activeRecordingId) : null;
         console.log(`[CallDetailsPage Effect] Setting audio source for recording ${activeRecordingId} to media endpoint: ${mediaUrl}`);
         if (audioRef.current && mediaUrl) { // Check if mediaUrl is valid before setting
            audioRef.current.src = mediaUrl;
@@ -388,9 +389,9 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
                       </div>
                     )}
                     <div className="flex justify-end">
-                      {/* Use the enhanced download endpoint for better compatibility */}
+                      {/* Use the getMediaUrl helper for download as well */}
                       <Button variant="outline" size="sm" asChild disabled={!activeRecordingId}>
-                        <a href={activeRecordingId ? `/api/media/recordings/${activeRecordingId}` : '#'} download={activeRecordingId ? `recording_${activeRecordingId}.mp3` : undefined} target="_blank" rel="noopener noreferrer"><DownloadCloud className="h-4 w-4 mr-2" />Download</a>
+                        <a href={activeRecordingId ? getMediaUrl(activeRecordingId) : '#'} download={activeRecordingId ? `recording_${activeRecordingId}.mp3` : undefined} target="_blank" rel="noopener noreferrer"><DownloadCloud className="h-4 w-4 mr-2" />Download</a>
                       </Button>
                     </div>
                   </div>

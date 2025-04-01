@@ -6,6 +6,7 @@ import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Headphones, Download, ChevronDown, ChevronUp, Info } from "lucide-react";
 import { RecordingInfo } from "@/lib/types";
 import { formatDate, formatDuration, formatPhoneNumber } from "@/lib/utils";
+import { getMediaUrl } from "@/lib/api";
 import { WaveformPlayer } from "./waveform-player";
 import Link from "next/link";
 
@@ -38,7 +39,7 @@ export function RecordingItem({ recording, callSid, callDetails }: RecordingItem
   const [isLoading, setIsLoading] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
 
-  // Function to fetch audio directly from the enhanced streaming endpoint
+  // Function to fetch audio directly from the enhanced streaming endpoint using our API helper
   const fetchAudioData = async () => {
     if (audioBlob) return; // Already fetched
     
@@ -46,8 +47,8 @@ export function RecordingItem({ recording, callSid, callDetails }: RecordingItem
     setAudioError(null);
     
     try {
-      // Use the enhanced streaming endpoint that works with file caching
-      const audioUrl = `/api/media/recordings/${recording.recordingSid}`;
+      // Use the getMediaUrl helper to ensure correct base URL in all environments
+      const audioUrl = getMediaUrl(recording.recordingSid);
       console.log(`[Recording] Fetching audio from: ${audioUrl}`);
       
       // Fetch the audio directly as a blob

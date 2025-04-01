@@ -43,8 +43,22 @@ const getApiUrl = (path: string): string => {
   }
 };
 
-// Export the helper function for use in other modules
-export { getApiUrl };
+// Function to get the full URL for media/recording endpoints
+function getMediaUrl(recordingSid: string): string {
+  // Get base URL from environment variable or use default
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
+  
+  if (baseUrl) {
+    // If we have a base URL (like production), use it
+    return `${baseUrl.replace(/\/$/, '')}/api/media/recordings/${recordingSid}`;
+  } else {
+    // For local development, use relative path
+    return `/api/media/recordings/${recordingSid}`;
+  }
+}
+
+// Export the helper functions for use in other modules
+export { getApiUrl, getMediaUrl };
 
 /**
  * Fetch call statistics from the server
