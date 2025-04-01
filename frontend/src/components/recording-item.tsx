@@ -100,7 +100,7 @@ export function RecordingItem({ recording, callSid, callDetails }: RecordingItem
           <WaveformPlayer 
             audioUrl={audioUrl}
             downloadUrl={downloadUrl}
-            title={`Call Recording - ${formatDate(recording.timestamp)}`}
+            title={`Call Recording - ${formatDate(recording.createdAt ?? 'N/A')}`}
           />
         </CardContent>
       )}
