@@ -38,7 +38,7 @@ export function RecordingItem({ recording, callSid, callDetails }: RecordingItem
   const [isLoading, setIsLoading] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
 
-  // Function to fetch base64 encoded audio and convert to blob URL
+  // Function to fetch audio directly from the enhanced streaming endpoint
   const fetchAudioData = async () => {
     if (audioBlob) return; // Already fetched
     
@@ -46,30 +46,19 @@ export function RecordingItem({ recording, callSid, callDetails }: RecordingItem
     setAudioError(null);
     
     try {
-      // Fetch the base64 encoded audio data
-      const response = await fetch(`/api/recordings/data/${recording.recordingSid}`);
+      // Use the enhanced streaming endpoint that works with file caching
+      const audioUrl = `/api/media/recordings/${recording.recordingSid}`;
+      console.log(`[Recording] Fetching audio from: ${audioUrl}`);
+      
+      // Fetch the audio directly as a blob
+      const response = await fetch(audioUrl);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch audio: ${response.status} ${response.statusText}`);
       }
       
-      const jsonResponse = await response.json();
-      
-      if (!jsonResponse.success || !jsonResponse.data || !jsonResponse.data.base64Data) {
-        throw new Error('Invalid response format from server');
-      }
-      
-      // Convert base64 to blob
-      const { base64Data, contentType } = jsonResponse.data;
-      const binaryString = window.atob(base64Data);
-      const bytes = new Uint8Array(binaryString.length);
-      
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      
-      // Create blob and URL
-      const blob = new Blob([bytes], { type: contentType });
+      // Get the audio data as a blob directly
+      const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       
       // Save the blob and URL
