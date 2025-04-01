@@ -19,7 +19,7 @@ import { Readable } from 'stream'; // Import Readable stream
  * @param {Object} fastify - Fastify instance
  * @param {Object} options - Route options
  */
-export async function registerRecordingApiRoutes(fastify, options, done) { // Add done callback
+export async function registerRecordingApiRoutes(fastify, options = {}) {
   // Get recordings for a call
   fastify.get('/db/calls/:callSid/recordings', async (request, reply) => {
     try {
@@ -305,9 +305,6 @@ export async function registerRecordingApiRoutes(fastify, options, done) { // Ad
         };
         csvStream.write(row);
       });
-      
-      // Signal that plugin registration is complete
-      done();
 
       // End the CSV stream
       csvStream.end();
