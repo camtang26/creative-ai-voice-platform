@@ -148,6 +148,15 @@ console.log('[Server] Added application/json content type parser to capture raw 
 // Register API middleware
 registerApiMiddleware(server);
 
+// --- ADDED Global preHandler Hook for Debugging ---
+server.addHook('preHandler', (request, reply, done) => {
+  // Log every incoming request before routing
+  server.log.info(`[preHandler Hook] Received request: ${request.method} ${request.raw.url}`); // Use request.raw.url for the original URL
+  done(); // Continue processing
+});
+console.log('[Server] Added global preHandler hook for request logging.');
+// --- END Global preHandler Hook ---
+
 // Register outbound calling routes (will need MEDIA_PROXY_SERVICE_URL env var)
 registerOutboundRoutes(server, { skipCallStatusCallback: true });
 
