@@ -67,7 +67,8 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
   const [isMuted, setIsMuted] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
-  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const railwayBaseUrl = 'https://twilioel-production.up.railway.app'; // Define Railway URL at component scope
 
   // Fetch call details, recordings, and transcript
   useEffect(() => {
@@ -198,11 +199,11 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
         setCurrentTime(0)
         
         // Set new audio source
-        // Use the backend proxy URL for the audio source
-        const proxyUrl = activeRecordingId ? `/api/recordings/${activeRecordingId}/download` : null;
-        console.log(`[CallDetailsPage Effect] Setting audio source for recording ${activeRecordingId} to proxy: ${proxyUrl}`);
-        if (audioRef.current && proxyUrl) { // Check if proxyUrl is valid before setting
-           audioRef.current.src = proxyUrl;
+        // Use the RAILWAY backend URL (defined above) for the audio source
+        const railwayProxyUrl = activeRecordingId ? `${railwayBaseUrl}/api/recordings/${activeRecordingId}/download` : null;
+        console.log(`[CallDetailsPage Effect] Setting audio source for recording ${activeRecordingId} to Railway proxy: ${railwayProxyUrl}`);
+        if (audioRef.current && railwayProxyUrl) { // Check if railwayProxyUrl is valid before setting
+           audioRef.current.src = railwayProxyUrl;
         } else {
            console.error(`[CallDetailsPage Effect] Could not determine valid audio URL for recording ${activeRecordingId}`);
         }
@@ -389,7 +390,7 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
                     <div className="flex justify-end">
                       {/* Update href to point to the backend download proxy endpoint */}
                       <Button variant="outline" size="sm" asChild disabled={!activeRecordingId}>
-                        <a href={activeRecordingId ? `/api/recordings/${activeRecordingId}/download` : '#'} download target="_blank" rel="noopener noreferrer"><DownloadCloud className="h-4 w-4 mr-2" />Download</a>
+                        <a href={activeRecordingId ? `${railwayBaseUrl}/api/recordings/${activeRecordingId}/download` : '#'} download target="_blank" rel="noopener noreferrer"><DownloadCloud className="h-4 w-4 mr-2" />Download</a>
                       </Button>
                     </div>
                   </div>
