@@ -163,13 +163,7 @@ server.get('/healthz', async (request, reply) => {
 });
 console.log('[Server] Registered /healthz endpoint');
 
-// --- ADDED Simple Test Route ---
-server.get('/api/recordings/test/ping', async (request, reply) => {
-  request.log.info('[Simple Test Route] /api/recordings/test/ping HIT!');
-  return { success: true, message: 'Pong from test route!', timestamp: new Date().toISOString() };
-});
-console.log('[Server] Registered /api/recordings/test/ping endpoint');
-// --- END Simple Test Route ---
+// Removed simple test route
 
 // Share the active calls map with handlers
 setActiveCallsReference(activeCalls);
