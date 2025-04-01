@@ -21,7 +21,7 @@ import { Readable } from 'stream'; // Import Readable stream
  */
 export async function registerRecordingApiRoutes(fastify, options = {}) {
   // Get recordings for a call
-  fastify.get('/api/db/calls/:callSid/recordings', async (request, reply) => {
+  fastify.get('/db/calls/:callSid/recordings', async (request, reply) => {
     try {
       const { callSid } = request.params;
       
@@ -56,7 +56,7 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
   });
   
   // Get a recording by SID
-  fastify.get('/api/db/recordings/:recordingSid', async (request, reply) => {
+  fastify.get('/db/recordings/:recordingSid', async (request, reply) => {
     try {
       const { recordingSid } = request.params;
       
@@ -95,7 +95,7 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
   });
   
   // Update recording processing status
-  fastify.put('/api/db/recordings/:recordingSid/processing-status', async (request, reply) => {
+  fastify.put('/db/recordings/:recordingSid/processing-status', async (request, reply) => {
     try {
       const { recordingSid } = request.params;
       const { status } = request.body;
@@ -143,7 +143,7 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
   });
   
   // Update recording transcription status
-  fastify.put('/api/db/recordings/:recordingSid/transcription-status', async (request, reply) => {
+  fastify.put('/db/recordings/:recordingSid/transcription-status', async (request, reply) => {
     try {
       const { recordingSid } = request.params;
       const { status } = request.body;
@@ -191,23 +191,75 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
   });
 
   // Download recording proxy
-  // --- SIMPLIFIED Download Route Handler for Debugging ---
-  fastify.get('/api/recordings/:recordingSid/download', async (request, reply) => {
+  fastify.get('/recordings/:recordingSid/download', async (request, reply) => {
     const { recordingSid } = request.params;
-    // Use request.log for consistency with Fastify logging
-    request.log.info(`[API Download - Simple Test] Route /api/recordings/${recordingSid}/download HIT!`);
+    // ADDED log at the very start
+    console.log(`[API Download Handler] Route hit for recordingSid: ${recordingSid}`);
+    request.log.info(`[API Download] Received request for Recording SID: ${recordingSid}`); // Standardized log prefix
     
-    // Just send a simple success message instead of streaming
-    return reply.code(200).send({
-      success: true,
-      message: `Route hit for recording ${recordingSid}. Streaming logic disabled for test.`,
-      timestamp: new Date().toISOString()
-    });
+    try {
+      if (!recordingSid) {
+        return reply.code(400).send({ success: false, error: 'Recording SID is required' });
+      }
+      
+      // 1. Fetch recording details from DB
+      const recording = await getRecordingBySid(recordingSid);
+      if (!recording || !recording.url) {
+        request.log.warn(`[API Download] Recording not found or URL missing for SID: ${recordingSid}`);
+        return reply.code(404).send({ success: false, error: 'Recording not found or URL missing' });
+      }
+      
+      // 2. Fetch audio data from Twilio URL
+      // IMPORTANT: This uses basic auth with Account SID and Auth Token
+      const accountSid = process.env.TWILIO_ACCOUNT_SID;
+      const authToken = process.env.TWILIO_AUTH_TOKEN;
+      if (!accountSid || !authToken) {
+        request.log.error('[API Download] Missing Twilio credentials for download');
+        return reply.code(500).send({ success: false, error: 'Server configuration error' });
+      }
+      
+      const twilioUrl = recording.url.endsWith('.mp3') ? recording.url : `${recording.url}.mp3`; // Prefer MP3 if available
+      request.log.info(`[API Download] Fetching audio from Twilio URL: ${twilioUrl}`);
+      
+      const response = await fetch(twilioUrl, {
+        headers: {
+          'Authorization': `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`
+        }
+      });
+      
+      if (!response.ok) {
+        request.log.error(`[API Download] Failed to fetch audio from Twilio. Status: ${response.status} ${response.statusText}`);
+        return reply.code(502).send({ success: false, error: 'Failed to retrieve audio from source' });
+      }
+      
+      // 3. Stream response back to client
+      const contentType = response.headers.get('content-type') || 'audio/mpeg'; // Default to MP3
+      const fileExtension = contentType.includes('wav') ? 'wav' : 'mp3';
+      
+      reply.raw.setHeader('Content-Type', contentType);
+      reply.raw.setHeader('Content-Disposition', `attachment; filename="recording_${recordingSid}.${fileExtension}"`);
+      
+      // Pipe the response body stream directly to the Fastify reply stream
+      response.body.pipe(reply.raw);
+      request.log.info(`[API Download] Streaming audio for ${recordingSid}`);
+      
+      // Note: Fastify handles ending the reply stream when the source stream ends.
+      // We don't call reply.send() here.
+      
+    } catch (error) {
+      request.log.error(`[API Download] Error processing download for ${recordingSid}:`, error);
+      if (!reply.sent) {
+        reply.code(500).send({
+          success: false,
+          error: 'Error processing recording download',
+          details: error.message
+        });
+      }
+    }
   });
-  // --- END SIMPLIFIED Handler ---
 
   // Export all recordings as CSV
-  fastify.get('/api/db/recordings/actions/export', async (request, reply) => { // Changed path
+  fastify.get('/db/recordings/actions/export', async (request, reply) => { // Changed path
     try {
       console.log('[API] Starting recording log export');
       // Fetch all recordings directly from the model

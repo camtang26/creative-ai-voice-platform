@@ -46,7 +46,8 @@ export async function initializeMongoDB(fastify, options = {}) {
       console.log('[MongoDB] Registered call API routes');
       
       // Register recording API routes
-      registerRecordingApiRoutes(fastify, options);
+      // Register recording API routes under /api prefix
+      fastify.register(registerRecordingApiRoutes, { prefix: '/api', ...options });
       console.log('[MongoDB] Called registerRecordingApiRoutes'); // ADDED log
       
       // Register transcript API routes
