@@ -236,15 +236,13 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
       const contentType = response.headers.get('content-type') || 'audio/mpeg'; // Default to MP3
       const fileExtension = contentType.includes('wav') ? 'wav' : 'mp3';
       
-      reply.raw.setHeader('Content-Type', contentType);
-      reply.raw.setHeader('Content-Disposition', `attachment; filename="recording_${recordingSid}.${fileExtension}"`);
-      
-      // Pipe the response body stream directly to the Fastify reply stream
-      response.body.pipe(reply.raw);
-      request.log.info(`[API Download] Streaming audio for ${recordingSid}`);
-      
-      // Note: Fastify handles ending the reply stream when the source stream ends.
-      // We don't call reply.send() here.
+      // Set headers using the standard reply object
+      reply.header('Content-Type', contentType);
+      reply.header('Content-Disposition', `attachment; filename="recording_${recordingSid}.${fileExtension}"`);
+
+      // Send the stream using reply.send() - Fastify handles piping
+      request.log.info(`[API Download] Sending stream via reply.send() for ${recordingSid}`);
+      return reply.send(response.body);
       
     } catch (error) {
       request.log.error(`[API Download] Error processing download for ${recordingSid}:`, error);
