@@ -149,7 +149,7 @@ console.log('[Server] Added application/json content type parser to capture raw 
 
 // Register API middleware
 registerApiMiddleware(server);
-// Removed global preHandler hook
+registerApiMiddleware(server);
 
 // Register outbound calling routes (will need MEDIA_PROXY_SERVICE_URL env var)
 registerOutboundRoutes(server, { skipCallStatusCallback: true });
