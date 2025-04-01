@@ -294,26 +294,19 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
       }
     }
   });
-        
-      } catch (cacheError) {
-        request.log.error(`[API Download] Cache error for ${recordingSid}:`, cacheError);
-        return reply.code(500).send({
-          success: false,
-          error: 'Error with cached recording',
-          details: cacheError.message
-        });
-      }
-    } catch (error) {
-      request.log.error(`[API Download] Error processing download for ${recordingSid}:`, error);
-      if (!reply.sent) {
-        reply.code(500).send({
-          success: false,
-          error: 'Error processing recording download',
-          details: error.message
-        });
-      }
-    }
-  });
+          // REMOVED Orphaned catch block from previous caching implementation
+      // REMOVED extra closing brace and orphaned catch block below
+    // } catch (error) {
+    //   request.log.error(`[API Download] Error processing download for ${recordingSid}:`, error);
+    //   if (!reply.sent) {
+    //     reply.code(500).send({
+    //       success: false,
+    //       error: 'Error processing recording download',
+    //       details: error.message
+    //     });
+    //   }
+    // }
+  // }); // REMOVED extra closing }); - This belongs to the outer route definition
   
   // ENHANCED MEDIA ROUTE: Alternative path with file caching (avoiding "download" word)
   fastify.get('/api/media/recordings/:recordingSid', async (request, reply) => {
