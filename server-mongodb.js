@@ -153,67 +153,7 @@ registerOutboundRoutes(server, { skipCallStatusCallback: true });
 registerApiRoutes(server, twilioClient, activeCalls); // This now includes the ElevenLabs route
 // registerRecordingApiRoutes(server); // REMOVED: This is called within initializeMongoDB
 
-// --- TEMPORARY Download Route Definition for Debugging ---
-server.get('/api/recordings/:recordingSid/download', async (request, reply) => {
-  const { recordingSid } = request.params;
-  server.log.info(`[API Download Handler - Direct] Route hit for recordingSid: ${recordingSid}`); // Use server.log
-
-  try {
-    if (!recordingSid) {
-      return reply.code(400).send({ success: false, error: 'Recording SID is required' });
-    }
-
-    // 1. Fetch recording details from DB using imported function
-    const recording = await getRecordingBySid(recordingSid);
-    if (!recording || !recording.url) {
-      server.log.warn(`[API Download - Direct] Recording not found or URL missing for SID: ${recordingSid}`);
-      return reply.code(404).send({ success: false, error: 'Recording not found or URL missing' });
-    }
-
-    // 2. Fetch audio data from Twilio URL
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-    if (!accountSid || !authToken) {
-      server.log.error('[API Download - Direct] Missing Twilio credentials for download');
-      return reply.code(500).send({ success: false, error: 'Server configuration error' });
-    }
-
-    const twilioUrl = recording.url.endsWith('.mp3') ? recording.url : `${recording.url}.mp3`;
-    server.log.info(`[API Download - Direct] Fetching audio from Twilio URL: ${twilioUrl}`);
-
-    const response = await fetch(twilioUrl, {
-      headers: {
-        'Authorization': `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`
-      }
-    });
-
-    if (!response.ok) {
-      server.log.error(`[API Download - Direct] Failed to fetch audio from Twilio. Status: ${response.status} ${response.statusText}`);
-      return reply.code(502).send({ success: false, error: 'Failed to retrieve audio from source' });
-    }
-
-    // 3. Stream response back to client
-    const contentType = response.headers.get('content-type') || 'audio/mpeg';
-    const fileExtension = contentType.includes('wav') ? 'wav' : 'mp3';
-
-    reply.raw.setHeader('Content-Type', contentType);
-    reply.raw.setHeader('Content-Disposition', `attachment; filename="recording_${recordingSid}.${fileExtension}"`);
-
-    response.body.pipe(reply.raw);
-    server.log.info(`[API Download - Direct] Streaming audio for ${recordingSid}`);
-
-  } catch (error) {
-    server.log.error(`[API Download - Direct] Error processing download for ${recordingSid}:`, error);
-    if (!reply.sent) {
-      reply.code(500).send({
-        success: false,
-        error: 'Error processing recording download',
-        details: error.message
-      });
-    }
-  }
-});
-// --- END TEMPORARY Download Route Definition ---
+// Removed temporary download route definition
 // Removed call to registerElevenLabsApiRoutes(server);
 
 // Add a simple health check endpoint for Railway
