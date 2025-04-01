@@ -199,7 +199,8 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
   // DIRECT STREAMING DOWNLOAD ROUTE: Fetches from Twilio and streams directly
   fastify.get('/api/recordings/:recordingSid/download', async (request, reply) => {
     const { recordingSid } = request.params;
-    request.log.info(`[API Download] Direct stream request for recordingSid: ${recordingSid}`);
+    // ADD EXTRA LOGGING to see the exact parameter received by the handler
+    request.log.info(`[API Download] Handler received request. Params: ${JSON.stringify(request.params)}, Parsed recordingSid: '${recordingSid}'`);
 
     try {
       if (!recordingSid) {
