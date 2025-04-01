@@ -43,6 +43,7 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { RealTimeTranscript } from "@/components/real-time-transcript"
 import { CallTranscript } from "@/components/call-transcript" // Import static transcript component
+import { SimpleAudioPlayer } from "@/components/simple-audio-player" // ADDED: Import the new player
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { fetchCall, fetchCallRecordings, fetchCallTranscript } from "@/lib/mongodb-api"
 import { cn, formatTimeInSeconds } from "@/lib/utils" // Ensure formatTimeInSeconds is imported
@@ -402,15 +403,24 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <audio ref={audioRef} className="hidden" />
-                    <div className="flex items-center justify-between">
-                      <Button variant="outline" size="icon" onClick={togglePlayback}>{isPlaying ? <PauseCircle className="h-5 w-5" /> : <PlayCircle className="h-5 w-5" />}</Button>
-                      <div className="flex-1 mx-4">
-                        <div className="flex justify-between text-xs text-muted-foreground mb-1"><span>{formatTime(currentTime)}</span><span>{formatTime(duration)}</span></div>
-                        <input type="range" min="0" max={duration || 100} value={currentTime} onChange={handleSeek} className="w-full h-1 bg-muted rounded-lg appearance-none cursor-pointer range-sm dark:bg-gray-700" />
-                      </div>
-                      <Button variant="outline" size="icon" onClick={toggleMute}>{isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}</Button>
-                    </div>
+                    {/* Replace native audio element and controls with SimpleAudioPlayer */}
+                    {/* Conditionally render only when activeRecordingId is valid */}
+                    {/* Moved log outside JSX */}
+                    {(() => { console.log(`[CallDetailsPage] Checking render condition. activeRecordingId: '${activeRecordingId}'`); return null; })()}
+                    {activeRecordingId ? (
+                      <SimpleAudioPlayer
+                        // Use the RELATIVE API endpoint for audio source
+                        audioUrl={activeRecordingId ? `/api/recordings/${activeRecordingId}/download` : ''}
+                        // Use the direct API endpoint for download link - REVERTED
+                        // Use the RELATIVE API endpoint for download link
+                        downloadUrl={activeRecordingId ? `/api/recordings/${activeRecordingId}/download` : ''}
+                        title={`Recording from ${call.startTime ? new Date(call.startTime).toLocaleString() : 'Unknown Date'}`}
+                      />
+                    ) : (
+                       <div className="text-center text-muted-foreground p-4">Select a recording to play.</div>
+                    )}
+                    
+                    {/* Keep the logic for selecting between multiple recordings */}
                     {recordings.length > 1 && (
                       <div className="space-y-2">
                         <p className="text-sm font-medium">Available Recordings:</p>
@@ -423,12 +433,7 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
                         </div>
                       </div>
                     )}
-                    <div className="flex justify-end">
-                      {/* Use the getMediaUrl helper for download as well */}
-                      <Button variant="outline" size="sm" asChild disabled={!activeRecordingId}>
-                        <a href={activeRecordingId ? getMediaUrl(activeRecordingId) : '#'} download={activeRecordingId ? `recording_${activeRecordingId}.mp3` : undefined} target="_blank" rel="noopener noreferrer"><DownloadCloud className="h-4 w-4 mr-2" />Download</a>
-                      </Button>
-                    </div>
+                    {/* Download button is now part of SimpleAudioPlayer, so remove the standalone one */}
                   </div>
                 )}
               </CardContent>

@@ -6,7 +6,7 @@ import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Headphones, Download, ChevronDown, ChevronUp, Info } from "lucide-react";
 import { RecordingInfo } from "@/lib/types";
 import { formatDate, formatDuration, formatPhoneNumber } from "@/lib/utils";
-import { getMediaUrl } from "@/lib/api";
+// REMOVED: import { getMediaUrl } from "@/lib/api";
 import { SimpleAudioPlayer } from "./simple-audio-player";
 import Link from "next/link";
 
@@ -33,74 +33,23 @@ export function RecordingItem({ recording, callSid, callDetails }: RecordingItem
     formatDuration(recording.duration) : 
     'Unknown';
 
-  // useState hooks for base64 audio handling
-  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-  const [blobUrl, setBlobUrl] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [audioError, setAudioError] = useState<string | null>(null);
+  // Construct the RELATIVE backend URL for playback and download
+  const backendAudioUrl = recording.recordingSid
+    ? `/api/recordings/${recording.recordingSid}/download`
+    : '';
+  // Added check for window object to avoid SSR errors
 
-  // Function to fetch audio directly from the enhanced streaming endpoint using our API helper
-  const fetchAudioData = async () => {
-    if (audioBlob) return; // Already fetched
-    
-    setIsLoading(true);
-    setAudioError(null);
-    
-    try {
-      // Use the getMediaUrl helper to ensure correct base URL in all environments
-      const audioUrl = getMediaUrl(recording.recordingSid);
-      console.log(`[Recording] Fetching audio from: ${audioUrl}`);
-      
-      // Fetch the audio directly as a blob
-      const response = await fetch(audioUrl);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch audio: ${response.status} ${response.statusText}`);
-      }
-      
-      // Get the audio data as a blob directly
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      
-      // Save the blob and URL
-      setAudioBlob(blob);
-      setBlobUrl(url);
-      
-    } catch (error) {
-      console.error('Error loading audio data:', error);
-      setAudioError(error instanceof Error ? error.message : 'Unknown error');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  // Clean up blob URL on unmount
-  useEffect(() => {
-    return () => {
-      if (blobUrl) {
-        URL.revokeObjectURL(blobUrl);
-      }
-    };
-  }, [blobUrl]);
-  
-  // When expanded, fetch the audio data - only if we haven't already
-  useEffect(() => {
-    // Only fetch when expanded and we don't have a blob yet
-    if (expanded && !audioBlob && !isLoading) {
-      fetchAudioData();
-    }
-    
-    // If collapsed, clean up any blobs to avoid multiple active audio contexts
-    if (!expanded && blobUrl) {
-      URL.revokeObjectURL(blobUrl);
-      setBlobUrl('');
-      setAudioBlob(null);
-    }
-  }, [expanded, audioBlob, isLoading, blobUrl]);
-  
-  // URLs for audio player and download - now using blob URLs
-  const audioUrl = blobUrl || ''; // Empty string as placeholder while loading
-  const downloadUrl = blobUrl || '';
+  // REMOVED: State and effects for fetching/managing blob URLs
+  // const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  // const [blobUrl, setBlobUrl] = useState<string>('');
+  // const [isLoading, setIsLoading] = useState(false);
+  // const [audioError, setAudioError] = useState<string | null>(null);
+  // REMOVED: fetchAudioData function
+  // REMOVED: useEffect for blob URL cleanup
+  // REMOVED: useEffect for fetching audio on expand
+
+  // Construct the direct backend URL for playback and download - MOVED EARLIER
+  // const backendAudioUrl = recording.recordingSid ? `/api/recordings/${recording.recordingSid}/download` : ''; // REMOVED DUPLICATE
   const downloadFilename = `recording_${recording.recordingSid || 'unknown'}.mp3`;
 
   return (
@@ -163,11 +112,18 @@ export function RecordingItem({ recording, callSid, callDetails }: RecordingItem
 
       {expanded && (
         <CardContent className="pt-0">
-          <SimpleAudioPlayer 
-            audioUrl={audioUrl} // Pass the updated URL
-            downloadUrl={downloadUrl} // Pass the updated URL
-            title={`Call Recording - ${formatDate(recording.createdAt ?? 'N/A')}`}
-          />
+          {/* Conditionally render only when backendAudioUrl is valid */}
+          {/* Moved log outside JSX */}
+          {(() => { console.log(`[RecordingItem] Checking render condition. backendAudioUrl: '${backendAudioUrl}'`); return null; })()}
+          {backendAudioUrl ? (
+            <SimpleAudioPlayer
+              audioUrl={backendAudioUrl} // Pass the direct backend URL
+              downloadUrl={backendAudioUrl} // Pass the direct backend URL
+              title={`Call Recording - ${formatDate(recording.createdAt ?? 'N/A')}`}
+            />
+          ) : (
+            <div className="text-center text-muted-foreground p-4">Preparing player...</div>
+          )}
         </CardContent>
       )}
 
@@ -188,8 +144,8 @@ export function RecordingItem({ recording, callSid, callDetails }: RecordingItem
           >
             <Link
               // Use the backend proxy URL for href
-              href={downloadUrl} // Use the original backend proxy path variable
-              // Keep download attribute for filename suggestion, but target isn't strictly needed
+              href={backendAudioUrl} // Use the direct backend URL
+              // Keep download attribute for filename suggestion
               download={`recording_${recording.recordingSid ?? 'unknown'}.mp3`}
               target="_blank"
               rel="noopener noreferrer" // Good practice for target="_blank"

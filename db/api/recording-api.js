@@ -196,23 +196,23 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
     }
   });
 
-  // ENHANCED DOWNLOAD ROUTE: Original path with server-side file caching
+  // DIRECT STREAMING DOWNLOAD ROUTE: Fetches from Twilio and streams directly
   fastify.get('/api/recordings/:recordingSid/download', async (request, reply) => {
     const { recordingSid } = request.params;
-    console.log(`[API Download] Route hit for recordingSid: ${recordingSid}`);
-    
+    request.log.info(`[API Download] Direct stream request for recordingSid: ${recordingSid}`);
+
     try {
       if (!recordingSid) {
         return reply.code(400).send({ success: false, error: 'Recording SID is required' });
       }
-      
+
       // 1. Fetch recording details from DB
       const recording = await getRecordingBySid(recordingSid);
       if (!recording || !recording.url) {
         request.log.warn(`[API Download] Recording not found or URL missing for SID: ${recordingSid}`);
         return reply.code(404).send({ success: false, error: 'Recording not found or URL missing' });
       }
-      
+
       // 2. Get credentials needed for Twilio API access
       const accountSid = process.env.TWILIO_ACCOUNT_SID;
       const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -220,40 +220,80 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
         request.log.error('[API Download] Missing Twilio credentials for download');
         return reply.code(500).send({ success: false, error: 'Server configuration error' });
       }
-      
-      // Determine file extension from URL or default to MP3
-      const fileExtension = recording.url.endsWith('.wav') ? 'wav' : 'mp3';
-      
-      try {
-        // 3. Get or cache the recording file
-        request.log.info(`[API Download] Getting cached file for ${recordingSid}`);
-        const filePath = await recordingCache.getRecordingFile(
-          recording.url, 
-          recordingSid, 
-          accountSid, 
-          authToken, 
-          fileExtension
-        );
-        
-        // 4. Check if the file exists
-        if (!fs.existsSync(filePath)) {
-          request.log.error(`[API Download] Cached file not found: ${filePath}`);
-          return reply.code(500).send({ success: false, error: 'Cached file not found' });
+
+      // 3. Determine the correct Twilio URL and expected file extension
+      // Prefer MP3 if available, otherwise use the base URL and assume WAV if no extension
+      let twilioUrl = recording.url;
+      let fileExtension = 'mp3'; // Default assumption
+      if (twilioUrl.toLowerCase().endsWith('.mp3')) {
+         fileExtension = 'mp3';
+      } else if (twilioUrl.toLowerCase().endsWith('.wav')) {
+         fileExtension = 'wav';
+         // Ensure the URL actually points to the .wav if that's the extension
+         if (!recording.url.toLowerCase().endsWith('.wav')) {
+            twilioUrl = recording.url.includes('.') ? recording.url.split('.')[0] + '.wav' : recording.url + '.wav';
+         }
+      } else {
+         // If no extension or unknown, try appending .mp3 as Twilio often provides extensionless URLs
+         twilioUrl = recording.url.includes('.') ? recording.url.split('.')[0] + '.mp3' : recording.url + '.mp3';
+         fileExtension = 'mp3';
+         request.log.info(`[API Download] Recording URL has no extension, assuming MP3: ${twilioUrl}`);
+      }
+
+
+      // 4. Fetch audio data directly from Twilio URL
+      request.log.info(`[API Download] Fetching audio directly from Twilio URL: ${twilioUrl}`);
+      const response = await fetch(twilioUrl, {
+        headers: {
+          'Authorization': `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`
         }
-        
-        // 5. Get MIME type from file extension
-        const contentType = recordingCache.getAudioMimeType(fileExtension);
-        
-        // 6. Send the file using reply.sendFile()
-        request.log.info(`[API Download] Sending file from cache: ${filePath}`);
-        
-        // Set appropriate headers
-        reply.header('Content-Type', contentType);
-        reply.header('Content-Disposition', `attachment; filename="recording_${recordingSid}.${fileExtension}"`);
-        
-        // Create read stream from file and send it
-        const fileStream = fs.createReadStream(filePath);
-        return reply.send(fileStream);
+      });
+
+      if (!response.ok) {
+        request.log.error(`[API Download] Failed to fetch audio from Twilio. Status: ${response.status} ${response.statusText}, URL: ${twilioUrl}`);
+        // Attempt to fetch the other format if the first failed (e.g., try WAV if MP3 failed)
+        if (fileExtension === 'mp3') {
+            const wavUrl = twilioUrl.replace('.mp3', '.wav');
+            request.log.warn(`[API Download] MP3 fetch failed, attempting WAV fetch from: ${wavUrl}`);
+            const wavResponse = await fetch(wavUrl, { headers: { 'Authorization': `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}` } });
+            if (wavResponse.ok) {
+                request.log.info(`[API Download] WAV fetch successful after MP3 failed.`);
+                fileExtension = 'wav';
+                const contentType = wavResponse.headers.get('content-type') || 'audio/wav';
+                reply.header('Content-Type', contentType);
+                reply.header('Content-Disposition', `attachment; filename="recording_${recordingSid}.${fileExtension}"`);
+                request.log.info(`[API Download] Sending WAV stream via reply.send() for ${recordingSid}`);
+                return reply.send(wavResponse.body);
+            } else {
+                 request.log.error(`[API Download] WAV fetch also failed. Status: ${wavResponse.status} ${wavResponse.statusText}`);
+            }
+        }
+        // If fallback also failed or wasn't attempted, return error
+        return reply.code(502).send({ success: false, error: 'Failed to retrieve audio from source after attempting available formats' });
+      }
+
+      // 5. Stream response back to client
+      const contentType = response.headers.get('content-type') || (fileExtension === 'wav' ? 'audio/wav' : 'audio/mpeg'); // Get actual type or default based on determined extension
+
+      // Set headers using the standard reply object
+      reply.header('Content-Type', contentType);
+      reply.header('Content-Disposition', `attachment; filename="recording_${recordingSid}.${fileExtension}"`);
+
+      // Send the stream using reply.send() - Fastify handles piping
+      request.log.info(`[API Download] Sending ${fileExtension.toUpperCase()} stream via reply.send() for ${recordingSid}`);
+      return reply.send(response.body);
+
+    } catch (error) {
+      request.log.error(`[API Download] Error processing direct stream download for ${recordingSid}:`, error);
+      if (!reply.sent) {
+        reply.code(500).send({
+          success: false,
+          error: 'Error processing recording download',
+          details: error.message
+        });
+      }
+    }
+  });
         
       } catch (cacheError) {
         request.log.error(`[API Download] Cache error for ${recordingSid}:`, cacheError);

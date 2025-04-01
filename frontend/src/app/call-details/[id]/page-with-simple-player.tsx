@@ -243,7 +243,7 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
                     {activeRecordingId && (
                       <SimpleAudioPlayer 
                         audioUrl={getMediaUrl(activeRecordingId)}
-                        downloadUrl={getMediaUrl(activeRecordingId)}
+                        downloadUrl={`/api/recordings/${activeRecordingId}/download`}
                         title={`Recording from ${call.startTime ? new Date(call.startTime).toLocaleString() : 'Unknown Date'}`}
                       />
                     )}

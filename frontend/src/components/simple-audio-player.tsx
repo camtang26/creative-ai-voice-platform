@@ -23,43 +23,67 @@ export function SimpleAudioPlayer({ audioUrl, title, downloadUrl, onPlaybackComp
   const [error, setError] = useState<string | null>(null);
 
   // Initialize audio events
+  // Effect for managing audio event listeners and state based on audioUrl
+  // Simplified effect for managing audio event listeners
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || !audioUrl) return;
+    if (!audio) return;
 
-    // Reset state
+    // Reset state when the component mounts or audioUrl changes (due to key prop)
+    // The key prop should ensure we get a fresh element/state.
+    setIsLoading(true); // Assume loading initially when key changes
+    setError(null);
     setIsPlaying(false);
     setCurrentTime(0);
     setDuration(0);
-    setIsLoading(true);
-    setError(null);
+    console.log(`[SimpleAudioPlayer Effect] Running setup for key/audioUrl: ${audioUrl}`);
 
-    // Event handlers
+
+    // Define event handlers
     const handleLoadedMetadata = () => {
-      setDuration(audio.duration);
+      console.log(`[SimpleAudioPlayer Event] loadedmetadata for: ${audio.src}`);
+      // Check if duration is valid before setting
+      if (isFinite(audio.duration)) {
+          setDuration(audio.duration);
+          setError(null); // Clear error on successful load
+      } else {
+          console.warn(`[SimpleAudioPlayer Event] Invalid duration received: ${audio.duration}`);
+          setError('Invalid audio duration');
+      }
       setIsLoading(false);
     };
-
     const handleTimeUpdate = () => {
-      setCurrentTime(audio.currentTime);
+        // Only update if duration is valid
+        if (isFinite(audio.duration)) {
+            setCurrentTime(audio.currentTime);
+        }
     };
-
     const handleEnded = () => {
+      console.log(`[SimpleAudioPlayer Event] ended for: ${audio.src}`);
       setIsPlaying(false);
-      setCurrentTime(0);
+      setCurrentTime(0); // Reset to beginning
       if (onPlaybackComplete) onPlaybackComplete();
     };
-
     const handleError = () => {
-      console.error('Audio error:', audio.error);
-      setError('Failed to load audio file');
+      const errCode = audio.error?.code;
+      const errMsg = audio.error?.message || 'Unknown audio error';
+      console.error(`[SimpleAudioPlayer Event] handleError: Code ${errCode}, Message: ${errMsg} for src: ${audio.src}`);
+      let displayError = `Failed to load audio file (Code: ${errCode})`;
+       if (errCode === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED && !audio.getAttribute('src')) {
+           displayError = 'MEDIA_ELEMENT_ERROR: Empty src attribute';
+        } else if (errCode === MediaError.MEDIA_ERR_NETWORK) {
+           displayError = 'Network error loading audio';
+        } else if (errCode === MediaError.MEDIA_ERR_DECODE) {
+           displayError = 'Error decoding audio file';
+        }
+      setError(displayError);
       setIsLoading(false);
     };
-
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
+    // No need for handleLoadStart as key prop handles re-mount/reset
 
-    // Add event listeners
+    // Attach listeners
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('ended', handleEnded);
@@ -67,11 +91,15 @@ export function SimpleAudioPlayer({ audioUrl, title, downloadUrl, onPlaybackComp
     audio.addEventListener('play', handlePlay);
     audio.addEventListener('pause', handlePause);
 
-    // Set volume
+    // Set initial volume
     audio.volume = volume / 100;
 
-    // Cleanup
+    // --- No manual src setting or load() call needed here ---
+    // Relying on <audio key={audioUrl} src={audioUrl} ... />
+
+    // Cleanup function
     return () => {
+      console.log(`[SimpleAudioPlayer Cleanup] Removing listeners for key/audioUrl: ${audioUrl}`);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('ended', handleEnded);
@@ -79,10 +107,16 @@ export function SimpleAudioPlayer({ audioUrl, title, downloadUrl, onPlaybackComp
       audio.removeEventListener('play', handlePlay);
       audio.removeEventListener('pause', handlePause);
       
-      // Pause and remove src to free up resources
+      // Pause and reset src in cleanup to ensure resource release
       audio.pause();
-      audio.src = '';
+      // Check if component is still mounted before resetting src
+      if (audioRef.current) {
+          audioRef.current.removeAttribute("src");
+          audioRef.current.load(); // Necessary after removing src
+      }
     };
+    // Dependency array: Re-run effect ONLY when audioUrl or volume changes.
+    // The key={audioUrl} prop handles the re-mount for src changes.
   }, [audioUrl, volume, onPlaybackComplete]);
 
   // Player controls
@@ -152,14 +186,18 @@ export function SimpleAudioPlayer({ audioUrl, title, downloadUrl, onPlaybackComp
     }
   };
 
+  // DEBUG LOG: Check the received audioUrl prop just before rendering
+  console.log(`[SimpleAudioPlayer] Rendering with audioUrl: '${audioUrl}'`);
+
   return (
     <div className="audio-player-container">
-      {/* Hidden audio element */}
-      <audio 
-        ref={audioRef} 
+      {/* Hidden audio element - ADD key prop */}
+      <audio
+        // key={audioUrl} // REMOVED: Let's see if removing this helps
+        ref={audioRef}
         src={audioUrl}
-        preload="metadata"
-        onLoadStart={() => setIsLoading(true)}
+        // preload="metadata" // REMOVED: Let browser handle preloading implicitly
+        // onLoadStart={() => setIsLoading(true)} // REMOVED: Rely on other events for loading state
       />
 
       {/* Title */}
