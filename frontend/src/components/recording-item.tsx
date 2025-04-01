@@ -36,9 +36,10 @@ export function RecordingItem({ recording, callSid, callDetails }: RecordingItem
   // Use the original backend proxy path
   // Use the original backend proxy path
   // Use the original backend proxy path
-  const proxyUrl = `/api/recordings/${recording.recordingSid}/download`;
-  const audioUrl = proxyUrl; // Use original proxy path for player
-  const downloadUrl = proxyUrl; // Use original proxy path for download link
+  // Use the fetch-recording-audio path structure (no /api)
+  const fetchAudioUrl_v3 = `/fetch-recording-audio/${recording.recordingSid}`;
+  const audioUrl = fetchAudioUrl_v3; // Use new path for player
+  const downloadUrl = fetchAudioUrl_v3; // Use new path for download link
 
   return (
     <Card className="mb-4">
