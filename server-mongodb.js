@@ -56,7 +56,7 @@ import {
   getTranscriptRepository, // Ensure this is exported from db/index.js
   getCallEventRepository,
   getAnalyticsRepository
-  getRecordingRepository // Keep this if needed elsewhere, or import getRecordingBySid directly
+  // getRecordingRepository // Removed dangling identifier causing SyntaxError
 } from './db/index.js';
 // Import specific repository function needed for the temporary route
 import { getRecordingBySid } from './db/repositories/recording.repository.js';
