@@ -223,22 +223,21 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
       }
 
       // 3. Determine the correct Twilio URL and expected file extension
-      // Prefer MP3 if available, otherwise use the base URL and assume WAV if no extension
-      let twilioUrl = recording.url;
-      let fileExtension = 'mp3'; // Default assumption
-      if (twilioUrl.toLowerCase().endsWith('.mp3')) {
-         fileExtension = 'mp3';
-      } else if (twilioUrl.toLowerCase().endsWith('.wav')) {
-         fileExtension = 'wav';
-         // Ensure the URL actually points to the .wav if that's the extension
-         if (!recording.url.toLowerCase().endsWith('.wav')) {
-            twilioUrl = recording.url.includes('.') ? recording.url.split('.')[0] + '.wav' : recording.url + '.wav';
-         }
+      let twilioUrl = recording.url; // Start with the URL from the DB
+      let fileExtension = 'mp3'; // Default to mp3
+
+      // Check if the DB URL already has a valid extension
+      if (twilioUrl.toLowerCase().endsWith('.wav')) {
+          fileExtension = 'wav';
+          // No need to modify twilioUrl if it already ends in .wav
+      } else if (twilioUrl.toLowerCase().endsWith('.mp3')) {
+          fileExtension = 'mp3';
+          // No need to modify twilioUrl if it already ends in .mp3
       } else {
-         // If no extension or unknown, try appending .mp3 as Twilio often provides extensionless URLs
-         twilioUrl = recording.url.includes('.') ? recording.url.split('.')[0] + '.mp3' : recording.url + '.mp3';
-         fileExtension = 'mp3';
-         request.log.info(`[API Download] Recording URL has no extension, assuming MP3: ${twilioUrl}`);
+          // If no extension, assume it's the base URL and append .mp3 (Twilio's default)
+          twilioUrl = `${recording.url}.mp3`;
+          fileExtension = 'mp3';
+          request.log.info(`[API Download] Recording URL from DB has no extension, appending .mp3: ${twilioUrl}`);
       }
 
 
