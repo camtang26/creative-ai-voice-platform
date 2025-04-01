@@ -42,7 +42,6 @@
   "dependencies": {
     "@aws-sdk/client-ses": "^3.758.0",
     "@fastify/formbody": "^8.0.2",
-    "@fastify/websocket": "^11.0.2",
     "@radix-ui/react-alert-dialog": "^1.1.6",
     "@radix-ui/react-progress": "^1.1.2",
     "@radix-ui/react-slot": "^1.1.2",
@@ -52,8 +51,8 @@
     "dotenv": "^16.4.7",
     "express": "^4.19.2",
     "fast-csv": "^5.0.2",
-    "fastify": "^5.2.1",
-    "fastify-socket.io": "^4.0.0-1",
+    "fastify": "^4.29.0",
+    "fastify-socket.io": "^5.1.0",
     "googleapis": "^129.0.0",
     "mongoose": "^7.5.0",
     "node-fetch": "^2.7.0",
