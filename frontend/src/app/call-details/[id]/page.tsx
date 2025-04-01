@@ -200,11 +200,11 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
         
         // Set new audio source
         // Use the RAILWAY backend URL (defined above) for the audio source
-        // Use the fetch-recording-audio path structure (no /api)
-        const fetchAudioUrl_v3 = activeRecordingId ? `/fetch-recording-audio/${activeRecordingId}` : null;
-        console.log(`[CallDetailsPage Effect] Setting audio source for recording ${activeRecordingId} to fetch-audio v3 path: ${fetchAudioUrl_v3}`);
-        if (audioRef.current && fetchAudioUrl_v3) { // Check if fetchAudioUrl_v3 is valid before setting
-           audioRef.current.src = fetchAudioUrl_v3;
+        // Use the original backend proxy URL for the audio source
+        const proxyUrl = activeRecordingId ? `/api/recordings/${activeRecordingId}/download` : null;
+        console.log(`[CallDetailsPage Effect] Setting audio source for recording ${activeRecordingId} to proxy: ${proxyUrl}`);
+        if (audioRef.current && proxyUrl) { // Check if proxyUrl is valid before setting
+           audioRef.current.src = proxyUrl;
         } else {
            console.error(`[CallDetailsPage Effect] Could not determine valid audio URL for recording ${activeRecordingId}`);
         }
@@ -391,7 +391,7 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
                     <div className="flex justify-end">
                       {/* Update href to point to the backend download proxy endpoint */}
                       <Button variant="outline" size="sm" asChild disabled={!activeRecordingId}>
-                        <a href={activeRecordingId ? `/fetch-recording-audio/${activeRecordingId}` : '#'} download target="_blank" rel="noopener noreferrer"><DownloadCloud className="h-4 w-4 mr-2" />Download</a>
+                        <a href={activeRecordingId ? `/api/recordings/${activeRecordingId}/download` : '#'} download target="_blank" rel="noopener noreferrer"><DownloadCloud className="h-4 w-4 mr-2" />Download</a>
                       </Button>
                     </div>
                   </div>
