@@ -99,71 +99,7 @@ const server = fastify({
   }
 });
 
-// --- ADDED Alternative Download Route ---
-server.get('/download-recording/:recordingSid', async (request, reply) => {
-  const { recordingSid } = request.params;
-  server.log.info(`[Alt Download Route] Request received for /download-recording/${recordingSid}`);
-
-  try {
-    if (!recordingSid) {
-      server.log.warn('[Alt Download Route] Missing recordingSid parameter.');
-      return reply.code(400).send({ success: false, error: 'Recording SID is required' });
-    }
-
-    // Fetch recording details from DB - Ensure getRecordingBySid is imported or accessible
-    const recording = await getRecordingBySid(recordingSid);
-    if (!recording || !recording.url) {
-      server.log.warn(`[Alt Download Route] Recording not found or URL missing for SID: ${recordingSid}`);
-      return reply.code(404).send({ success: false, error: 'Recording not found or URL missing' });
-    }
-
-    // Fetch audio data from Twilio URL
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-    if (!accountSid || !authToken) {
-      server.log.error('[Alt Download Route] Missing Twilio credentials.');
-      return reply.code(500).send({ success: false, error: 'Server configuration error' });
-    }
-
-    const twilioUrl = recording.url.endsWith('.mp3') ? recording.url : `${recording.url}.mp3`;
-    server.log.info(`[Alt Download Route] Fetching audio from Twilio URL: ${twilioUrl}`);
-
-    const response = await fetch(twilioUrl, {
-      headers: {
-        'Authorization': `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`
-      }
-    });
-
-    if (!response.ok) {
-      server.log.error(`[Alt Download Route] Failed to fetch audio from Twilio. Status: ${response.status} ${response.statusText}`);
-      // Attempt to forward Twilio's error status code if possible
-      const forwardStatusCode = response.status >= 400 && response.status < 600 ? response.status : 502;
-      return reply.code(forwardStatusCode).send({ success: false, error: 'Failed to retrieve audio from source', sourceStatus: response.status });
-    }
-
-    // Stream response back to client using reply.send()
-    const contentType = response.headers.get('content-type') || 'audio/mpeg';
-    const fileExtension = contentType.includes('wav') ? 'wav' : 'mp3';
-
-    reply.header('Content-Type', contentType);
-    reply.header('Content-Disposition', `attachment; filename="recording_${recordingSid}.${fileExtension}"`);
-
-    server.log.info(`[Alt Download Route] Streaming audio via reply.send() for ${recordingSid}`);
-    return reply.send(response.body);
-
-  } catch (error) {
-    server.log.error(`[Alt Download Route] Error processing download for ${recordingSid}:`, error);
-    if (!reply.sent) {
-      reply.code(500).send({
-        success: false,
-        error: 'Internal server error processing recording download',
-        details: error.message
-      });
-    }
-  }
-});
-console.log('[Server] Registered alternative /download-recording/:recordingSid endpoint.');
-// --- END Alternative Download Route ---
+// Removed alternative download route
 
 // Removed early download route definition
 
