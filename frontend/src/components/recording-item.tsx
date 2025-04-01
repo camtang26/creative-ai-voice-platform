@@ -33,9 +33,10 @@ export function RecordingItem({ recording, callSid, callDetails }: RecordingItem
     'Unknown';
 
   // Use the backend proxy for download AND playback
-  const proxyUrl = `/api/recordings/${recording.recordingSid}/download`;
-  const audioUrl = proxyUrl; // Use proxy for player
-  const downloadUrl = proxyUrl; // Use proxy for download link
+  // Use the NEW backend proxy path
+  const proxyUrl = `/api/fetch-recording/${recording.recordingSid}`;
+  const audioUrl = proxyUrl; // Use new proxy path for player
+  const downloadUrl = proxyUrl; // Use new proxy path for download link
 
   return (
     <Card className="mb-4">
@@ -98,8 +99,8 @@ export function RecordingItem({ recording, callSid, callDetails }: RecordingItem
       {expanded && (
         <CardContent className="pt-0">
           <WaveformPlayer 
-            audioUrl={audioUrl}
-            downloadUrl={downloadUrl}
+            audioUrl={audioUrl} // Pass the updated URL
+            downloadUrl={downloadUrl} // Pass the updated URL
             title={`Call Recording - ${formatDate(recording.createdAt ?? 'N/A')}`}
           />
         </CardContent>
@@ -122,7 +123,7 @@ export function RecordingItem({ recording, callSid, callDetails }: RecordingItem
           >
             <Link
               // Use the backend proxy URL for href
-              href={`/api/recordings/${recording.recordingSid}/download`}
+              href={`/api/fetch-recording/${recording.recordingSid}`} // Use the NEW backend proxy path
               // Keep download attribute for filename suggestion, but target isn't strictly needed
               download={`recording_${recording.recordingSid ?? 'unknown'}.mp3`}
               target="_blank"
