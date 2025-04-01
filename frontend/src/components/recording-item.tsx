@@ -7,7 +7,7 @@ import { Headphones, Download, ChevronDown, ChevronUp, Info } from "lucide-react
 import { RecordingInfo } from "@/lib/types";
 import { formatDate, formatDuration, formatPhoneNumber } from "@/lib/utils";
 import { getMediaUrl } from "@/lib/api";
-import { WaveformPlayer } from "./waveform-player";
+import { SimpleAudioPlayer } from "./simple-audio-player";
 import Link from "next/link";
 
 interface RecordingItemProps {
@@ -163,7 +163,7 @@ export function RecordingItem({ recording, callSid, callDetails }: RecordingItem
 
       {expanded && (
         <CardContent className="pt-0">
-          <WaveformPlayer 
+          <SimpleAudioPlayer 
             audioUrl={audioUrl} // Pass the updated URL
             downloadUrl={downloadUrl} // Pass the updated URL
             title={`Call Recording - ${formatDate(recording.createdAt ?? 'N/A')}`}
