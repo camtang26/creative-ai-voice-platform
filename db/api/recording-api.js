@@ -1,18 +1,21 @@
 /**
  * Recording API Routes
  * Provides API endpoints for retrieving recording data from MongoDB
+ * Now with server-side file caching to handle platform streaming limitations
  */
-import fetch from 'node-fetch'; // Import fetch
-import Recording from '../models/recording.model.js'; // Import the model directly
+import fetch from 'node-fetch';
+import fs from 'fs';
+import path from 'path';
+import Recording from '../models/recording.model.js';
 import {
   getRecordingsByCallSid,
   getRecordingBySid,
   updateProcessingStatus,
   updateTranscriptionStatus
-  // Removed incorrect getAllRecordings import
 } from '../repositories/recording.repository.js';
-import * as csv from 'fast-csv'; // Import fast-csv
-import { Readable } from 'stream'; // Import Readable stream
+import * as csv from 'fast-csv';
+import { Readable } from 'stream';
+import recordingCache from '../utils/recording-cache.js';
 
 /**
  * Register recording API routes with Fastify
@@ -20,6 +23,9 @@ import { Readable } from 'stream'; // Import Readable stream
  * @param {Object} options - Route options
  */
 export async function registerRecordingApiRoutes(fastify, options = {}) {
+  // Initialize recording cache
+  console.log(`[RecordingAPI] Initializing recording routes with server-side file caching`);
+  
   // Get recordings for a call
   fastify.get('/api/db/calls/:callSid/recordings', async (request, reply) => {
     try {
@@ -190,12 +196,10 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
     }
   });
 
-  // Download recording proxy - ORIGINAL PATH (kept for backward compatibility)
-  fastify.get('/api/recordings/:recordingSid/download', async (request, reply) => { // Original path
+  // ENHANCED DOWNLOAD ROUTE: Original path with server-side file caching
+  fastify.get('/api/recordings/:recordingSid/download', async (request, reply) => {
     const { recordingSid } = request.params;
-    // ADDED log at the very start
-    console.log(`[API Download Handler] Route hit for recordingSid: ${recordingSid}`); // Original log message
-    request.log.info(`[API Download] Received request for Recording SID: ${recordingSid}`); // Original log message
+    console.log(`[API Download] Route hit for recordingSid: ${recordingSid}`);
     
     try {
       if (!recordingSid) {
@@ -205,47 +209,62 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
       // 1. Fetch recording details from DB
       const recording = await getRecordingBySid(recordingSid);
       if (!recording || !recording.url) {
-        request.log.warn(`[API Download] Recording not found or URL missing for SID: ${recordingSid}`); // Original log message
+        request.log.warn(`[API Download] Recording not found or URL missing for SID: ${recordingSid}`);
         return reply.code(404).send({ success: false, error: 'Recording not found or URL missing' });
       }
       
-      // 2. Fetch audio data from Twilio URL
-      // IMPORTANT: This uses basic auth with Account SID and Auth Token
+      // 2. Get credentials needed for Twilio API access
       const accountSid = process.env.TWILIO_ACCOUNT_SID;
       const authToken = process.env.TWILIO_AUTH_TOKEN;
       if (!accountSid || !authToken) {
-        request.log.error('[API Download] Missing Twilio credentials for download'); // Original log message
+        request.log.error('[API Download] Missing Twilio credentials for download');
         return reply.code(500).send({ success: false, error: 'Server configuration error' });
       }
       
-      const twilioUrl = recording.url.endsWith('.mp3') ? recording.url : `${recording.url}.mp3`; // Prefer MP3 if available
-      request.log.info(`[API Download] Fetching audio from Twilio URL: ${twilioUrl}`); // Original log message
+      // Determine file extension from URL or default to MP3
+      const fileExtension = recording.url.endsWith('.wav') ? 'wav' : 'mp3';
       
-      const response = await fetch(twilioUrl, {
-        headers: {
-          'Authorization': `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`
+      try {
+        // 3. Get or cache the recording file
+        request.log.info(`[API Download] Getting cached file for ${recordingSid}`);
+        const filePath = await recordingCache.getRecordingFile(
+          recording.url, 
+          recordingSid, 
+          accountSid, 
+          authToken, 
+          fileExtension
+        );
+        
+        // 4. Check if the file exists
+        if (!fs.existsSync(filePath)) {
+          request.log.error(`[API Download] Cached file not found: ${filePath}`);
+          return reply.code(500).send({ success: false, error: 'Cached file not found' });
         }
-      });
-      
-      if (!response.ok) {
-        request.log.error(`[API Download] Failed to fetch audio from Twilio. Status: ${response.status} ${response.statusText}`); // Original log message
-        return reply.code(502).send({ success: false, error: 'Failed to retrieve audio from source' });
+        
+        // 5. Get MIME type from file extension
+        const contentType = recordingCache.getAudioMimeType(fileExtension);
+        
+        // 6. Send the file using reply.sendFile()
+        request.log.info(`[API Download] Sending file from cache: ${filePath}`);
+        
+        // Set appropriate headers
+        reply.header('Content-Type', contentType);
+        reply.header('Content-Disposition', `attachment; filename="recording_${recordingSid}.${fileExtension}"`);
+        
+        // Create read stream from file and send it
+        const fileStream = fs.createReadStream(filePath);
+        return reply.send(fileStream);
+        
+      } catch (cacheError) {
+        request.log.error(`[API Download] Cache error for ${recordingSid}:`, cacheError);
+        return reply.code(500).send({
+          success: false,
+          error: 'Error with cached recording',
+          details: cacheError.message
+        });
       }
-      
-      // 3. Stream response back to client
-      const contentType = response.headers.get('content-type') || 'audio/mpeg'; // Default to MP3
-      const fileExtension = contentType.includes('wav') ? 'wav' : 'mp3';
-      
-      // Set headers using the standard reply object
-      reply.header('Content-Type', contentType);
-      reply.header('Content-Disposition', `attachment; filename="recording_${recordingSid}.${fileExtension}"`);
-
-      // Send the stream using reply.send() - Fastify handles piping
-      request.log.info(`[API Download] Sending stream via reply.send() for ${recordingSid}`); // Original log message
-      return reply.send(response.body);
-      
     } catch (error) {
-      request.log.error(`[API Download] Error processing download for ${recordingSid}:`, error); // Original log message
+      request.log.error(`[API Download] Error processing download for ${recordingSid}:`, error);
       if (!reply.sent) {
         reply.code(500).send({
           success: false,
@@ -256,10 +275,10 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
     }
   });
   
-  // NEW ALTERNATIVE PATH 1: Standard media route pattern (avoiding "download" word)
+  // ENHANCED MEDIA ROUTE: Alternative path with file caching (avoiding "download" word)
   fastify.get('/api/media/recordings/:recordingSid', async (request, reply) => {
     const { recordingSid } = request.params;
-    console.log(`[API Download Alt1] Route hit for recordingSid: ${recordingSid}`);
+    console.log(`[API Media] Route hit for recordingSid: ${recordingSid}`);
     
     try {
       if (!recordingSid) {
@@ -269,58 +288,75 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
       // 1. Fetch recording details from DB
       const recording = await getRecordingBySid(recordingSid);
       if (!recording || !recording.url) {
-        request.log.warn(`[API Download Alt1] Recording not found or URL missing for SID: ${recordingSid}`);
+        request.log.warn(`[API Media] Recording not found or URL missing for SID: ${recordingSid}`);
         return reply.code(404).send({ success: false, error: 'Recording not found or URL missing' });
       }
       
-      // 2. Fetch audio data from Twilio URL
+      // 2. Get credentials needed for Twilio API access
       const accountSid = process.env.TWILIO_ACCOUNT_SID;
       const authToken = process.env.TWILIO_AUTH_TOKEN;
       if (!accountSid || !authToken) {
-        request.log.error('[API Download Alt1] Missing Twilio credentials for download');
+        request.log.error('[API Media] Missing Twilio credentials for download');
         return reply.code(500).send({ success: false, error: 'Server configuration error' });
       }
       
-      const twilioUrl = recording.url.endsWith('.mp3') ? recording.url : `${recording.url}.mp3`;
-      request.log.info(`[API Download Alt1] Fetching audio from Twilio URL: ${twilioUrl}`);
+      // Determine file extension from URL or default to MP3
+      const fileExtension = recording.url.endsWith('.wav') ? 'wav' : 'mp3';
       
-      const response = await fetch(twilioUrl, {
-        headers: {
-          'Authorization': `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`
+      try {
+        // 3. Get or cache the recording file
+        request.log.info(`[API Media] Getting cached file for ${recordingSid}`);
+        const filePath = await recordingCache.getRecordingFile(
+          recording.url, 
+          recordingSid, 
+          accountSid, 
+          authToken, 
+          fileExtension
+        );
+        
+        // 4. Check if the file exists
+        if (!fs.existsSync(filePath)) {
+          request.log.error(`[API Media] Cached file not found: ${filePath}`);
+          return reply.code(500).send({ success: false, error: 'Cached file not found' });
         }
-      });
-      
-      if (!response.ok) {
-        request.log.error(`[API Download Alt1] Failed to fetch audio from Twilio. Status: ${response.status} ${response.statusText}`);
-        return reply.code(502).send({ success: false, error: 'Failed to retrieve audio from source' });
+        
+        // 5. Get MIME type from file extension
+        const contentType = recordingCache.getAudioMimeType(fileExtension);
+        
+        // 6. Send the file with minimal headers (more compatible)
+        request.log.info(`[API Media] Sending file from cache: ${filePath}`);
+        
+        // Set only Content-Type header, avoid Content-Disposition for better streaming
+        reply.header('Content-Type', contentType);
+        
+        // Create read stream from file and send it
+        const fileStream = fs.createReadStream(filePath);
+        return reply.send(fileStream);
+        
+      } catch (cacheError) {
+        request.log.error(`[API Media] Cache error for ${recordingSid}:`, cacheError);
+        return reply.code(500).send({
+          success: false,
+          error: 'Error with cached recording',
+          details: cacheError.message
+        });
       }
-      
-      // 3. Stream response back to client
-      const contentType = response.headers.get('content-type') || 'audio/mpeg';
-      const fileExtension = contentType.includes('wav') ? 'wav' : 'mp3';
-      
-      reply.header('Content-Type', contentType);
-      reply.header('Content-Disposition', `attachment; filename="recording_${recordingSid}.${fileExtension}"`);
-
-      request.log.info(`[API Download Alt1] Sending stream via reply.send() for ${recordingSid}`);
-      return reply.send(response.body);
-      
     } catch (error) {
-      request.log.error(`[API Download Alt1] Error processing download for ${recordingSid}:`, error);
+      request.log.error(`[API Media] Error processing media for ${recordingSid}:`, error);
       if (!reply.sent) {
         reply.code(500).send({
           success: false,
-          error: 'Error processing recording download',
+          error: 'Error processing recording media',
           details: error.message
         });
       }
     }
   });
   
-  // NEW ALTERNATIVE PATH 2: Using query parameter approach
+  // Keep the query parameter approach (also with file caching)
   fastify.get('/api/recordings/download', async (request, reply) => {
     const { recordingSid } = request.query;
-    console.log(`[API Download Alt2] Route hit with query param recordingSid: ${recordingSid}`);
+    console.log(`[API Download Query] Route hit with query param recordingSid: ${recordingSid}`);
     
     try {
       if (!recordingSid) {
@@ -330,44 +366,62 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
       // 1. Fetch recording details from DB
       const recording = await getRecordingBySid(recordingSid);
       if (!recording || !recording.url) {
-        request.log.warn(`[API Download Alt2] Recording not found or URL missing for SID: ${recordingSid}`);
+        request.log.warn(`[API Download Query] Recording not found or URL missing for SID: ${recordingSid}`);
         return reply.code(404).send({ success: false, error: 'Recording not found or URL missing' });
       }
       
-      // 2. Fetch audio data from Twilio URL
+      // 2. Get credentials needed for Twilio API access
       const accountSid = process.env.TWILIO_ACCOUNT_SID;
       const authToken = process.env.TWILIO_AUTH_TOKEN;
       if (!accountSid || !authToken) {
-        request.log.error('[API Download Alt2] Missing Twilio credentials for download');
+        request.log.error('[API Download Query] Missing Twilio credentials for download');
         return reply.code(500).send({ success: false, error: 'Server configuration error' });
       }
       
-      const twilioUrl = recording.url.endsWith('.mp3') ? recording.url : `${recording.url}.mp3`;
-      request.log.info(`[API Download Alt2] Fetching audio from Twilio URL: ${twilioUrl}`);
+      // Determine file extension from URL or default to MP3
+      const fileExtension = recording.url.endsWith('.wav') ? 'wav' : 'mp3';
       
-      const response = await fetch(twilioUrl, {
-        headers: {
-          'Authorization': `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`
+      try {
+        // 3. Get or cache the recording file
+        request.log.info(`[API Download Query] Getting cached file for ${recordingSid}`);
+        const filePath = await recordingCache.getRecordingFile(
+          recording.url, 
+          recordingSid, 
+          accountSid, 
+          authToken, 
+          fileExtension
+        );
+        
+        // 4. Check if the file exists
+        if (!fs.existsSync(filePath)) {
+          request.log.error(`[API Download Query] Cached file not found: ${filePath}`);
+          return reply.code(500).send({ success: false, error: 'Cached file not found' });
         }
-      });
-      
-      if (!response.ok) {
-        request.log.error(`[API Download Alt2] Failed to fetch audio from Twilio. Status: ${response.status} ${response.statusText}`);
-        return reply.code(502).send({ success: false, error: 'Failed to retrieve audio from source' });
+        
+        // 5. Get MIME type from file extension
+        const contentType = recordingCache.getAudioMimeType(fileExtension);
+        
+        // 6. Send the file using reply.sendFile()
+        request.log.info(`[API Download Query] Sending file from cache: ${filePath}`);
+        
+        // Set appropriate headers
+        reply.header('Content-Type', contentType);
+        reply.header('Content-Disposition', `attachment; filename="recording_${recordingSid}.${fileExtension}"`);
+        
+        // Create read stream from file and send it
+        const fileStream = fs.createReadStream(filePath);
+        return reply.send(fileStream);
+        
+      } catch (cacheError) {
+        request.log.error(`[API Download Query] Cache error for ${recordingSid}:`, cacheError);
+        return reply.code(500).send({
+          success: false,
+          error: 'Error with cached recording',
+          details: cacheError.message
+        });
       }
-      
-      // 3. Stream response back to client
-      const contentType = response.headers.get('content-type') || 'audio/mpeg';
-      const fileExtension = contentType.includes('wav') ? 'wav' : 'mp3';
-      
-      reply.header('Content-Type', contentType);
-      reply.header('Content-Disposition', `attachment; filename="recording_${recordingSid}.${fileExtension}"`);
-
-      request.log.info(`[API Download Alt2] Sending stream via reply.send() for ${recordingSid}`);
-      return reply.send(response.body);
-      
     } catch (error) {
-      request.log.error(`[API Download Alt2] Error processing download for ${recordingSid}:`, error);
+      request.log.error(`[API Download Query] Error processing download for ${recordingSid}:`, error);
       if (!reply.sent) {
         reply.code(500).send({
           success: false,
@@ -378,7 +432,7 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
     }
   });
 
-  // NEW ALTERNATIVE PATH 3: Base64 encoded data endpoint for client-side handling
+  // NEW ALTERNATIVE PATH 3: Base64 encoded data endpoint (kept for backward compatibility)
   fastify.get('/api/recordings/data/:recordingSid', async (request, reply) => {
     const { recordingSid } = request.params;
     console.log(`[API Base64] Route hit for recordingSid: ${recordingSid}`);
@@ -465,11 +519,9 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
   });
 
   // Export all recordings as CSV
-  fastify.get('/api/db/recordings/actions/export', async (request, reply) => { // Changed path
+  fastify.get('/api/db/recordings/actions/export', async (request, reply) => {
     try {
       console.log('[API] Starting recording log export');
-      // Fetch all recordings directly from the model
-      // Consider adding filtering or pagination here if needed for performance
       const recordings = await Recording.find({}).sort({ createdAt: -1 });
       console.log(`[API] Fetched ${recordings.length} recordings for export`);
 

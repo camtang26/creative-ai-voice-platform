@@ -199,12 +199,11 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
         setCurrentTime(0)
         
         // Set new audio source
-        // Use the RAILWAY backend URL (defined above) for the audio source
-        // Use the original backend proxy URL for the audio source
-        const proxyUrl = activeRecordingId ? `/api/recordings/${activeRecordingId}/download` : null;
-        console.log(`[CallDetailsPage Effect] Setting audio source for recording ${activeRecordingId} to proxy: ${proxyUrl}`);
-        if (audioRef.current && proxyUrl) { // Check if proxyUrl is valid before setting
-           audioRef.current.src = proxyUrl;
+        // Use the enhanced media endpoint which has better streaming compatibility
+        const mediaUrl = activeRecordingId ? `/api/media/recordings/${activeRecordingId}` : null;
+        console.log(`[CallDetailsPage Effect] Setting audio source for recording ${activeRecordingId} to media endpoint: ${mediaUrl}`);
+        if (audioRef.current && mediaUrl) { // Check if mediaUrl is valid before setting
+           audioRef.current.src = mediaUrl;
         } else {
            console.error(`[CallDetailsPage Effect] Could not determine valid audio URL for recording ${activeRecordingId}`);
         }
@@ -389,9 +388,9 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
                       </div>
                     )}
                     <div className="flex justify-end">
-                      {/* Update href to point to the backend download proxy endpoint */}
+                      {/* Use the enhanced download endpoint for better compatibility */}
                       <Button variant="outline" size="sm" asChild disabled={!activeRecordingId}>
-                        <a href={activeRecordingId ? `/api/recordings/${activeRecordingId}/download` : '#'} download target="_blank" rel="noopener noreferrer"><DownloadCloud className="h-4 w-4 mr-2" />Download</a>
+                        <a href={activeRecordingId ? `/api/media/recordings/${activeRecordingId}` : '#'} download={activeRecordingId ? `recording_${activeRecordingId}.mp3` : undefined} target="_blank" rel="noopener noreferrer"><DownloadCloud className="h-4 w-4 mr-2" />Download</a>
                       </Button>
                     </div>
                   </div>
@@ -524,4 +523,3 @@ export default function CallDetailsPageEnhanced({ params }: CallDetailsPageProps
     </div>
   )
 }
-

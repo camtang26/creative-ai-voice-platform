@@ -1,0 +1,16 @@
+@echo off
+echo Running Recording Caching Test...
+echo This test will verify file caching, media and download endpoints
+
+echo Starting MongoDB server in the background...
+start cmd /c "start-mongodb-server.bat"
+
+echo Waiting for server to start...
+timeout /t 10
+
+echo Running test script...
+node test-recording-caching.js
+
+echo Test completed!
+echo Press any key to exit...
+pause > nul
