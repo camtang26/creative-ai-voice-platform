@@ -268,11 +268,8 @@ export function registerApiMiddleware(server) {
     done(null, payload);
   });
   
-  // Handle OPTIONS requests for CORS preflight
-  server.options('*', (request, reply) => {
-    setupCorsHeaders(reply);
-    reply.code(204).send();
-  });
+  // REMOVED explicit OPTIONS * handler to prevent duplication error.
+  // Assuming CORS preflight is handled elsewhere (e.g., by @fastify/cors or implicitly).
   
   // Apply rate limiting to all API routes
   server.addHook('onRequest', (request, reply, done) => {
