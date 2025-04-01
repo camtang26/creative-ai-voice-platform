@@ -99,70 +99,7 @@ const server = fastify({
   }
 });
 
-// --- ADDED Download Route Definition EARLY for Debugging ---
-server.get('/api/recordings/:recordingSid/download', async (request, reply) => {
-  const { recordingSid } = request.params;
-  // Use server.log since request.log might not be fully initialized yet if this runs too early
-  server.log.info(`[API Download Handler - EARLY DEF] Route hit for recordingSid: ${recordingSid}`);
-
-  try {
-    if (!recordingSid) {
-      return reply.code(400).send({ success: false, error: 'Recording SID is required' });
-    }
-
-    // Need to import or get this function somehow if defined early
-    // For now, let's assume getRecordingBySid is available globally or imported at the top
-    const recording = await getRecordingBySid(recordingSid);
-    if (!recording || !recording.url) {
-      server.log.warn(`[API Download - EARLY DEF] Recording not found or URL missing for SID: ${recordingSid}`);
-      return reply.code(404).send({ success: false, error: 'Recording not found or URL missing' });
-    }
-
-    // Fetch audio data from Twilio URL
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-    if (!accountSid || !authToken) {
-      server.log.error('[API Download - EARLY DEF] Missing Twilio credentials for download');
-      return reply.code(500).send({ success: false, error: 'Server configuration error' });
-    }
-
-    const twilioUrl = recording.url.endsWith('.mp3') ? recording.url : `${recording.url}.mp3`;
-    server.log.info(`[API Download - EARLY DEF] Fetching audio from Twilio URL: ${twilioUrl}`);
-
-    const response = await fetch(twilioUrl, {
-      headers: {
-        'Authorization': `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`
-      }
-    });
-
-    if (!response.ok) {
-      server.log.error(`[API Download - EARLY DEF] Failed to fetch audio from Twilio. Status: ${response.status} ${response.statusText}`);
-      return reply.code(502).send({ success: false, error: 'Failed to retrieve audio from source' });
-    }
-
-    // Stream response back to client
-    const contentType = response.headers.get('content-type') || 'audio/mpeg';
-    const fileExtension = contentType.includes('wav') ? 'wav' : 'mp3';
-
-    reply.raw.setHeader('Content-Type', contentType);
-    reply.raw.setHeader('Content-Disposition', `attachment; filename="recording_${recordingSid}.${fileExtension}"`);
-
-    response.body.pipe(reply.raw);
-    server.log.info(`[API Download - EARLY DEF] Streaming audio for ${recordingSid}`);
-
-  } catch (error) {
-    server.log.error(`[API Download - EARLY DEF] Error processing download for ${recordingSid}:`, error);
-    if (!reply.sent) {
-      reply.code(500).send({
-        success: false,
-        error: 'Error processing recording download',
-        details: error.message
-      });
-    }
-  }
-});
-console.log('[Server] Registered /api/recordings/:recordingSid/download endpoint EARLY');
-// --- END EARLY Download Route Definition ---
+// Removed early download route definition
 
 // Register plugins
 // IMPORTANT: Register fastify-socket.io FIRST
