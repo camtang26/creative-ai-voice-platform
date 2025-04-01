@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Headphones, Download, ChevronDown, ChevronUp, Info } from "lucide-react";
@@ -32,18 +32,78 @@ export function RecordingItem({ recording, callSid, callDetails }: RecordingItem
     formatDuration(recording.duration) : 
     'Unknown';
 
-  // Use the backend proxy for download AND playback
-  // Use the new stable URL pattern that should work on all platforms (avoiding 'download' keyword)
-  // We'll use a standard media route pattern
-  const primaryProxyUrl = `/api/media/recordings/${recording.recordingSid}`;
+  // useState hooks for base64 audio handling
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [blobUrl, setBlobUrl] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [audioError, setAudioError] = useState<string | null>(null);
+
+  // Function to fetch base64 encoded audio and convert to blob URL
+  const fetchAudioData = async () => {
+    if (audioBlob) return; // Already fetched
+    
+    setIsLoading(true);
+    setAudioError(null);
+    
+    try {
+      // Fetch the base64 encoded audio data
+      const response = await fetch(`/api/recordings/data/${recording.recordingSid}`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch audio: ${response.status} ${response.statusText}`);
+      }
+      
+      const jsonResponse = await response.json();
+      
+      if (!jsonResponse.success || !jsonResponse.data || !jsonResponse.data.base64Data) {
+        throw new Error('Invalid response format from server');
+      }
+      
+      // Convert base64 to blob
+      const { base64Data, contentType } = jsonResponse.data;
+      const binaryString = window.atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      
+      // Create blob and URL
+      const blob = new Blob([bytes], { type: contentType });
+      const url = URL.createObjectURL(blob);
+      
+      // Save the blob and URL
+      setAudioBlob(blob);
+      setBlobUrl(url);
+      
+    } catch (error) {
+      console.error('Error loading audio data:', error);
+      setAudioError(error instanceof Error ? error.message : 'Unknown error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
-  // Fallback URLs in case the primary URL doesn't work
-  const fallbackQueryUrl = `/api/recordings/download?recordingSid=${recording.recordingSid}`;
-  const originalProxyUrl = `/api/recordings/${recording.recordingSid}/download`;
+  // Clean up blob URL on unmount
+  useEffect(() => {
+    return () => {
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+      }
+    };
+  }, [blobUrl]);
   
-  // Use the new primary URL for both audio player and download
-  const audioUrl = primaryProxyUrl;
-  const downloadUrl = primaryProxyUrl;
+  // When expanded, fetch the audio data
+  useEffect(() => {
+    if (expanded && !audioBlob && !isLoading) {
+      fetchAudioData();
+    }
+  }, [expanded, audioBlob, isLoading]);
+  
+  // URLs for audio player and download - now using blob URLs
+  const audioUrl = blobUrl || ''; // Empty string as placeholder while loading
+  const downloadUrl = blobUrl || '';
+  const downloadFilename = `recording_${recording.recordingSid || 'unknown'}.mp3`;
 
   return (
     <Card className="mb-4">

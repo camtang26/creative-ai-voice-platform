@@ -21,7 +21,7 @@ if (!testRecordingSid) {
   process.exit(1);
 }
 
-// Test all three route patterns
+// Test all route patterns including the new base64 approach
 const routesToTest = [
   // Original path (known to be problematic)
   `/api/recordings/${testRecordingSid}/download`,
@@ -30,7 +30,10 @@ const routesToTest = [
   `/api/media/recordings/${testRecordingSid}`,
   
   // Alternative 2: Query parameter approach
-  `/api/recordings/download?recordingSid=${testRecordingSid}`
+  `/api/recordings/download?recordingSid=${testRecordingSid}`,
+  
+  // Alternative 3: Base64 encoded JSON response
+  `/api/recordings/data/${testRecordingSid}`
 ];
 
 async function testDownload(route, index) {
@@ -61,9 +64,55 @@ async function testDownload(route, index) {
     const contentType = response.headers.get('content-type');
     console.log(`Content-Type: ${contentType}`);
     
+    // Handle JSON response differently (for base64 endpoint)
+    if (contentType && contentType.includes('application/json')) {
+      const jsonResponse = await response.json();
+      console.log(`[SUCCESS] Route ${route} returned JSON data.`);
+      
+      // Check if it's our base64 format
+      if (jsonResponse.data && jsonResponse.data.base64Data && jsonResponse.data.contentType) {
+        console.log(`Base64 data received (${jsonResponse.data.sizeBytes} bytes, ${jsonResponse.data.contentType})`);
+        
+        // Save a small sample to file
+        const sampleFilename = `sample_${index + 1}_${testRecordingSid}.json`;
+        fs.writeFileSync(
+          path.join(__dirname, sampleFilename), 
+          JSON.stringify({
+            ...jsonResponse.data,
+            base64Data: jsonResponse.data.base64Data.substring(0, 100) + '...' // Truncate for the sample
+          }, null, 2)
+        );
+        
+        console.log(`Saved JSON sample to ${sampleFilename}`);
+        
+        return {
+          route,
+          success: true,
+          status: response.status,
+          contentType: 'application/json',
+          isBase64: true,
+          audioContentType: jsonResponse.data.contentType,
+          sampleFilename
+        };
+      }
+      
+      // Regular JSON response
+      const sampleFilename = `sample_${index + 1}_${testRecordingSid}.json`;
+      fs.writeFileSync(path.join(__dirname, sampleFilename), JSON.stringify(jsonResponse, null, 2));
+      
+      return {
+        route,
+        success: true,
+        status: response.status,
+        contentType,
+        sampleFilename
+      };
+    }
+    
+    // Binary response (audio data)
     // Check if it's an audio type
     if (!contentType || !contentType.includes('audio')) {
-      console.log(`[WARNING] Unexpected content type: ${contentType}`);
+      console.log(`[WARNING] Expected audio content type but got: ${contentType}`);
     }
     
     // Download a small portion of the file to verify it's working

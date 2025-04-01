@@ -378,6 +378,92 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
     }
   });
 
+  // NEW ALTERNATIVE PATH 3: Base64 encoded data endpoint for client-side handling
+  fastify.get('/api/recordings/data/:recordingSid', async (request, reply) => {
+    const { recordingSid } = request.params;
+    console.log(`[API Base64] Route hit for recordingSid: ${recordingSid}`);
+    
+    try {
+      if (!recordingSid) {
+        return reply.code(400).send({ 
+          success: false, 
+          error: 'Recording SID is required' 
+        });
+      }
+      
+      // 1. Fetch recording details from DB
+      const recording = await getRecordingBySid(recordingSid);
+      if (!recording || !recording.url) {
+        request.log.warn(`[API Base64] Recording not found or URL missing for SID: ${recordingSid}`);
+        return reply.code(404).send({ 
+          success: false, 
+          error: 'Recording not found or URL missing' 
+        });
+      }
+      
+      // 2. Fetch audio data from Twilio URL
+      const accountSid = process.env.TWILIO_ACCOUNT_SID;
+      const authToken = process.env.TWILIO_AUTH_TOKEN;
+      if (!accountSid || !authToken) {
+        request.log.error('[API Base64] Missing Twilio credentials for download');
+        return reply.code(500).send({ 
+          success: false, 
+          error: 'Server configuration error' 
+        });
+      }
+      
+      const twilioUrl = recording.url.endsWith('.mp3') ? recording.url : `${recording.url}.mp3`;
+      request.log.info(`[API Base64] Fetching audio from Twilio URL: ${twilioUrl}`);
+      
+      const response = await fetch(twilioUrl, {
+        headers: {
+          'Authorization': `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`
+        }
+      });
+      
+      if (!response.ok) {
+        request.log.error(`[API Base64] Failed to fetch audio from Twilio. Status: ${response.status} ${response.statusText}`);
+        return reply.code(502).send({ 
+          success: false, 
+          error: 'Failed to retrieve audio from source' 
+        });
+      }
+      
+      // 3. Get the audio buffer and convert to base64
+      const contentType = response.headers.get('content-type') || 'audio/mpeg';
+      const fileExtension = contentType.includes('wav') ? 'wav' : 'mp3';
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const base64Data = buffer.toString('base64');
+      
+      // 4. Return JSON with base64 encoded data and metadata
+      request.log.info(`[API Base64] Sending base64 encoded data for ${recordingSid} (${buffer.length} bytes)`);
+      
+      return {
+        success: true,
+        data: {
+          recordingSid,
+          contentType,
+          fileExtension,
+          filename: `recording_${recordingSid}.${fileExtension}`,
+          duration: recording.duration || 0,
+          sizeBytes: buffer.length,
+          base64Data: base64Data
+        },
+        timestamp: new Date().toISOString()
+      };
+      
+    } catch (error) {
+      request.log.error(`[API Base64] Error processing download for ${recordingSid}:`, error);
+      return reply.code(500).send({
+        success: false,
+        error: 'Error processing recording download',
+        details: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+
   // Export all recordings as CSV
   fastify.get('/api/db/recordings/actions/export', async (request, reply) => { // Changed path
     try {
