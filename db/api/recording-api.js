@@ -278,20 +278,13 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
         return reply.code(502).send({ success: false, error: 'Failed to retrieve audio from source after attempting available formats' });
       }
 
-      // 5. Buffer entire response and send with Content-Length (for debugging playback)
-      request.log.info(`[API Download] Buffering entire response for ${recordingSid}...`);
-      const audioBuffer = await response.buffer(); // Read entire response into buffer
-      request.log.info(`[API Download] Buffer created (${audioBuffer.length} bytes). Sending...`);
-
+      // 5. Stream the response body directly
       const contentType = response.headers.get('content-type') || (fileExtension === 'wav' ? 'audio/wav' : 'audio/mpeg');
-
-      // Set headers including Content-Length
       reply.header('Content-Type', contentType);
       reply.header('Content-Disposition', `attachment; filename="recording_${recordingSid}.${fileExtension}"`);
-      reply.header('Content-Length', audioBuffer.length); // Explicitly set length
-
-      // Send the complete buffer
-      return reply.send(audioBuffer);
+      // Do not set Content-Length when streaming chunked responses, let the server handle it.
+      request.log.info(`[API Download] Sending ${fileExtension} stream via reply.send() for ${recordingSid}`);
+      return reply.send(response.body);
 
     } catch (error) {
       request.log.error(`[API Download] Error processing direct stream download for ${recordingSid}:`, error);
