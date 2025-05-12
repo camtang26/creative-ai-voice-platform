@@ -26,141 +26,195 @@ export function SimpleAudioPlayer({ audioUrl, title, downloadUrl, onPlaybackComp
   // Initialize audio events
   // Effect for managing audio event listeners and state based on audioUrl
   // Simplified effect for managing audio event listeners
+  // Effect to fetch audio data and create/revoke blob URLs
+  useEffect(() => {
+    let currentBlobUrl: string | null = null; // To manage the blob URL created in this effect instance
+
+    const fetchAndSetAudio = async () => {
+      if (!audioUrl) {
+        console.log('[SimpleAudioPlayer FetchEffect] audioUrl is empty. Clearing player.');
+        setInternalBlobSrc('');
+        setIsLoading(false);
+        setError(null);
+        if (audioRef.current) {
+          audioRef.current.removeAttribute('src');
+          audioRef.current.load();
+        }
+        return;
+      }
+
+      console.log(`[SimpleAudioPlayer FetchEffect] audioUrl prop is: ${audioUrl}. Initiating fetch.`);
+      setIsLoading(true);
+      setError(null);
+      // Reset player state for new audio
+      setIsPlaying(false);
+      setCurrentTime(0);
+      setDuration(0);
+
+      try {
+        const response = await fetch(audioUrl);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch audio: ${response.status} ${response.statusText} from ${audioUrl}`);
+        }
+        const contentType = response.headers.get('Content-Type') || 'audio/mpeg';
+        const blobData = await response.blob();
+        
+        console.log(`[SimpleAudioPlayer FetchEffect] Fetched blob. Size: ${blobData.size}, Type from header: ${contentType}`);
+        const newBlob = new Blob([blobData], { type: contentType });
+        currentBlobUrl = URL.createObjectURL(newBlob); // Assign to effect-scoped variable
+        console.log(`[SimpleAudioPlayer FetchEffect] New internalBlobSrc created: ${currentBlobUrl}`);
+        setInternalBlobSrc(currentBlobUrl); // Update state to trigger re-render with new src
+
+        // No need to call audioRef.current.load() here if src is updated via state
+        // and <audio key={...}> handles re-initialization.
+        // setIsLoading(false) will be handled by 'loadedmetadata' or 'error' event
+
+      } catch (err: unknown) { // Explicitly type err as unknown
+        console.error(`[SimpleAudioPlayer FetchEffect] Error fetching or creating blob for ${audioUrl}:`, err);
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError('An unknown error occurred while loading audio data.');
+        }
+        setIsLoading(false);
+        setInternalBlobSrc(''); // Ensure src is empty on error
+        if (audioRef.current) {
+          audioRef.current.removeAttribute('src');
+        }
+      }
+    };
+
+    fetchAndSetAudio();
+
+    return () => {
+      // Cleanup the specific blob URL created by *this* effect instance
+      if (currentBlobUrl) {
+        console.log(`[SimpleAudioPlayer FetchEffect Cleanup] Revoking currentBlobUrl: ${currentBlobUrl}`);
+        URL.revokeObjectURL(currentBlobUrl);
+      }
+      // General cleanup for the audio element if it's still referenced
+      if (audioRef.current) {
+        audioRef.current.pause();
+        // Don't removeAttribute('src') here if it's managed by internalBlobSrc state,
+        // as it might interfere with React's rendering cycle.
+        // The key prop on <audio> should handle full reset if internalBlobSrc changes to ''.
+      }
+    };
+  }, [audioUrl]); // Only re-run this fetch logic if the audioUrl prop itself changes
+
+  // Effect for managing audio event listeners
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio) return;
-
-    // Reset player state when audioUrl (the prop) changes
-    setIsPlaying(false);
-    setCurrentTime(0);
-    setDuration(0);
-    setError(null);
+    if (!audio || !internalBlobSrc) { // Only attach listeners if we have a valid internalBlobSrc
+        // If internalBlobSrc is empty, ensure player is reset
+        if (!internalBlobSrc) {
+            setIsPlaying(false);
+            setCurrentTime(0);
+            setDuration(0);
+            // setError(null); // Error might be set by fetch effect
+            // setIsLoading(false); // Loading might be set by fetch effect
+        }
+        return;
+    }
     
-    // If a previous internalBlobSrc exists, revoke it
-    if (internalBlobSrc) {
-      console.log(`[SimpleAudioPlayer Effect] Revoking old internalBlobSrc: ${internalBlobSrc}`);
-      URL.revokeObjectURL(internalBlobSrc);
-      setInternalBlobSrc(''); // Clear it
-    }
+    console.log(`[SimpleAudioPlayer ListenEffect] Attaching listeners for src: ${audio.src} (internalBlobSrc: ${internalBlobSrc})`);
+    // Reset loading state here before attaching listeners for a new src
+    // setIsLoading(true); // This might cause a flicker if already handled by fetch effect
 
-    if (audioUrl) {
-      console.log(`[SimpleAudioPlayer Effect] audioUrl prop changed to: ${audioUrl}. Fetching data...`);
-      setIsLoading(true); // Set loading true now that we are about to fetch
-      
-      fetch(audioUrl)
-        .then(response => {
-          if (!response.ok) {
-            throw new Error(`Failed to fetch audio: ${response.status} ${response.statusText} from ${audioUrl}`);
-          }
-          const contentType = response.headers.get('Content-Type') || 'audio/mpeg';
-          return response.blob().then(blob => ({ blob, contentType }));
-        })
-        .then(({ blob, contentType }) => {
-          console.log(`[SimpleAudioPlayer Effect] Fetched blob. Size: ${blob.size}, Type from response header: ${contentType}`);
-          const newBlob = new Blob([blob], { type: contentType }); // Ensure blob is created with the fetched content type
-          console.log(`[SimpleAudioPlayer Effect] Created new Blob object. Size: ${newBlob.size}, Type: ${newBlob.type}`);
-          const newBlobSrc = URL.createObjectURL(newBlob);
-          console.log(`[SimpleAudioPlayer Effect] New internalBlobSrc created: ${newBlobSrc}`);
-          setInternalBlobSrc(newBlobSrc);
-          if (audioRef.current) {
-            // audioRef.current.src = newBlobSrc; // This will be handled by re-render due to state change
-            audioRef.current.load(); // Explicitly call load after src is expected to change
-            console.log(`[SimpleAudioPlayer Effect] Called audio.load() for new internalBlobSrc.`);
-          }
-          // setIsLoading(false); // Loading will be set to false by 'loadedmetadata' or 'error'
-        })
-        .catch(err => {
-          console.error(`[SimpleAudioPlayer Effect] Error fetching or creating blob for ${audioUrl}:`, err);
-          setError(err.message || 'Error loading audio data.');
-          setIsLoading(false);
-          setInternalBlobSrc(''); // Ensure src is empty on error
-        });
-    } else {
-      console.log(`[SimpleAudioPlayer Effect] audioUrl prop is empty. Clearing internalBlobSrc.`);
-      setInternalBlobSrc(''); // Clear src if audioUrl is empty
-      setIsLoading(false); // Not loading if no URL
-    }
-
-    // Define event handlers for the audio element
     const handleLoadedMetadata = () => {
       console.log(`[SimpleAudioPlayer Event] loadedmetadata for: ${audio.src}`);
-      // Check if duration is valid before setting
       if (isFinite(audio.duration)) {
-          setDuration(audio.duration);
-          setError(null); // Clear error on successful load
+        setDuration(audio.duration);
+        setError(null);
       } else {
-          console.warn(`[SimpleAudioPlayer Event] Invalid duration received: ${audio.duration}`);
-          setError('Invalid audio duration');
+        console.warn(`[SimpleAudioPlayer Event] Invalid duration: ${audio.duration} for ${audio.src}`);
+        setError('Invalid audio duration');
+        setDuration(0); // Reset duration if invalid
       }
       setIsLoading(false);
     };
     const handleTimeUpdate = () => {
-        // Only update if duration is valid
-        if (isFinite(audio.duration)) {
-            setCurrentTime(audio.currentTime);
-        }
+      if (isFinite(audio.duration)) {
+        setCurrentTime(audio.currentTime);
+      }
     };
     const handleEnded = () => {
       console.log(`[SimpleAudioPlayer Event] ended for: ${audio.src}`);
       setIsPlaying(false);
-      setCurrentTime(0); // Reset to beginning
+      setCurrentTime(0);
       if (onPlaybackComplete) onPlaybackComplete();
     };
-    const handleError = () => {
-      const errCode = audio.error?.code;
-      const errMsg = audio.error?.message || 'Unknown audio error';
-      console.error(`[SimpleAudioPlayer Event] handleError: Code ${errCode}, Message: ${errMsg} for src: ${audio.src}`);
-      let displayError = `Failed to load audio file (Code: ${errCode})`;
-       if (errCode === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED && !audio.getAttribute('src')) {
-           displayError = 'MEDIA_ELEMENT_ERROR: Empty src attribute';
-        } else if (errCode === MediaError.MEDIA_ERR_NETWORK) {
-           displayError = 'Network error loading audio';
-        } else if (errCode === MediaError.MEDIA_ERR_DECODE) {
-           displayError = 'Error decoding audio file';
-        }
+    const handleError = (e: Event) => {
+      const mediaError = (e.target as HTMLAudioElement).error;
+      const errCode = mediaError?.code;
+      const errMsg = mediaError?.message || 'Unknown audio error';
+      console.error(`[SimpleAudioPlayer Event] handleError: Code ${errCode}, Message: "${errMsg}" for src: ${audio.src}`);
+      let displayError = `Failed to load audio (Code: ${errCode || 'N/A'})`;
+      if (errCode === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
+        displayError = 'Audio source not supported.';
+      } else if (errCode === MediaError.MEDIA_ERR_NETWORK) {
+        displayError = 'Network error loading audio.';
+      } else if (errCode === MediaError.MEDIA_ERR_DECODE) {
+        displayError = 'Error decoding audio file.';
+      } else if (errCode === MediaError.MEDIA_ERR_ABORTED) {
+        displayError = 'Audio loading aborted.';
+      }
       setError(displayError);
       setIsLoading(false);
+      setDuration(0); // Reset duration on error
+      setCurrentTime(0);
     };
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
-    // No need for handleLoadStart as key prop handles re-mount/reset
+    const handleCanPlay = () => {
+      console.log(`[SimpleAudioPlayer Event] canplay for: ${audio.src}`);
+      // Some browsers might need this to correctly update loading state if loadedmetadata is missed
+      if (isLoading && audio.readyState >= HTMLMediaElement.HAVE_METADATA) {
+         setIsLoading(false);
+         if (isFinite(audio.duration)) setDuration(audio.duration); else setDuration(0);
+      }
+    };
+     const handleWaiting = () => {
+      console.log(`[SimpleAudioPlayer Event] waiting for: ${audio.src}`);
+      setIsLoading(true); // Show loader if buffering/waiting
+    };
+    const handlePlaying = () => {
+      console.log(`[SimpleAudioPlayer Event] playing for: ${audio.src}`);
+      setIsLoading(false); // Hide loader when playback actually starts
+    };
 
-    // Attach listeners
+
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('error', handleError);
     audio.addEventListener('play', handlePlay);
     audio.addEventListener('pause', handlePause);
+    audio.addEventListener('canplay', handleCanPlay);
+    audio.addEventListener('waiting', handleWaiting);
+    audio.addEventListener('playing', handlePlaying);
 
-    // Set initial volume
     audio.volume = volume / 100;
+    // If src is already set and we want to ensure it loads:
+    if (audio.currentSrc && audio.networkState === HTMLMediaElement.NETWORK_NO_SOURCE) {
+        console.log(`[SimpleAudioPlayer ListenEffect] src is set but networkState is NO_SOURCE. Calling load() for ${audio.currentSrc}`);
+        audio.load();
+    }
 
-    // internalBlobSrc will be applied to audio.src via the state update and re-render
 
-    // Cleanup function
     return () => {
-      console.log(`[SimpleAudioPlayer Cleanup] Removing listeners. Current internalBlobSrc: ${internalBlobSrc}, audio.src: ${audio.src}`);
+      console.log(`[SimpleAudioPlayer ListenEffect Cleanup] Removing listeners for src: ${audio.src}`);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('error', handleError);
       audio.removeEventListener('play', handlePlay);
       audio.removeEventListener('pause', handlePause);
-      
-      // Pause audio and revoke object URL if it exists
-      audio.pause();
-      if (internalBlobSrc) { // Check the state variable
-        console.log(`[SimpleAudioPlayer Cleanup] Revoking internalBlobSrc in cleanup: ${internalBlobSrc}`);
-        URL.revokeObjectURL(internalBlobSrc);
-      }
-      // Resetting src attribute on the audio element itself
-      if (audioRef.current) {
-          audioRef.current.removeAttribute("src");
-          audioRef.current.load();
-      }
+      audio.removeEventListener('canplay', handleCanPlay);
+      audio.removeEventListener('waiting', handleWaiting);
+      audio.removeEventListener('playing', handlePlaying);
     };
-  }, [audioUrl, volume, onPlaybackComplete]); // Keep audioUrl as dependency to trigger fetch
+  }, [internalBlobSrc, volume, onPlaybackComplete]); // Now depends on internalBlobSrc
 
   // Player controls
   const togglePlayPause = () => {
