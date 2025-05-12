@@ -26,6 +26,12 @@ export async function registerRecordingApiRoutes(fastify, options = {}) {
   // Initialize recording cache
   console.log(`[RecordingAPI] Initializing recording routes with server-side file caching`);
   
+// Simple test route
+  fastify.get('/api/ping-recordings', async (request, reply) => {
+    request.log.info('[API Ping Recordings] Test route /api/ping-recordings hit');
+    return reply.send({ success: true, message: 'Recording API is alive - PONG!', timestamp: new Date().toISOString() });
+  });
+  console.log('[RecordingAPI] Registered test route /api/ping-recordings');
   // Get recordings for a call
   fastify.get('/api/db/calls/:callSid/recordings', async (request, reply) => {
     try {

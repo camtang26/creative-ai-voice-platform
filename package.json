@@ -2,10 +2,10 @@
   "name": "elevenlabs-outbound-calling",
   "version": "2.0.0",
   "description": "Twilio outbound calling solution using ElevenLabs Conversational AI",
-  "main": "app.js",
+  "main": "server-mongodb.js",
   "scripts": {
-    "start": "node app.js",
-    "dev": "nodemon app.js",
+    "start": "node server-mongodb.js",
+    "dev": "nodemon server-mongodb.js",
     "webhook-server": "node webhook-server.js",
     "test-call": "node make-call.js",
     "custom-call": "node custom-message.js",
@@ -41,6 +41,7 @@
   "type": "module",
   "dependencies": {
     "@aws-sdk/client-ses": "^3.758.0",
+    "@fastify/cors": "^8.0.0",
     "@fastify/formbody": "^7.4.0",
     "@radix-ui/react-alert-dialog": "^1.1.6",
     "@radix-ui/react-progress": "^1.1.2",

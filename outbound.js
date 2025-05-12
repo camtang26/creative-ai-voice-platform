@@ -422,10 +422,14 @@ export function registerOutboundRoutes(fastify, options = {}) { // Added export
   });
 
   const getBaseUrl = (request) => {
-    if (SERVER_URL) {
-      return SERVER_URL.replace(/\/$/, '');
+    if (process.env.RENDER_EXTERNAL_URL) {
+      return process.env.RENDER_EXTERNAL_URL.replace(/\/$/, '');
     }
-    const protocol = request.protocol || 'https';
+    if (process.env.SERVER_URL) { // SERVER_URL is still a valid fallback
+      return process.env.SERVER_URL.replace(/\/$/, '');
+    }
+    // Fallback for local development or other environments
+    const protocol = request.protocol || (request.headers['x-forwarded-proto'] ? request.headers['x-forwarded-proto'].split(',')[0] : 'http');
     const hostname = request.hostname || request.headers.host;
     return `${protocol}://${hostname}`;
   };
