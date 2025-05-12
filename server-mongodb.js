@@ -17,6 +17,7 @@ import fastifySocketIO from 'fastify-socket.io'; // Import the socket.io plugin
 // REMOVED: fastifyWebsocket import
 import { WebSocketServer, WebSocket } from 'ws'; // CORRECTED: Import WebSocketServer and WebSocket client
 import fastifyFormBody from '@fastify/formbody';
+import fastifyCors from '@fastify/cors'; // Added for CORS
 import fetch from 'node-fetch';
 import crypto from 'crypto';
 import getRawBody from 'raw-body'; // Import raw-body library
@@ -128,6 +129,29 @@ server.register(fastifySocketIO, {
 // REMOVED: @fastify/websocket registration
 server.register(fastifyFormBody);
 
+// Register @fastify/cors
+server.register(fastifyCors, {
+  origin: (origin, cb) => {
+    // Allow requests from localhost:3000 for local development
+    // In production, you might want to use an environment variable for the frontend URL
+    const allowedOrigins = ['http://localhost:3000'];
+    if (process.env.FRONTEND_URL) {
+      allowedOrigins.push(process.env.FRONTEND_URL);
+    }
+    if (!origin || allowedOrigins.includes(origin)) {
+      cb(null, true);
+      return;
+    }
+    cb(new Error('Not allowed by CORS'), false);
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Ensure OPTIONS is included
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-elevenlabs-signature', 'xi-api-key'], // Add any custom headers your frontend might send
+  credentials: true, // If you need to handle cookies or authorization headers
+  preflightContinue: false, // Let @fastify/cors handle the preflight response directly
+  optionsSuccessStatus: 204 // Use 204 No Content for OPTIONS success
+});
+console.log('[Server] Registered @fastify/cors plugin');
+
 // --- Add Content Type Parser to capture raw body buffer ---
 server.addContentTypeParser('application/json', { parseAs: 'buffer' }, (req, body, done) => {
   try {
@@ -151,6 +175,17 @@ console.log('[Server] Added application/json content type parser to capture raw 
 registerApiMiddleware(server);
 registerApiMiddleware(server);
 
+// Explicit OPTIONS handler for /api/outbound-call to ensure CORS preflight works on Render
+server.options('/api/outbound-call', async (request, reply) => {
+  // Minimal headers, @fastify/cors should have already set broader ones if it ran.
+  // This ensures a 204 response if @fastify/cors didn't catch it.
+  reply.header('Access-Control-Allow-Origin', request.headers.origin || '*'); // Reflect origin or allow all
+  reply.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  reply.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, x-elevenlabs-signature, xi-api-key');
+  reply.header('Access-Control-Allow-Credentials', 'true');
+  reply.code(204).send();
+});
+console.log('[Server] Registered explicit OPTIONS handler for /api/outbound-call');
 // Register outbound calling routes (will need MEDIA_PROXY_SERVICE_URL env var)
 registerOutboundRoutes(server, { skipCallStatusCallback: true });
 
