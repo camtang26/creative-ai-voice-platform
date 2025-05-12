@@ -231,9 +231,9 @@ export function SimpleAudioPlayer({ audioUrl, title, downloadUrl, onPlaybackComp
         key={internalBlobSrc || audioUrl} // Use internalBlobSrc for key if available, else original audioUrl
         ref={audioRef}
         src={internalBlobSrc} // Use the internal blob src
-        controls // ADD NATIVE BROWSER CONTROLS FOR DEBUGGING
+        // controls // REMOVE NATIVE BROWSER CONTROLS
         // preload="metadata" // Let browser handle preloading
-        style={{ display: 'block', width: '100%', marginTop: '10px' }} // Make native controls visible
+        style={{ display: 'none' }} // Hide the native audio element
       />
 
       {/* Title */}
