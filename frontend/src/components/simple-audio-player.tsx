@@ -19,8 +19,9 @@ export function SimpleAudioPlayer({ audioUrl, title, downloadUrl, onPlaybackComp
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [volume, setVolume] = useState(80);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // Initially false, true during fetch
   const [error, setError] = useState<string | null>(null);
+  const [internalBlobSrc, setInternalBlobSrc] = useState<string>(''); // For the actual <audio> src
 
   // Initialize audio events
   // Effect for managing audio event listeners and state based on audioUrl
@@ -29,17 +30,50 @@ export function SimpleAudioPlayer({ audioUrl, title, downloadUrl, onPlaybackComp
     const audio = audioRef.current;
     if (!audio) return;
 
-    // Reset state when the component mounts or audioUrl changes (due to key prop)
-    // The key prop should ensure we get a fresh element/state.
-    setIsLoading(true); // Assume loading initially when key changes
-    setError(null);
+    // Reset player state when audioUrl (the prop) changes
     setIsPlaying(false);
     setCurrentTime(0);
     setDuration(0);
-    console.log(`[SimpleAudioPlayer Effect] Running setup for key/audioUrl: ${audioUrl}`);
+    setError(null);
+    
+    // If a previous internalBlobSrc exists, revoke it
+    if (internalBlobSrc) {
+      console.log(`[SimpleAudioPlayer Effect] Revoking old internalBlobSrc: ${internalBlobSrc}`);
+      URL.revokeObjectURL(internalBlobSrc);
+      setInternalBlobSrc(''); // Clear it
+    }
 
+    if (audioUrl) {
+      console.log(`[SimpleAudioPlayer Effect] audioUrl prop changed to: ${audioUrl}. Fetching data...`);
+      setIsLoading(true); // Set loading true now that we are about to fetch
+      
+      fetch(audioUrl)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Failed to fetch audio: ${response.status} ${response.statusText} from ${audioUrl}`);
+          }
+          const contentType = response.headers.get('Content-Type') || 'audio/mpeg';
+          return response.blob().then(blob => ({ blob, contentType }));
+        })
+        .then(({ blob, contentType }) => {
+          const newBlobSrc = URL.createObjectURL(new Blob([blob], { type: contentType }));
+          console.log(`[SimpleAudioPlayer Effect] New internalBlobSrc created: ${newBlobSrc} (type: ${contentType})`);
+          setInternalBlobSrc(newBlobSrc);
+          // setIsLoading(false); // Loading will be set to false by 'loadedmetadata' or 'error'
+        })
+        .catch(err => {
+          console.error(`[SimpleAudioPlayer Effect] Error fetching or creating blob for ${audioUrl}:`, err);
+          setError(err.message || 'Error loading audio data.');
+          setIsLoading(false);
+          setInternalBlobSrc(''); // Ensure src is empty on error
+        });
+    } else {
+      console.log(`[SimpleAudioPlayer Effect] audioUrl prop is empty. Clearing internalBlobSrc.`);
+      setInternalBlobSrc(''); // Clear src if audioUrl is empty
+      setIsLoading(false); // Not loading if no URL
+    }
 
-    // Define event handlers
+    // Define event handlers for the audio element
     const handleLoadedMetadata = () => {
       console.log(`[SimpleAudioPlayer Event] loadedmetadata for: ${audio.src}`);
       // Check if duration is valid before setting
@@ -94,12 +128,11 @@ export function SimpleAudioPlayer({ audioUrl, title, downloadUrl, onPlaybackComp
     // Set initial volume
     audio.volume = volume / 100;
 
-    // --- No manual src setting or load() call needed here ---
-    // Relying on <audio key={audioUrl} src={audioUrl} ... />
+    // internalBlobSrc will be applied to audio.src via the state update and re-render
 
     // Cleanup function
     return () => {
-      console.log(`[SimpleAudioPlayer Cleanup] Removing listeners for key/audioUrl: ${audioUrl}`);
+      console.log(`[SimpleAudioPlayer Cleanup] Removing listeners. Current internalBlobSrc: ${internalBlobSrc}, audio.src: ${audio.src}`);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('ended', handleEnded);
@@ -107,17 +140,19 @@ export function SimpleAudioPlayer({ audioUrl, title, downloadUrl, onPlaybackComp
       audio.removeEventListener('play', handlePlay);
       audio.removeEventListener('pause', handlePause);
       
-      // Pause and reset src in cleanup to ensure resource release
+      // Pause audio and revoke object URL if it exists
       audio.pause();
-      // Check if component is still mounted before resetting src
+      if (internalBlobSrc) { // Check the state variable
+        console.log(`[SimpleAudioPlayer Cleanup] Revoking internalBlobSrc in cleanup: ${internalBlobSrc}`);
+        URL.revokeObjectURL(internalBlobSrc);
+      }
+      // Resetting src attribute on the audio element itself
       if (audioRef.current) {
           audioRef.current.removeAttribute("src");
-          audioRef.current.load(); // Necessary after removing src
+          audioRef.current.load();
       }
     };
-    // Dependency array: Re-run effect ONLY when audioUrl or volume changes.
-    // The key={audioUrl} prop handles the re-mount for src changes.
-  }, [audioUrl, volume, onPlaybackComplete]);
+  }, [audioUrl, volume, onPlaybackComplete]); // Keep audioUrl as dependency to trigger fetch
 
   // Player controls
   const togglePlayPause = () => {
@@ -193,11 +228,12 @@ export function SimpleAudioPlayer({ audioUrl, title, downloadUrl, onPlaybackComp
     <div className="audio-player-container">
       {/* Hidden audio element - ADD key prop */}
       <audio
-        // key={audioUrl} // REMOVED: Let's see if removing this helps
+        key={internalBlobSrc || audioUrl} // Use internalBlobSrc for key if available, else original audioUrl
         ref={audioRef}
-        src={audioUrl}
-        // preload="metadata" // REMOVED: Let browser handle preloading implicitly
-        // onLoadStart={() => setIsLoading(true)} // REMOVED: Rely on other events for loading state
+        src={internalBlobSrc} // Use the internal blob src
+        controls // ADD NATIVE BROWSER CONTROLS FOR DEBUGGING
+        // preload="metadata" // Let browser handle preloading
+        style={{ display: 'block', width: '100%', marginTop: '10px' }} // Make native controls visible
       />
 
       {/* Title */}

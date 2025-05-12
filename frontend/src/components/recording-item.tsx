@@ -6,7 +6,7 @@ import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Headphones, Download, ChevronDown, ChevronUp, Info } from "lucide-react";
 import { RecordingInfo } from "@/lib/types";
 import { formatDate, formatDuration, formatPhoneNumber } from "@/lib/utils";
-// REMOVED: import { getMediaUrl } from "@/lib/api";
+import { getMediaUrl } from "@/lib/api"; // Restore this if needed by fetchAudioData, or use relative path
 import { SimpleAudioPlayer } from "./simple-audio-player";
 import Link from "next/link";
 
@@ -39,17 +39,8 @@ export function RecordingItem({ recording, callSid, callDetails }: RecordingItem
     : '';
   // Added check for window object to avoid SSR errors
 
-  // REMOVED: State and effects for fetching/managing blob URLs
-  // const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-  // const [blobUrl, setBlobUrl] = useState<string>('');
-  // const [isLoading, setIsLoading] = useState(false);
-  // const [audioError, setAudioError] = useState<string | null>(null);
-  // REMOVED: fetchAudioData function
-  // REMOVED: useEffect for blob URL cleanup
-  // REMOVED: useEffect for fetching audio on expand
-
-  // Construct the direct backend URL for playback and download - MOVED EARLIER
-  // const backendAudioUrl = recording.recordingSid ? `/api/recordings/${recording.recordingSid}/download` : ''; // REMOVED DUPLICATE
+  // Removed state and effects for client-side fetching and blob URL generation
+  // as SimpleAudioPlayer will now handle this internally.
   const downloadFilename = `recording_${recording.recordingSid || 'unknown'}.mp3`;
 
   return (
@@ -118,7 +109,7 @@ export function RecordingItem({ recording, callSid, callDetails }: RecordingItem
           {backendAudioUrl ? (
             <SimpleAudioPlayer
               audioUrl={backendAudioUrl} // Pass the direct backend URL
-              downloadUrl={backendAudioUrl} // Pass the direct backend URL
+              downloadUrl={backendAudioUrl}
               title={`Call Recording - ${formatDate(recording.createdAt ?? 'N/A')}`}
             />
           ) : (
