@@ -56,9 +56,17 @@ export function SimpleAudioPlayer({ audioUrl, title, downloadUrl, onPlaybackComp
           return response.blob().then(blob => ({ blob, contentType }));
         })
         .then(({ blob, contentType }) => {
-          const newBlobSrc = URL.createObjectURL(new Blob([blob], { type: contentType }));
-          console.log(`[SimpleAudioPlayer Effect] New internalBlobSrc created: ${newBlobSrc} (type: ${contentType})`);
+          console.log(`[SimpleAudioPlayer Effect] Fetched blob. Size: ${blob.size}, Type from response header: ${contentType}`);
+          const newBlob = new Blob([blob], { type: contentType }); // Ensure blob is created with the fetched content type
+          console.log(`[SimpleAudioPlayer Effect] Created new Blob object. Size: ${newBlob.size}, Type: ${newBlob.type}`);
+          const newBlobSrc = URL.createObjectURL(newBlob);
+          console.log(`[SimpleAudioPlayer Effect] New internalBlobSrc created: ${newBlobSrc}`);
           setInternalBlobSrc(newBlobSrc);
+          if (audioRef.current) {
+            // audioRef.current.src = newBlobSrc; // This will be handled by re-render due to state change
+            audioRef.current.load(); // Explicitly call load after src is expected to change
+            console.log(`[SimpleAudioPlayer Effect] Called audio.load() for new internalBlobSrc.`);
+          }
           // setIsLoading(false); // Loading will be set to false by 'loadedmetadata' or 'error'
         })
         .catch(err => {
