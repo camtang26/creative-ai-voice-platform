@@ -158,11 +158,9 @@ export function UploadSheetForm({ campaignName, agentPrompt, firstMessage }: Upl
         disabled={
           isUploading ||
           !selectedFile ||
-          (!!campaignName && // Check if campaignName is provided (truthy)
-            (campaignName.trim().length === 0 || // then check if it's empty
-             (agentPrompt?.trim().length || 0) === 0 || // or if agentPrompt is empty
-             (firstMessage?.trim().length || 0) === 0) // or if firstMessage is empty
-          )
+          // If campaignName is passed (even as empty string), it means we are in "start campaign" mode.
+          // In this mode, campaignName itself must be filled. AgentPrompt and FirstMessage are optional.
+          (campaignName !== undefined && campaignName.trim().length === 0)
         }
       >
         {isUploading ? (campaignName ? 'Starting Campaign...' : 'Uploading...') : (campaignName ? 'Start Campaign from Sheet' : 'Upload Sheet')}

@@ -21,8 +21,19 @@ import {
  */
 export async function saveCampaign(campaignData) {
   try {
+    // Define default values
+    const DEFAULT_AGENT_PROMPT = "You are a helpful AI assistant. Your goal is to engage the contact and achieve the objective outlined in the campaign description. Be polite, professional, and concise.";
+    const DEFAULT_FIRST_MESSAGE = "Hello, I'm calling from [Company Name], is now a good time to talk briefly?";
+
+    // Prepare campaign data with defaults
+    const dataToSave = {
+      ...campaignData,
+      agentPrompt: campaignData.agentPrompt && campaignData.agentPrompt.trim() !== '' ? campaignData.agentPrompt : DEFAULT_AGENT_PROMPT,
+      firstMessage: campaignData.firstMessage && campaignData.firstMessage.trim() !== '' ? campaignData.firstMessage : DEFAULT_FIRST_MESSAGE,
+    };
+
     // Create a new campaign document
-    const campaign = new Campaign(campaignData);
+    const campaign = new Campaign(dataToSave);
     
     // Save to database
     const savedCampaign = await campaign.save();

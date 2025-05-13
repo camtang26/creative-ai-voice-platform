@@ -686,10 +686,10 @@ export async function registerCampaignApiRoutes(fastify, options = {}) {
         return reply.code(400).send({ success: false, error: 'CSV file is required.' });
       }
 
-      const { campaignName, agentPrompt, firstMessage } = campaignDetails;
+      const { campaignName, agentPrompt, firstMessage } = campaignDetails; // agentPrompt and firstMessage can now be undefined/empty
 
-      if (!campaignName || !agentPrompt || !firstMessage) {
-        return reply.code(400).send({ success: false, error: 'Campaign name, agent prompt, and first message are required.' });
+      if (!campaignName || campaignName.trim().length === 0) { // Only campaignName is strictly required
+        return reply.code(400).send({ success: false, error: 'Campaign name is required and cannot be empty.' });
       }
 
       const contacts = [];
