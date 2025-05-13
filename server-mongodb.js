@@ -471,62 +471,63 @@ wss.on('connection', (ws, request) => {
   let customParameters = {}; // Will be populated from 'start' message
   let conversationId = null;
   let initialConfigSent = false;
-  let inactivityTimeout = null;
-  let lastActivity = Date.now();
+  const INACTIVITY_TIMEOUT_MS = 60000; // 60 seconds
+  let inactivityTimeout = null; // Stores the timeout ID
 
-  const INACTIVITY_TIMEOUT_MS = 60000; // Reverted to 60 seconds
-  let isTimerActive = false; // Flag to control timer execution
+  const clearExistingInactivityTimer = () => {
+      if (inactivityTimeout) {
+          clearTimeout(inactivityTimeout);
+          inactivityTimeout = null;
+          // server.log.debug(`[WS Manual][Timer] Cleared existing inactivity timer for call ${callSid}`);
+      }
+  };
 
-  // Flag-based timer logic
-  const startInactivityTimer = () => {
-    if (!callSid) {
-       server.log.debug('[WS Manual][Timer] startInactivityTimer called before callSid is set. Skipping.');
-       return;
-    }
-    
-    // Cancel any pending Node.js timer object (best effort)
-    if (inactivityTimeout) {
-      clearTimeout(inactivityTimeout);
-    }
+  const scheduleInactivityTermination = () => {
+      clearExistingInactivityTimer(); // Always clear previous before setting a new one
 
-    // REMOVED: server.log.debug(`[WS Manual][Timer] Scheduling inactivity check...`);
-    isTimerActive = true; // Set flag *before* scheduling
-    inactivityTimeout = setTimeout(() => {
-      server.log.warn(`[WS Manual][Timer] Timer callback executed for call ${callSid}.`);
-      
-      // *** Check the flag ***
-      if (!isTimerActive) {
-        server.log.info(`[WS Manual][Timer] Timer callback for ${callSid} ignored as flag is inactive (recent activity occurred).`);
-        return;
+      if (!callSid) {
+          server.log.debug('[WS Manual][Timer] scheduleInactivityTermination called before callSid is set. Skipping.');
+          return;
       }
 
-      // If flag is still active, proceed with termination check
-      isTimerActive = false; // Deactivate flag before terminating
-      const timeSinceLastActivity = Date.now() - lastActivity; // Check time again *inside* callback
-      
-      if (timeSinceLastActivity >= INACTIVITY_TIMEOUT_MS) {
-           server.log.warn(`[WS Manual][Timer] Inactivity confirmed for call ${callSid} (${timeSinceLastActivity}ms >= ${INACTIVITY_TIMEOUT_MS}ms). Terminating.`);
-           if (callSid && twilioClient) { terminateCall(twilioClient, callSid); } // Restore termination
-           // Also close WebSockets as before
-           if (elevenLabsWs?.readyState === WebSocket.OPEN) { server.log.warn('[WS Manual][Timer] Closing ElevenLabs WS due to inactivity.'); elevenLabsWs.close(); }
-           if (ws.readyState === WebSocket.OPEN) { server.log.warn('[WS Manual][Timer] Closing Twilio WS due to inactivity.'); ws.close(); }
-      } else {
-           // This case means activity happened *just* before the timer callback executed, but *after* the flag was last checked/set.
-           server.log.warn(`[WS Manual][Timer] Timer callback for ${callSid} executed, but recent activity detected (${timeSinceLastActivity}ms < ${INACTIVITY_TIMEOUT_MS}ms). Not terminating. Another timer should have been scheduled by updateActivity.`);
-      }
-    }, INACTIVITY_TIMEOUT_MS);
+      server.log.debug(`[WS Manual][Timer] Scheduling inactivity termination for call ${callSid} in ${INACTIVITY_TIMEOUT_MS / 1000}s`);
+      inactivityTimeout = setTimeout(() => {
+          server.log.warn(`[WS Manual][Timer] INACTIVITY TIMEOUT fired for call ${callSid}. Terminating.`);
+          
+          // Ensure terminateCall from enhanced-call-handler is used if available, or the local one.
+          // The one from enhanced-call-handler is preferred as it updates activeCalls map.
+          // We need to ensure the correct terminateCall is in scope or passed.
+          // For now, assuming 'terminateCall' refers to the one imported from './outbound.js'
+          // or enhanced-call-handler.js if it's been set up to use that.
+          // The `terminateCall` in this file's scope is likely from `outbound.js` (imported as part of registerOutboundRoutes)
+          // Let's use the one from enhancedCallHandler if available, otherwise the one from outbound.js
+          const terminateFunction = enhancedCallHandler?.terminateCall || terminateCall; // terminateCall is also from outbound.js
+
+          if (twilioClient) { // twilioClient should be in the outer scope of server-mongodb.js
+            terminateFunction(twilioClient, callSid, { reason: 'inactivity_timeout_ws' })
+              .catch(err => server.log.error(`[WS Manual][Timer] Error terminating call ${callSid} due to inactivity:`, err));
+          } else {
+            server.log.error(`[WS Manual][Timer] twilioClient not available, cannot terminate call ${callSid}`);
+          }
+          
+          if (elevenLabsWs?.readyState === WebSocket.OPEN) {
+              server.log.warn('[WS Manual][Timer] Closing ElevenLabs WS due to inactivity.');
+              elevenLabsWs.close();
+          }
+          if (ws.readyState === WebSocket.OPEN) {
+              server.log.warn('[WS Manual][Timer] Closing Twilio WS due to inactivity.');
+              ws.close();
+          }
+      }, INACTIVITY_TIMEOUT_MS);
   };
 
   const updateActivity = () => {
-    if (!callSid) {
-      server.log.debug('[WS Manual][Timer] updateActivity called before callSid is set. Skipping timer reset.');
-      return;
-    }
-    // REMOVED: server.log.debug(`[WS Manual][Timer] Activity detected...`);
-    isTimerActive = false; // Signal that the currently scheduled timer should ignore itself
-    lastActivity = Date.now();
-    // Schedule the *next* timer check. This replaces the previous one conceptually.
-    startInactivityTimer();
+      if (!callSid) {
+          // server.log.debug('[WS Manual][Timer] updateActivity called before callSid is set. Skipping timer reset.');
+          return;
+      }
+      // server.log.debug(`[WS Manual][Timer] Activity detected for call ${callSid}. Resetting inactivity timer.`);
+      scheduleInactivityTermination(); // Clear old timer and set a new one
   };
 
   const setupElevenLabs = async () => {
@@ -690,7 +691,9 @@ wss.on('connection', (ws, request) => {
           streamSid = msg.start.streamSid; callSid = msg.start.callSid; customParameters = msg.start.customParameters || {};
           server.log.info(`[WS Manual] Received TwiML Parameters:`, customParameters); server.log.info(`[WS Manual] Twilio Stream started`, { streamSid, callSid });
           if (activeCalls.has(callSid)) { const callInfo = activeCalls.get(callSid); callInfo.streamSid = streamSid; activeCalls.set(callSid, callInfo); }
-          startInactivityTimer(); setupElevenLabs(); break;
+          scheduleInactivityTermination(); // Start the inactivity timer now that callSid is known
+          setupElevenLabs(); // This will now use the captured callSid and customParameters
+          break;
         case "media": if (elevenLabsWs?.readyState === WebSocket.OPEN && msg.media?.payload) { elevenLabsWs.send(JSON.stringify({ user_audio_chunk: msg.media.payload })); } break;
         case "stop": server.log.info(`[WS Manual] Twilio Stream ended`, { streamSid }); if (inactivityTimeout) clearTimeout(inactivityTimeout); if (elevenLabsWs?.readyState === WebSocket.OPEN) elevenLabsWs.close(); break;
         case "mark": server.log.debug(`[WS Manual] Twilio Mark: ${msg.mark?.name}`); break;
