@@ -545,7 +545,17 @@ export async function fetchCampaigns(options: {
       throw new Error(`Error fetching campaigns: ${response.statusText} for URL: ${apiUrl}`);
     }
     
-    return await response.json();
+    const result = await response.json();
+
+    // Transform _id to id for each campaign
+    if (result.success && result.data && Array.isArray(result.data.campaigns)) {
+      result.data.campaigns = result.data.campaigns.map((campaign: any) => ({
+        ...campaign,
+        id: campaign._id
+      }));
+    }
+    
+    return result;
   } catch (error) {
     return handleApiError(error, 'Failed to fetch campaigns:') as any;
   }
