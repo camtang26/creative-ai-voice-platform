@@ -562,10 +562,34 @@ wss.on('connection', (ws, request) => {
             }
           } else { server.log.warn('[WS Manual] conversation_initiation_metadata missing conversation_id'); }
 
-          const initialConfig = { /* ... same config as before ... */
+          // Prepare the first_message, replacing {name}
+          let processedFirstMessage = customParameters?.first_message || "Hello, this is an AI assistant. May I please speak with {name}?"; // Default if not provided
+          if (customParameters?.name && processedFirstMessage.includes('{name}')) {
+              processedFirstMessage = processedFirstMessage.replace(/{name}/g, customParameters.name);
+          }
+
+          // Prepare the agent config part of conversation_config_override
+          const agentConfig = {};
+          // Always send a first_message, even if it's the default or processed default
+          agentConfig.first_message = processedFirstMessage;
+
+          // Only add system_prompt if customParameters.prompt is non-empty and not just whitespace
+          if (customParameters?.prompt && customParameters.prompt.trim() !== "") {
+              agentConfig.system_prompt = customParameters.prompt;
+          }
+
+          const initialConfig = {
             type: "conversation_initiation_client_data",
-            conversation_config_override: { agent: { ...(customParameters?.first_message && { first_message: customParameters.first_message }), ...(customParameters?.prompt && { system_prompt: customParameters.prompt }) } },
-            dynamic_variables: { phone_number: customParameters?.to || "Unknown", name: customParameters?.name || "Unknown", contact_name: customParameters?.name || "Unknown", call_sid: callSid || "Unknown", campaign_id: customParameters?.campaignId || null, contact_id: customParameters?.contactId || null }
+            // Use the prepared agentConfig. Only include conversation_config_override if agentConfig has properties.
+            ...(Object.keys(agentConfig).length > 0 && { conversation_config_override: { agent: agentConfig } }),
+            dynamic_variables: {
+              phone_number: customParameters?.to || "Unknown",
+              name: customParameters?.name || "Unknown",
+              contact_name: customParameters?.name || "Unknown", // Keep for potential other uses
+              call_sid: callSid || "Unknown",
+              campaign_id: customParameters?.campaignId || null,
+              contact_id: customParameters?.contactId || null
+            }
           };
           server.log.debug('[WS Manual] Sending initial config to ElevenLabs');
           elevenLabsWs.send(JSON.stringify(initialConfig));

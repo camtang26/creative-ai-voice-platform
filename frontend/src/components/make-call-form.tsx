@@ -23,7 +23,7 @@ export function MakeCallForm() {
       prompt: formData.get('prompt') as string,
       first_message: formData.get('firstMessage') as string,
       callerId: formData.get('callerId') as string || undefined,
-      name: formData.get('contactName') as string || undefined // Add contact name
+      name: formData.get('contactName') as string // Made mandatory, will be empty string if not filled, but input is now required
     }
     
     try {
@@ -90,12 +90,13 @@ export function MakeCallForm() {
       
       <div className="space-y-2">
         <label htmlFor="contactName" className="text-sm font-medium">
-          Contact Name (Optional)
+          Contact Name
         </label>
         <input
           id="contactName"
           name="contactName"
           type="text"
+          required
           placeholder="John Doe"
           className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
         />
