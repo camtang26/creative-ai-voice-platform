@@ -807,7 +807,7 @@ export async function registerCampaignApiRoutes(fastify, options = {}) {
               name: campaignName,
               agentPrompt, // Will use default in repository if empty
               firstMessage, // Will use default in repository if empty
-              status: 'pending',
+              status: 'draft', // Corrected to a valid enum value from the schema
               contacts,
             };
 
