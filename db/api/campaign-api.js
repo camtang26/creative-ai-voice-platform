@@ -670,25 +670,38 @@ export async function registerCampaignApiRoutes(fastify, options = {}) {
 // Start campaign from CSV upload
   fastify.post('/api/db/campaigns/start-from-csv', async (request, reply) => {
     try {
+      console.log('[API /start-from-csv] Received request. Processing parts...');
       const parts = request.parts();
       let csvFileStream;
       const campaignDetails = {};
+      let fileReceived = false;
 
       for await (const part of parts) {
-        if (part.type === 'file' && part.fieldname === 'file') { // Assuming frontend sends file with fieldname 'file'
+        console.log(`[API /start-from-csv] Part fieldname: ${part.fieldname}, type: ${part.type}`);
+        if (part.type === 'file' && part.fieldname === 'file') {
           csvFileStream = part.file;
+          fileReceived = true;
+          console.log(`[API /start-from-csv] CSV file stream identified for fieldname: ${part.fieldname}`);
         } else if (part.type === 'field') {
           campaignDetails[part.fieldname] = part.value;
+          console.log(`[API /start-from-csv] Campaign detail field: ${part.fieldname}, value: "${part.value}"`);
         }
       }
+      
+      console.log('[API /start-from-csv] Finished processing parts.');
+      console.log('[API /start-from-csv] File received flag:', fileReceived);
+      console.log('[API /start-from-csv] campaignDetails content:', JSON.stringify(campaignDetails));
 
-      if (!csvFileStream) {
+      if (!csvFileStream) { // Or check fileReceived
+        console.error('[API /start-from-csv] Validation Error: CSV file stream is missing.');
         return reply.code(400).send({ success: false, error: 'CSV file is required.' });
       }
 
-      const { campaignName, agentPrompt, firstMessage } = campaignDetails; // agentPrompt and firstMessage can now be undefined/empty
+      const { campaignName, agentPrompt, firstMessage } = campaignDetails;
+      console.log(`[API /start-from-csv] Extracted - Campaign Name: "${campaignName}", Agent Prompt: "${agentPrompt}", First Message: "${firstMessage}"`);
 
-      if (!campaignName || campaignName.trim().length === 0) { // Only campaignName is strictly required
+      if (!campaignName || campaignName.trim().length === 0) {
+        console.error('[API /start-from-csv] Validation Error: Campaign name is missing or empty.');
         return reply.code(400).send({ success: false, error: 'Campaign name is required and cannot be empty.' });
       }
 
