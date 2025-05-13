@@ -66,16 +66,17 @@ export function UploadSheetForm({ campaignName, agentPrompt, firstMessage }: Upl
       const formData = new FormData();
       formData.append('file', selectedFile); // The backend expects 'file' as fieldname
 
-      if (campaignName && agentPrompt && firstMessage) {
-        formData.append('campaignName', campaignName);
-        formData.append('agentPrompt', agentPrompt);
-        formData.append('firstMessage', firstMessage);
+      // Append campaign details if campaignName prop is present (even if empty, parent handles state)
+      // The backend will use defaults for empty agentPrompt or firstMessage.
+      // CampaignName itself is validated by the button's disabled state and backend.
+      if (campaignName !== undefined) {
+        formData.append('campaignName', campaignName); // Will be at least an empty string if prop is passed
+        formData.append('agentPrompt', agentPrompt || ''); // Send empty string if undefined/null
+        formData.append('firstMessage', firstMessage || ''); // Send empty string if undefined/null
       } else {
-        // This case should ideally not be hit if button is disabled correctly,
-        // but as a fallback if it's just a file upload without campaign context.
-        // For now, our primary use case is starting a campaign.
-        console.warn('Campaign details not provided for CSV upload.');
-        // If we want to support generic file upload later, this path would be different.
+         // This block would be for a generic file upload not tied to a campaign,
+         // which is not the current use case for this form in make-call/page.tsx
+        console.warn('UploadSheetForm used without campaign context.');
       }
       
       // Actual API call

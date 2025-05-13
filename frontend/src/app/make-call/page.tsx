@@ -1,3 +1,5 @@
+"use client"; // Add "use client" directive
+
 import { useState } from 'react' // Import useState
 import { DashboardHeader } from '@/components/dashboard-header'
 import { Button } from '@/components/ui/button'
