@@ -1,6 +1,13 @@
 import crypto from 'crypto';
 import fetch from 'node-fetch';
 import Twilio from 'twilio';
+import { sendCallToCRM } from '../integrations/crm-webhook.js';
+import {
+  callRepository,
+  campaignRepository,
+  contactRepository,
+  transcriptRepository
+} from '../db/index.js';
 
 // Reference to the active calls map from outbound.js (will be set by server.js)
 let activeCalls = null;
@@ -263,90 +270,62 @@ export async function handleElevenLabsWebhook(request, secret, crmEndpoint, twil
       return { success: true, message: 'Event type ignored' };
     }
     
-    // Extract the required data
-    const status = determineCallStatus(webhookData);
-    const name = extractName(webhookData);
-    const phoneNumber = extractPhoneNumber(webhookData);
-    const summary = webhookData.data?.analysis?.transcript_summary || 'No summary available';
-    const duration = webhookData.data?.metadata?.call_duration_secs || 0;
-    
-    // Get transcripts for enhanced data
-    const transcripts = webhookData.data?.transcript || [];
-    
-    // Construct the payload for Craig's endpoint
-    const crmPayload = {
-      "type": "conversationAICall",
-      "subject": "Invitation to re-trial",
-      "to": phoneNumber,
-      "name": name,
-      "summary": summary,
-      "status": status,
-      "duration": duration,
-      "conversationId": conversationId,
-      "callSid": callSid,
-      // Add enhanced data
-      "enhanced": {
-        "messageCount": transcripts.length,
-        "userMessageCount": transcripts.filter(msg => msg.role === 'user').length,
-        "agentMessageCount": transcripts.filter(msg => msg.role === 'agent').length,
-        "transcript": transcripts.map(msg => ({
-          role: msg.role,
-          message: msg.message,
-          timestamp: msg.timestamp || null
-        }))
-      }
-    };
-    
-    // If we have recording info for this call, include it
-    if (callSid && activeCalls && activeCalls.has(callSid)) {
-      const callInfo = activeCalls.get(callSid);
-      if (callInfo.recordings && callInfo.recordings.length > 0) {
-        crmPayload.enhanced.recordings = callInfo.recordings;
-      }
+    // Extract key identifiers from the webhook
+    const webhookSummary = webhookData.data?.analysis?.transcript_summary || 'No summary available';
+    const webhookDuration = webhookData.data?.metadata?.call_duration_secs || 0;
+    // Note: status, name, phoneNumber will be preferably fetched from our DB records.
+
+    if (!callSid) {
+      console.warn('[CRM Webhook] No callSid found in post_call_transcription webhook. Cannot reliably link to CRM.');
+      return { success: false, error: 'Missing callSid for CRM webhook processing' };
     }
-    
-    console.log('[Webhook] Sending to CRM endpoint:', JSON.stringify(crmPayload, null, 2));
-    
+
     try {
-      // Send to Craig's endpoint
-      const response = await fetch(crmEndpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(crmPayload)
-      });
-      
-      let responseText = '';
-      try {
-        responseText = await response.text();
-      } catch (e) {
-        responseText = 'No response body';
+      // Fetch the full Call document
+      const callDocument = await callRepository.getCallBySid(callSid);
+      if (!callDocument) {
+        console.error(`[CRM Webhook] Call document not found for callSid: ${callSid}`);
+        return { success: false, error: `Call not found for callSid ${callSid}` };
+      }
+
+      // Fetch associated Campaign to get the subject
+      let campaignName = "Outbound Call"; // Default subject
+      if (callDocument.campaignId) {
+        const campaignDocument = await campaignRepository.getCampaignById(callDocument.campaignId);
+        if (campaignDocument) {
+          campaignName = campaignDocument.name;
+        }
       }
       
-      if (!response.ok) {
-        console.error(`[Webhook] CRM endpoint error (${response.status}): ${responseText}`);
-        return { 
-          success: false, 
-          error: 'CRM endpoint error', 
-          status: response.status,
-          details: responseText
-        };
-      }
-      
-      console.log('[Webhook] Successfully sent to CRM endpoint. Response:', responseText);
-      
-      return { 
-        success: true, 
-        message: 'Successfully processed webhook and sent to CRM',
-        crmResponse: responseText
+      // Fetch associated Contact (if contactId is on callDocument, or use phoneNumber to find)
+      // For simplicity, we'll rely on callDocument.contactName or the extracted name for now.
+      // A more robust solution might involve looking up contact by callDocument.to (phone number)
+      // if callDocument.contactId is not populated.
+      const contactName = callDocument.contactName || extractName(webhookData);
+      const finalTo = callDocument.to || extractPhoneNumber(webhookData);
+
+      const callDetailsForCRM = {
+        subject: campaignName,
+        to: finalTo,
+        name: contactName,
+        summary: webhookSummary, // Use summary from webhook as it's specific to this event
+        status: callDocument.status || determineCallStatus(webhookData), // Prefer DB status
+        duration: callDocument.duration || webhookDuration // Prefer DB duration
       };
-    } catch (fetchError) {
-      console.error('[Webhook] Error sending to CRM endpoint:', fetchError);
+
+      await sendCallToCRM(callDetailsForCRM);
+      
+      return {
+        success: true,
+        message: 'Successfully processed post_call_transcription and triggered CRM webhook'
+      };
+
+    } catch (dbError) {
+      console.error(`[CRM Webhook] Error fetching data from DB for callSid ${callSid}:`, dbError);
       return {
         success: false,
-        error: 'Failed to send to CRM endpoint',
-        details: fetchError.message
+        error: 'Database error during CRM webhook processing',
+        details: dbError.message
       };
     }
   } catch (error) {
