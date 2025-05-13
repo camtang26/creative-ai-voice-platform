@@ -694,31 +694,65 @@ export async function registerCampaignApiRoutes(fastify, options = {}) {
 
       const contacts = [];
       const processingPromises = [];
+      
+      // Define header synonyms
+      const phoneSynonyms = ['phonenumber', 'phone_number', 'phone', 'mobile', 'telephone', 'contactnumber', 'contact_number'];
+      const nameSynonyms = ['name', 'fullname', 'contactname', 'contact_name', 'customername', 'customer_name'];
+      const emailSynonyms = ['email', 'emailaddress', 'e-mail', 'email_address'];
 
-      const stream = csvFileStream.pipe(csvParser.parse({ headers: true }))
+      let headerRow = null;
+      let columnIndexMap = { phone: -1, name: -1, email: -1 };
+      let rowCount = 0;
+
+      const stream = csvFileStream.pipe(csvParser.parse({ headers: false })) // Parse without auto-headers first
         .on('error', error => {
           console.error('[API] CSV parsing error:', error);
           if (!reply.sent) {
             reply.code(500).send({ success: false, error: 'Error parsing CSV file.', details: error.message });
           }
         })
-        .on('data', async (row) => {
-          const phoneNumber = row.phoneNumber || row.phone_number || row.Phone || row.Mobile || row.phone;
-          const name = row.name || row.Name;
-          const email = row.email || row.Email;
+        .on('data', async (rowArray) => {
+          rowCount++;
+          if (!headerRow) {
+            headerRow = rowArray.map(h => String(h || '').toLowerCase().trim().replace(/\s+/g, '')); // Normalize headers
+            
+            headerRow.forEach((header, index) => {
+              if (phoneSynonyms.includes(header)) columnIndexMap.phone = index;
+              if (nameSynonyms.includes(header)) columnIndexMap.name = index;
+              if (emailSynonyms.includes(header)) columnIndexMap.email = index;
+            });
 
-          if (phoneNumber && String(phoneNumber).trim()) {
+            // Basic check: if phone column not found by header, try to infer by content (simple regex)
+            // This is a very basic heuristic and can be expanded.
+            if (columnIndexMap.phone === -1) {
+                // Try to find a column that looks like phone numbers in the first few data rows (if available)
+                // For simplicity, we'll just error out if not found by header for now.
+                // A more advanced version would buffer a few rows to make this inference.
+                console.warn('[API] Phone number column header not identified clearly. Will rely on first column or content sniffing if implemented.');
+            }
+            
+            // If critical phone header is still not found, we might have to stop or use a default.
+            // For now, if not found, subsequent rows will likely fail to get a phone number.
+            return; // Skip processing the header row as data
+          }
+
+          // Process data rows using columnIndexMap
+          const phoneNumber = columnIndexMap.phone !== -1 ? String(rowArray[columnIndexMap.phone] || '').trim() : String(rowArray[0] || '').trim(); // Fallback to first column if not mapped
+          const name = columnIndexMap.name !== -1 ? String(rowArray[columnIndexMap.name] || '').trim() : '';
+          const email = columnIndexMap.email !== -1 ? String(rowArray[columnIndexMap.email] || '').trim() : '';
+          
+          if (phoneNumber && phoneNumber.length > 0) {
             const contactData = {
-              phoneNumber: String(phoneNumber).trim(),
-              name: name ? String(name).trim() : '',
-              email: email ? String(email).trim() : '',
+              phoneNumber,
+              name,
+              email,
               status: 'active',
             };
             
             processingPromises.push(
               (async () => {
                 try {
-                  let existingContact = await findContactByPhoneNumber(contactData.phoneNumber);
+                  let existingContact = await getContactByPhoneNumber(contactData.phoneNumber);
                   if (existingContact) {
                     contacts.push(existingContact._id.toString());
                   } else {
@@ -726,20 +760,28 @@ export async function registerCampaignApiRoutes(fastify, options = {}) {
                     contacts.push(savedContact._id.toString());
                   }
                 } catch (contactError) {
-                  console.error(`[API] Error processing contact row: ${JSON.stringify(row)}, Error: ${contactError}`);
+                  console.error(`[API] Error processing contact data: ${JSON.stringify(contactData)}, Error: ${contactError}`);
                 }
               })()
             );
           } else {
-            console.warn(`[API] Skipping row due to missing phone number: ${JSON.stringify(row)}`);
+            console.warn(`[API] Skipping row ${rowCount} due to missing or empty phone number: ${JSON.stringify(rowArray)}`);
           }
         });
       
       await new Promise((resolve, reject) => {
-        stream.on('end', async (rowCount) => {
+        stream.on('end', async () => { // rowCount from fast-csv is not reliable with headers:false
           try {
-            await Promise.all(processingPromises); 
-            console.log(`[API] Parsed ${rowCount !== undefined ? rowCount : 'unknown'} rows from CSV. Processed ${contacts.length} contacts for campaign.`);
+            await Promise.all(processingPromises);
+            const actualDataRowCount = headerRow ? rowCount - 1 : rowCount;
+            console.log(`[API] Processed ${actualDataRowCount} data rows from CSV. Found ${contacts.length} valid contacts for campaign.`);
+
+            if (columnIndexMap.phone === -1 && contacts.length === 0 && actualDataRowCount > 0) {
+                 if (!reply.sent) {
+                    reply.code(400).send({ success: false, error: 'Could not identify a phone number column in the CSV. Please ensure your CSV has a clear header for phone numbers (e.g., "Phone", "Mobile", "phoneNumber") or that phone numbers are in the first column.' });
+                 }
+                 return resolve();
+            }
 
             if (contacts.length === 0) {
               if (!reply.sent) {
@@ -750,9 +792,9 @@ export async function registerCampaignApiRoutes(fastify, options = {}) {
             
             const campaignData = {
               name: campaignName,
-              agentPrompt,
-              firstMessage,
-              status: 'pending', 
+              agentPrompt, // Will use default in repository if empty
+              firstMessage, // Will use default in repository if empty
+              status: 'pending',
               contacts,
             };
 
@@ -775,10 +817,10 @@ export async function registerCampaignApiRoutes(fastify, options = {}) {
             if (!reply.sent) {
                reply.code(500).send({ success: false, error: 'Database error after CSV processing.', details: dbError.message });
             }
-            reject(dbError); 
+            reject(dbError);
           }
         });
-        stream.on('error', (streamError) => {
+        stream.on('error', (streamError) => { // Catch errors from the stream itself
             console.error('[API] CSV Stream processing error:', streamError);
             if (!reply.sent) {
                 reply.code(500).send({ success: false, error: 'Error processing CSV stream.', details: streamError.message });
