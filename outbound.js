@@ -234,6 +234,7 @@ export async function makeOutboundCall(params) { // Added export
 
     console.log(`[Outbound Call] Initiating call to ${to} with URL: ${twimlUrl} (Region: ${region})`);
     console.log(`[Outbound Call] Status callback URL: ${statusCallbackUrl}`);
+    console.log(`[Outbound Call] AMD Status callback URL: ${baseUrl}/amd-status-callback`); // Log the AMD URL
 
     // Make the call with Twilio
     const twilioTimer = createTimer('Twilio Call Creation').start();
@@ -260,6 +261,7 @@ export async function makeOutboundCall(params) { // Added export
       machineDetectionSilenceTimeout: 5000,
       asyncAmd: 'true',
       amdStatusCallback: `${baseUrl}/amd-status-callback`,
+      amdStatusCallbackMethod: 'POST', // Explicitly set method for AMD callback
       fallbackUrl: `${baseUrl}/fallback-twiml`,
       fallbackMethod: 'POST',
       timeout: 60,
