@@ -564,12 +564,13 @@ export async function fetchCampaigns(options: {
 /**
  * Fetch a specific campaign by ID
  * @param {string} campaignId - The campaign ID
- * @returns {Promise<{success: boolean, data: CampaignConfig}>}
+ * @returns {Promise<{success: boolean, campaign?: CampaignConfig, error?: string}>}
  */
-export async function fetchCampaign(campaignId: string) {
+export async function fetchCampaign(campaignId: string): Promise<{success: boolean, campaign?: CampaignConfig, error?: string}> {
   try {
     if (!campaignId) {
-      throw new Error('Campaign ID is required');
+      // Consistent error structure
+      return { success: false, error: 'Campaign ID is required' };
     }
     
     // Use getApiUrl with the correct full path
@@ -577,12 +578,38 @@ export async function fetchCampaign(campaignId: string) {
     const response = await fetch(apiUrl);
     
     if (!response.ok) {
-      throw new Error(`Error fetching campaign: ${response.statusText} for URL: ${apiUrl}`);
+      let errorMsg = `Error fetching campaign: ${response.status} ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        errorMsg = errorBody?.error || errorMsg; // Use backend error if available
+      } catch (e) {
+        // Ignore if error response is not JSON
+      }
+      console.error(`[API Fetch] Failed fetch for ${apiUrl}. Status: ${response.status}. Error: ${errorMsg}`);
+      return { success: false, error: errorMsg };
     }
     
-    return await response.json();
+    const rawCampaignData = await response.json();
+
+    if (rawCampaignData && typeof rawCampaignData === 'object' && rawCampaignData._id) {
+      // Assuming the backend returns the campaign object directly on success
+      // And it might contain _id instead of id
+      const campaign = { ...rawCampaignData, id: rawCampaignData._id } as CampaignConfig;
+      // delete (campaign as any)._id; // Optional: remove _id if not needed elsewhere
+      return { success: true, campaign: campaign };
+    } else if (rawCampaignData && rawCampaignData.success === false && rawCampaignData.error) {
+      // Handle cases where backend itself returns a { success: false, error: ... }
+      return { success: false, error: rawCampaignData.error };
+    } else {
+      // If the response is not the expected campaign object or a known error structure
+      console.error(`[API Fetch] Unexpected response structure for ${apiUrl}:`, rawCampaignData);
+      return { success: false, error: 'Unexpected response structure from server.' };
+    }
+
   } catch (error) {
-    return handleApiError(error, `Failed to fetch campaign ${campaignId}:`) as any;
+    // This catch block handles network errors or other unexpected issues during fetch
+    const apiError = handleApiError(error, `Network or other error fetching campaign ${campaignId}:`);
+    return { success: false, error: apiError.error }; // Adapt to expected return type
   }
 }
 
