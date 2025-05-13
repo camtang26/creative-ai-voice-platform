@@ -562,37 +562,39 @@ wss.on('connection', (ws, request) => {
             }
           } else { server.log.warn('[WS Manual] conversation_initiation_metadata missing conversation_id'); }
 
-          const agentConfig = {};
+          const agentOverrideConfig = {};
 
-          // Handle first_message override
+          // Handle first_message override FROM THE FORM ONLY
           if (customParameters?.first_message && customParameters.first_message.trim() !== "") {
-            let processedFirstMessage = customParameters.first_message;
-            if (customParameters?.name && processedFirstMessage.includes('{name}')) {
-              processedFirstMessage = processedFirstMessage.replace(/{name}/g, customParameters.name);
-            }
-            agentConfig.first_message = processedFirstMessage;
+              // If a first message is provided in the form, use it.
+              // Replace {name} in THIS form-provided message if applicable.
+              let formFirstMessage = customParameters.first_message;
+              if (customParameters?.name && formFirstMessage.includes('{name}')) {
+                  formFirstMessage = formFirstMessage.replace(/{name}/g, customParameters.name);
+              }
+              agentOverrideConfig.first_message = formFirstMessage;
           }
-          // If customParameters.first_message is empty, we don't set agentConfig.first_message,
-          // allowing ElevenLabs to use its own default. The 'name' in dynamic_variables will be available for it.
+          // If customParameters.first_message (from form) is EMPTY,
+          // agentOverrideConfig will NOT have a first_message property.
+          // This allows ElevenLabs to use its own configured default first message.
+          // The 'name' in dynamic_variables below will be used by EL for its template.
 
-          // Handle system_prompt override
-          // Only add system_prompt if customParameters.prompt is non-empty and not just whitespace
+          // Handle system_prompt override from the form
           if (customParameters?.prompt && customParameters.prompt.trim() !== "") {
-            agentConfig.system_prompt = customParameters.prompt;
+              agentOverrideConfig.system_prompt = customParameters.prompt;
           }
 
           const initialConfig = {
-            type: "conversation_initiation_client_data",
-            // Only include conversation_config_override if agentConfig has any properties to override
-            ...(Object.keys(agentConfig).length > 0 && { conversation_config_override: { agent: agentConfig } }),
-            dynamic_variables: {
-              phone_number: customParameters?.to || "Unknown",
-              name: customParameters?.name || "Unknown", // This makes 'name' available for EL's default messages
-              contact_name: customParameters?.name || "Unknown",
-              call_sid: callSid || "Unknown",
-              campaign_id: customParameters?.campaignId || null,
-              contact_id: customParameters?.contactId || null
-            }
+              type: "conversation_initiation_client_data",
+              // Only include conversation_config_override if agentOverrideConfig has any properties to override
+              ...(Object.keys(agentOverrideConfig).length > 0 && { conversation_config_override: { agent: agentOverrideConfig } }),
+              dynamic_variables: {
+                  phone_number: customParameters?.to || "Unknown",
+                  name: customParameters?.name || "Unknown", // This is what EL should use for its {{name}} template
+                  call_sid: callSid || "Unknown",
+                  campaign_id: customParameters?.campaignId || null,
+                  contact_id: customParameters?.contactId || null
+              }
           };
           server.log.debug('[WS Manual] Sending initial config to ElevenLabs');
           elevenLabsWs.send(JSON.stringify(initialConfig));
