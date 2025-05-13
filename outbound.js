@@ -256,7 +256,7 @@ export async function makeOutboundCall(params) { // Added export
         'completed', 'busy', 'no-answer', 'canceled', 'failed'
       ],
       statusCallbackMethod: 'POST',
-      machineDetection: 'Enable',
+      machineDetection: 'DetectMessageEnd', // Changed from 'Enable' based on Twilio blog example
       machineDetectionTimeout: 10,
       machineDetectionSilenceTimeout: 5000,
       asyncAmd: 'true',
@@ -268,6 +268,13 @@ export async function makeOutboundCall(params) { // Added export
       timeLimit: 600
     });
     twilioTimer.stop();
+
+    // Log the actual parameters sent by the Twilio SDK
+    if (twilioClient.lastRequest && twilioClient.lastRequest.params) {
+      console.log('[Outbound Call] Twilio SDK Request Params:', JSON.stringify(twilioClient.lastRequest.params, null, 2));
+    } else {
+      console.log('[Outbound Call] Twilio SDK lastRequest or params not available for logging.');
+    }
 
     // Track this call in our statistics
     trackCallStart();
