@@ -590,16 +590,25 @@ export async function fetchCampaign(campaignId: string): Promise<{success: boole
     }
     
     const result = await response.json();
-    // Correctly unwrap campaign data from response.data.data
-    if (result.success && result.data && result.data.data) {
+    // Correctly unwrap campaign data from result.data
+    if (result.success && result.data) {
       // Ensure _id is mapped to id
-      const campaignData = result.data.data;
-      const campaign = { ...campaignData, id: campaignData._id };
-      delete campaign._id;
-      return { success: true, campaign };
+      const campaignDataFromResponse = result.data; // Campaign object is directly in result.data
+      
+      // Check if campaignDataFromResponse is an object and not null
+      if (typeof campaignDataFromResponse === 'object' && campaignDataFromResponse !== null && campaignDataFromResponse._id) {
+        const campaign = { ...campaignDataFromResponse, id: campaignDataFromResponse._id };
+        // delete campaign._id; // Optionally remove _id if not needed on the frontend object
+        return { success: true, campaign: campaign as CampaignConfig };
+      } else {
+        // Handle case where result.data is not the expected campaign object structure
+        const errorMessage = 'Unexpected response structure: campaign data is malformed.';
+        console.error(`Error in campaign response for ${campaignId}:`, errorMessage, result.data);
+        return { success: false, error: errorMessage };
+      }
     } else {
-      // Handle cases where success is true but no data, or success is false, or data.data is missing
-      const errorMessage = result.error || (result.data && !result.data.data ? 'Unexpected response structure from server' : 'Campaign data not found or error in response.');
+      // Handle cases where success is true but no data, or success is false
+      const errorMessage = result.error || 'Campaign data not found or error in response.';
       console.error(`Error in campaign response for ${campaignId}:`, errorMessage);
       return { success: false, error: errorMessage };
     }
