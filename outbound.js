@@ -260,8 +260,8 @@ export async function makeOutboundCall(params) { // Added export
       machineDetectionTimeout: 10,
       machineDetectionSilenceTimeout: 5000,
       asyncAmd: 'true',
-      AsyncAmdStatusCallback: `${baseUrl}/amd-status-callback`,
-      AsyncAmdStatusCallbackMethod: 'POST', // Explicitly set method for AMD callback
+      asyncAmdStatusCallback: `${baseUrl}/amd-status-callback`, // Changed to camelCase
+      asyncAmdStatusCallbackMethod: 'POST', // Changed to camelCase
       fallbackUrl: `${baseUrl}/fallback-twiml`,
       fallbackMethod: 'POST',
       timeout: 60,
