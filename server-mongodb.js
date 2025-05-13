@@ -135,7 +135,7 @@ server.register(fastifySocketIO, {
 // REMOVED: @fastify/websocket registration
 server.register(fastifyFormBody);
 server.register(fastifyMultipart, {
-  attachFieldsToBody: true, // Make non-file fields available on request.body
+  // attachFieldsToBody: true, // Let's remove this to see if request.parts() works as expected
   // limits: { // Optional: configure limits
   //   fieldNameSize: 100, // Max field name size in bytes
   //   fieldSize: 1000000, // Max field value size in bytes
