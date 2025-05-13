@@ -13,7 +13,8 @@ import {
   BarChart3,
   Activity
 } from 'lucide-react'
-import { useSocket } from '@/lib/socket-context'
+import { useSocket, CampaignUpdate } from '@/lib/socket-context' // Assuming CampaignUpdate is a relevant type for 'update' param
+import { CampaignConfig } from '@/lib/types'; // Added CampaignConfig import
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
@@ -31,14 +32,23 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { RealTimeStatusIndicator } from '@/components/real-time-status-indicator'
 import { CampaignProgressChart } from '@/components/campaign-progress-chart'
 
+// Define a new interface for the component's state, extending CampaignConfig
+interface MonitoredCampaignData extends CampaignConfig {
+  progress?: number;
+  // stats is now inherited from CampaignConfig as stats?: CampaignStats
+  startTime?: string; // Or Date, from socket data
+  lastUpdated?: string; // Or Date, from socket data
+  // Potentially other fields from socket updates
+}
+
 interface EnhancedCampaignMonitoringProps {
   campaignId: string
-  initialData?: any
+  initialData?: MonitoredCampaignData | null // Use new type
 }
 
 export function EnhancedCampaignMonitoring({ campaignId, initialData }: EnhancedCampaignMonitoringProps) {
   const { socket, isConnected, subscribeToCampaign, unsubscribeFromCampaign } = useSocket()
-  const [campaignData, setCampaignData] = useState<any>(initialData || null)
+  const [campaignData, setCampaignData] = useState<MonitoredCampaignData | null>(initialData || null) // Use new type
   const [loading, setLoading] = useState(true)
   const [recentCalls, setRecentCalls] = useState<any[]>([])
   const [isSubscribed, setIsSubscribed] = useState(false)
@@ -76,13 +86,27 @@ export function EnhancedCampaignMonitoring({ campaignId, initialData }: Enhanced
   useEffect(() => {
     if (!socket) return
 
-    const handleCampaignData = (data: any) => {
+    // Assuming 'data' from socket might be a CampaignUpdate or similar
+    // For robust typing, a specific type for socket campaign data should be used.
+    // Type 'data' based on expected socket message structure, possibly CampaignUpdate or a part of it
+    const handleCampaignData = (data: Partial<MonitoredCampaignData> & { campaignId: string; type?: string; stats?: any; calls?: any[] }) => { // Added stats, calls to data type
       console.log('Received campaign data:', data)
       if (data.campaignId === campaignId) {
-        setCampaignData(prevData => ({
-          ...prevData,
-          ...data
-        }))
+        setCampaignData((prevData: MonitoredCampaignData | null) => {
+          const newCampaignData = {
+            ...(prevData || {} as CampaignConfig), // Ensure prevData starts as CampaignConfig if null
+            ...data,
+            id: prevData?.id || data.campaignId || '',
+            name: data.name || prevData?.name || '',
+            status: data.status || prevData?.status || 'unknown',
+          } as MonitoredCampaignData;
+          Object.keys(newCampaignData).forEach(key => {
+            if (newCampaignData[key as keyof MonitoredCampaignData] === undefined) {
+              delete newCampaignData[key as keyof MonitoredCampaignData];
+            }
+          });
+          return newCampaignData;
+        });
         setLoading(false)
         setLastActivity(new Date())
         
@@ -98,26 +122,47 @@ export function EnhancedCampaignMonitoring({ campaignId, initialData }: Enhanced
       }
     }
 
-    const handleCampaignUpdate = (update: any) => {
+    const handleCampaignUpdate = (update: CampaignUpdate) => { // Use exported CampaignUpdate
       console.log('Received campaign update:', update)
       if (update.campaignId === campaignId) {
         // Handle different update types
-        if (update.type === 'status_update') {
-          setCampaignData(prevData => ({
-            ...prevData,
-            status: update.data.status,
-            ...update.data
-          }))
+        if (update.type === 'status_update' && update.data) {
+          setCampaignData((prevData: MonitoredCampaignData | null) => {
+            const newStatusData = {
+              ...(prevData || {} as CampaignConfig),
+              status: update.data.status,
+              ...update.data,
+              id: prevData?.id || update.campaignId || '',
+              name: prevData?.name || '',
+            } as MonitoredCampaignData;
+            Object.keys(newStatusData).forEach(key => {
+              if (newStatusData[key as keyof MonitoredCampaignData] === undefined) {
+                delete newStatusData[key as keyof MonitoredCampaignData];
+              }
+            });
+            return newStatusData;
+          });
           setLastActivity(new Date())
           setStateChangeIndicator('status_changed')
           setTimeout(() => setStateChangeIndicator(null), 3000)
-        } else if (update.type === 'progress_update') {
-          setCampaignData(prevData => ({
-            ...prevData,
-            progress: update.data.progress,
-            stats: update.data.stats,
-            lastUpdated: update.timestamp
-          }))
+        } else if (update.type === 'progress_update' && update.data) {
+          setCampaignData((prevData: MonitoredCampaignData | null) => {
+            const newProgressData = {
+              ...(prevData || {} as CampaignConfig),
+              progress: update.data.progress,
+              stats: update.data.stats,
+              lastUpdated: update.timestamp,
+              id: prevData?.id || update.campaignId || '', // Ensure id
+              name: prevData?.name || '', // Ensure name
+              status: prevData?.status || 'unknown', // Ensure status
+            } as MonitoredCampaignData;
+            Object.keys(newProgressData).forEach(key => {
+              if (newProgressData[key as keyof MonitoredCampaignData] === undefined) {
+                delete newProgressData[key as keyof MonitoredCampaignData];
+              }
+            });
+            return newProgressData;
+          });
           setLastActivity(new Date())
           
           // Calculate call rate if we have stats
@@ -333,7 +378,7 @@ export function EnhancedCampaignMonitoring({ campaignId, initialData }: Enhanced
         </Card>
         
         <Card className={cn(
-          campaignData?.stats?.callsPlaced && campaignData.stats.callsPlaced > 0 ? 'border-blue-200' : ''
+          campaignData?.stats?.total_calls && campaignData.stats.total_calls > 0 ? 'border-blue-200' : ''
         )}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -343,10 +388,10 @@ export function EnhancedCampaignMonitoring({ campaignId, initialData }: Enhanced
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {campaignData?.stats?.totalContacts || 0}
+              {campaignData?.stats?.total_calls || 0}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {campaignData?.stats?.callsPlaced || 0} calls placed
+              {campaignData?.stats?.total_calls || 0} calls placed
               {callRate > 0 && (
                 <span className="ml-1">({callRate} calls/min)</span>
               )}
@@ -355,7 +400,7 @@ export function EnhancedCampaignMonitoring({ campaignId, initialData }: Enhanced
         </Card>
         
         <Card className={cn(
-          campaignData?.stats?.successfulCalls && campaignData.stats.successfulCalls > 0 ? 'border-green-200' : ''
+          campaignData?.stats?.completed_calls && campaignData.stats.completed_calls > 0 ? 'border-green-200' : ''
         )}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -365,16 +410,16 @@ export function EnhancedCampaignMonitoring({ campaignId, initialData }: Enhanced
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {campaignData?.stats?.successfulCalls || 0}
+              {campaignData?.stats?.completed_calls || 0}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {campaignData?.stats?.successRate || 0}% success rate
+              {campaignData?.stats?.success_rate || 0}% success rate
             </p>
           </CardContent>
         </Card>
         
         <Card className={cn(
-          campaignData?.stats?.averageDuration && campaignData.stats.averageDuration > 0 ? 'border-blue-200' : ''
+          campaignData?.stats?.average_duration && campaignData.stats.average_duration > 0 ? 'border-blue-200' : ''
         )}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -384,13 +429,13 @@ export function EnhancedCampaignMonitoring({ campaignId, initialData }: Enhanced
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {campaignData?.stats?.averageDuration 
-                ? formatDuration(campaignData.stats.averageDuration)
+              {campaignData?.stats?.average_duration
+                ? formatDuration(campaignData.stats.average_duration)
                 : '0:00'
               }
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {campaignData?.stats?.callsCompleted || 0} completed calls
+              {campaignData?.stats?.completed_calls || 0} completed calls
             </p>
           </CardContent>
         </Card>

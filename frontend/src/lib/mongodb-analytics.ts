@@ -32,18 +32,18 @@ interface DashboardSummary {
   averageDuration: number;
 }
 
-interface CallVolumeData {
+export interface CallVolumeData { // Export the interface
   date: string;
   count: number;
 }
 
-interface SentimentData {
+export interface SentimentData { // Export the interface
   sentiment: string;
   count: number;
   percentage: number;
 }
 
-interface AgentPerformanceData {
+export interface AgentPerformanceData { // Export the interface
   agent: string;
   successRate: number;
   callsPerDay: number;
@@ -51,12 +51,12 @@ interface AgentPerformanceData {
   qualityScore: number;
 }
 
-interface TopicDistributionData {
+export interface TopicDistributionData { // Export the interface
   name: string;
   value: number;
 }
 
-interface SuccessRateData {
+export interface SuccessRateData { // Export the interface
   date: string;
   success: number;
 }
@@ -512,6 +512,47 @@ export async function fetchCampaignComparison(campaignIds: string[]): Promise<Ap
     return {
       success: false,
       error: error instanceof Error ? error.message : 'An unknown error occurred'
+    };
+  }
+}
+
+/**
+ * Fetch call history for a specific entity (e.g., contact)
+ * @param {string} entityId - The ID of the entity (e.g., contactId)
+ * @param {Object} options - Pagination options
+ * @returns {Promise<ApiResponse<any>>} // Replace 'any' with a proper CallHistory type
+ */
+export async function fetchCallHistory(
+  entityId: string,
+  options: { limit?: number; page?: number, entityType?: string } = {}
+): Promise<ApiResponse<any>> {
+  try {
+    if (!entityId) {
+      throw new Error('Entity ID is required to fetch call history.');
+    }
+    
+    const params = new URLSearchParams();
+    if (options.limit) params.append('limit', options.limit.toString());
+    if (options.page) params.append('page', options.page.toString());
+    if (options.entityType) params.append('entityType', options.entityType); // e.g., 'contact'
+
+    // Assuming an endpoint like /api/db/analytics/call-history/:entityId
+    // Or /api/db/calls?contactId=:entityId if filtering calls directly
+    const apiUrl = getApiUrl(`/api/db/analytics/call-history/${entityId}?${params.toString()}`);
+    const response = await fetch(apiUrl);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to fetch call history for ${entityId}: ${errorText} for URL: ${apiUrl}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching call history for ${entityId}:`, error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'An unknown error occurred'
+      // data will be undefined by default
     };
   }
 }

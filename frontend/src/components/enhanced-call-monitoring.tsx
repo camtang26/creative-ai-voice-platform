@@ -85,7 +85,7 @@ export function EnhancedCallMonitoring({ campaignId, maxCalls = 5, className }: 
       setLoading(false)
     } else {
       setFilteredCalls([])
-      setLoading(socket && !isConnected) // Only show loading if socket exists but not connected
+      setLoading(!!(socket && !isConnected)) // Coerce to boolean
     }
   }, [activeCalls, campaignId, maxCalls, socket, isConnected])
 
@@ -557,8 +557,8 @@ export function EnhancedCallMonitoring({ campaignId, maxCalls = 5, className }: 
           Total active: {filteredCalls.filter(call => isActiveCall(call.status)).length}
         </div>
         <div>
-          {callActivity[selectedCallSid]?.lastActivity && (
-            <span>Last activity: {new Date(callActivity[selectedCallSid].lastActivity).toLocaleTimeString()}</span>
+          {selectedCallSid && callActivity[selectedCallSid]?.lastActivity && (
+            <span>Last activity: {new Date(callActivity[selectedCallSid]!.lastActivity).toLocaleTimeString()}</span>
           )}
         </div>
       </CardFooter>

@@ -228,8 +228,8 @@ export default function NewCampaignPage() {
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between">
         <DashboardHeader 
-          heading="Create Campaign" 
-          text="Create a new outbound calling campaign." 
+          title="Create Campaign"
+          description="Create a new outbound calling campaign."
         />
         <Button variant="outline" asChild>
           <Link href="/campaigns">

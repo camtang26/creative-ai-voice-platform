@@ -182,7 +182,7 @@ export default function ReportDetailPage({ params }: { params: { id: string }}) 
     return (
       <div className="flex-1 space-y-4 p-8 pt-6">
         <div className="flex items-center justify-between">
-          <DashboardHeader heading="Report Error" text="An error occurred while loading the report." />
+          <DashboardHeader title="Report Error" description="An error occurred while loading the report." />
           <Button 
             variant="outline"
             onClick={() => router.push('/reports')}
@@ -215,7 +215,7 @@ export default function ReportDetailPage({ params }: { params: { id: string }}) 
     return (
       <div className="flex-1 space-y-4 p-8 pt-6">
         <div className="flex items-center justify-between">
-          <DashboardHeader heading="Report Not Found" text="The requested report could not be found." />
+          <DashboardHeader title="Report Not Found" description="The requested report could not be found." />
           <Button 
             variant="outline"
             onClick={() => router.push('/reports')}
@@ -241,8 +241,8 @@ export default function ReportDetailPage({ params }: { params: { id: string }}) 
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between">
         <DashboardHeader 
-          heading={report.name} 
-          text={report.description || 'View report details and visualizations'} 
+          title={report.name}
+          description={report.description || 'View report details and visualizations'}
         />
         <div className="flex gap-2">
           <Button 

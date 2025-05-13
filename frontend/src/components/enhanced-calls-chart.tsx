@@ -41,7 +41,7 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { CallActivity, fetchCallActivity } from "@/lib/dashboard-api"
+import { CallActivityData, fetchCallActivity } from "@/lib/dashboard-api" // Changed CallActivity to CallActivityData
 
 const chartConfig = {
   calls: {
@@ -56,7 +56,7 @@ const chartConfig = {
 
 export function EnhancedCallsChart() {
   const [isLoading, setIsLoading] = React.useState(true);
-  const [callActivityData, setCallActivityData] = React.useState<CallActivity[]>([]);
+  const [callActivityData, setCallActivityData] = React.useState<CallActivityData[]>([]); // Changed to CallActivityData
   const [dateRange, setDateRange] = React.useState<string>("30d")
   const [activeView, setActiveView] = React.useState<"calls" | "duration">("calls")
 
@@ -68,8 +68,9 @@ export function EnhancedCallsChart() {
         const days = dateRange === 'all' ? 90 : parseInt(dateRange.replace("d", ""));
         const data = await fetchCallActivity('day', days);
         // Map the data to the expected format
-        if (data.durationStats && data.durationStats.length > 0) {
-          setCallActivityData(data.durationStats);
+        // data from fetchCallActivity is CallActivityData[]
+        if (data && data.length > 0) {
+          setCallActivityData(data); // data is the array of stats
         } else {
           // Fallback to empty array if no data
           setCallActivityData([]);
@@ -95,16 +96,16 @@ export function EnhancedCallsChart() {
     const days = parseInt(dateRange.replace("d", ""));
     const startDate = new Date(now.setDate(now.getDate() - days));
     
-    return callActivityData.filter(item => new Date(item.date) >= startDate);
+    return callActivityData.filter(item => new Date(item.period) >= startDate); // Changed item.date to item.period
   }, [dateRange, callActivityData]);
 
   const totalCalls = React.useMemo(() => 
-    filteredData.reduce((acc, curr) => acc + curr.calls, 0),
+    filteredData.reduce((acc, curr) => acc + curr.callVolume, 0), // Changed curr.calls to curr.callVolume
     [filteredData]
   );
 
   const avgDuration = React.useMemo(() => {
-    const total = filteredData.reduce((acc, curr) => acc + curr.duration, 0);
+    const total = filteredData.reduce((acc, curr) => acc + curr.callDuration, 0); // Changed curr.duration to curr.callDuration
     return filteredData.length ? (total / filteredData.length / 60).toFixed(1) : 0;
   }, [filteredData]);
 

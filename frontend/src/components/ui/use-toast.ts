@@ -1,4 +1,5 @@
 // Adapted from shadcn-ui toast component
+import * as React from "react"; // Ensure React is imported
 import { useState, useEffect, useCallback } from "react";
 
 export interface ToastProps {
@@ -6,9 +7,15 @@ export interface ToastProps {
   description?: string;
   variant?: "default" | "destructive";
   duration?: number;
+  action?: React.ReactElement; // Add optional action property
 }
 
 const DEFAULT_TOAST_DURATION = 5000;
+
+// Internal type for toast state including the ID
+interface ToastWithId extends ToastProps {
+  id: number;
+}
 
 export function toast(props: ToastProps) {
   // In a real implementation, this would use a context
@@ -18,7 +25,8 @@ export function toast(props: ToastProps) {
 }
 
 export function useToast() {
-  const [toasts, setToasts] = useState<ToastProps[]>([]);
+  // Use the internal type for the state array
+  const [toasts, setToasts] = useState<ToastWithId[]>([]);
 
   const addToast = useCallback((props: ToastProps) => {
     const id = Date.now();
@@ -32,6 +40,7 @@ export function useToast() {
     
     if (newToast.duration > 0) {
       setTimeout(() => {
+        // prevToasts is now correctly typed as ToastWithId[]
         setToasts((prevToasts) => prevToasts.filter((t) => t.id !== id));
       }, newToast.duration);
     }
@@ -40,6 +49,7 @@ export function useToast() {
   }, []);
 
   const removeToast = useCallback((id: number) => {
+    // prevToasts is now correctly typed as ToastWithId[]
     setToasts((prevToasts) => prevToasts.filter((t) => t.id !== id));
   }, []);
 

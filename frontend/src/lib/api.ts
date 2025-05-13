@@ -359,7 +359,7 @@ export async function saveCampaign(campaign: CampaignConfig) {
 /**
  * Fetch all campaigns
  */
-export async function fetchCampaigns() {
+export async function fetchCampaigns(): Promise<{ success: boolean, campaigns?: CampaignConfig[], pagination?: any, error?: string }> { // Added explicit return type
   if (USE_MOCK_DATA) {
     console.log('[API] Using mock data for campaigns');
     return mockCampaigns;
@@ -689,7 +689,7 @@ export async function generateReport(reportId: string, format: string = 'pdf') {
 /**
  * Export data
  */
-export async function exportData(type: string, options: any) {
+export async function exportData(type: string, options: any): Promise<{ success: boolean; error?: string }> {
   if (USE_MOCK_DATA) {
     console.log(`[API] Using mock data for exporting ${type}`);
     // Create a fake download for development
@@ -739,23 +739,8 @@ export async function exportData(type: string, options: any) {
     return { success: true };
   } catch (error) {
     console.error(`Failed to export ${type} data:`, error);
-    console.log('[API] Falling back to mock data');
-
-    // Create a fake download for development
-    const blob = new Blob(['Mock export data for ' + type], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-
-    // Create and trigger a download link
-    const a = document.createElement('a');
-    a.style.display = 'none';
-    a.href = url;
-    a.download = options.filename || `export-${type}-${new Date().toISOString().slice(0, 10)}.${type}`;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
-
-    return { success: true };
+    return { success: false, error: (error instanceof Error ? error.message : String(error)) };
+    // All subsequent lines in the catch block related to mock download or erroneous return are removed.
   }
 }
 

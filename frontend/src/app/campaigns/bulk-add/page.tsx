@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react' // Import Suspense
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { 
@@ -42,7 +42,8 @@ import { fetchContacts } from '@/lib/mongodb-contacts'
 import { fetchCampaigns, fetchCampaign } from '@/lib/api'
 import { Contact, CampaignConfig } from '@/lib/types'
 
-export default function BulkAddContactsPage() {
+// Rename the original component to indicate it's the client part
+function BulkAddContactsClient() {
   const [availableContacts, setAvailableContacts] = useState<Contact[]>([])
   const [selectedContactIds, setSelectedContactIds] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState('')
@@ -94,11 +95,11 @@ export default function BulkAddContactsPage() {
         setAvailableContacts(response.data.contacts)
       } else {
         // Use mock data for development
-        const mockContacts = Array.from({ length: 10 }, (_, i) => ({
+        const mockContacts: Contact[] = Array.from({ length: 10 }, (_, i) => ({
           id: `contact-${i + 1}`,
           name: `Contact ${i + 1}`,
           phoneNumber: `+614${Math.floor(Math.random() * 10000000).toString().padStart(8, '0')}`,
-          status: i % 5 === 0 ? 'inactive' : 'active',
+          status: i % 5 === 0 ? 'inactive' : 'active', // These are valid ContactStatus values
           tags: i % 2 === 0 ? ['lead'] : ['prospect']
         }))
         setAvailableContacts(mockContacts)
@@ -112,7 +113,7 @@ export default function BulkAddContactsPage() {
       })
       
       // Use mock data on error
-      const mockContacts = Array.from({ length: 10 }, (_, i) => ({
+      const mockContacts: Contact[] = Array.from({ length: 10 }, (_, i) => ({ // Added Contact[] type
         id: `contact-${i + 1}`,
         name: `Contact ${i + 1}`,
         phoneNumber: `+614${Math.floor(Math.random() * 10000000).toString().padStart(8, '0')}`,
@@ -134,11 +135,13 @@ export default function BulkAddContactsPage() {
         setCampaigns(response.campaigns)
       } else {
         // Use mock data for development
-        const mockCampaigns = Array.from({ length: 3 }, (_, i) => ({
+        const mockCampaigns: CampaignConfig[] = Array.from({ length: 3 }, (_, i) => ({ // Added CampaignConfig[] type
           id: `campaign-${i + 1}`,
           name: `Campaign ${i + 1}`,
           status: i === 0 ? 'draft' : i === 1 ? 'in-progress' : 'completed',
-          description: `Sample campaign ${i + 1} for development`
+          description: `Sample campaign ${i + 1} for development`,
+          prompt_template: "Hello {name}, this is a call about an exciting offer.", // Added required prop
+          first_message_template: "Hi {name}!" // Added required prop
         }))
         setCampaigns(mockCampaigns)
       }
@@ -151,11 +154,13 @@ export default function BulkAddContactsPage() {
       })
       
       // Use mock data on error
-      const mockCampaigns = Array.from({ length: 3 }, (_, i) => ({
+      const mockCampaigns: CampaignConfig[] = Array.from({ length: 3 }, (_, i) => ({ // Added CampaignConfig[] type
         id: `campaign-${i + 1}`,
         name: `Campaign ${i + 1}`,
         status: i === 0 ? 'draft' : i === 1 ? 'in-progress' : 'completed',
-        description: `Sample campaign ${i + 1} for development`
+        description: `Sample campaign ${i + 1} for development`,
+        prompt_template: "Hello {name}, this is a call about an exciting offer.", // Added required prop
+        first_message_template: "Hi {name}!" // Added required prop
       }))
       setCampaigns(mockCampaigns)
     } finally {
@@ -253,8 +258,8 @@ export default function BulkAddContactsPage() {
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between">
         <DashboardHeader
-          heading="Add Contacts to Campaign"
-          text="Select contacts to add to a campaign"
+          title="Add Contacts to Campaign"
+          description="Select contacts to add to a campaign"
         />
         <Button variant="outline" asChild>
           <Link href="/campaigns">
@@ -487,6 +492,64 @@ export default function BulkAddContactsPage() {
     </div>
   )
 }
+
+// New default export for the page, wrapping the client component in Suspense
+export default function BulkAddContactsPage() {
+  return (
+    <Suspense fallback={<BulkAddLoadingSkeleton />}>
+      <BulkAddContactsClient />
+    </Suspense>
+  );
+}
+
+// Optional: Create a more specific loading skeleton
+function BulkAddLoadingSkeleton() {
+  return (
+     <div className="flex-1 space-y-4 p-8 pt-6">
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-10 w-36" />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="md:col-span-2">
+          <CardHeader>
+             <Skeleton className="h-6 w-48" />
+             <Skeleton className="h-4 w-72" />
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col space-y-4 md:flex-row md:space-y-0 md:space-x-4">
+              <Skeleton className="h-10 flex-1" />
+              <Skeleton className="h-10 w-32" />
+              <Skeleton className="h-10 w-10" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+           <CardHeader>
+             <Skeleton className="h-6 w-40" />
+             <Skeleton className="h-4 w-64" />
+           </CardHeader>
+           <CardContent className="space-y-4">
+             <Skeleton className="h-10 w-full" />
+             <Skeleton className="h-24 w-full" />
+             <Skeleton className="h-10 w-full" />
+           </CardContent>
+           <CardFooter className="flex justify-between">
+             <Skeleton className="h-10 w-24" />
+             <Skeleton className="h-10 w-40" />
+           </CardFooter>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 
 interface ContactStatusBadgeProps {
   status?: string;

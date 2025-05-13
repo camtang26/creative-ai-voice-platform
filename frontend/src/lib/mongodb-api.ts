@@ -524,7 +524,8 @@ export async function fetchCampaigns(options: {
   limit?: number;
   sortBy?: string;
   sortOrder?: number;
-} = {}) {
+} = {}): Promise<{success: boolean, data?: {campaigns: CampaignConfig[], total: number, page: number, limit: number}, error?: string}> { // Simplified return type
+// Assuming campaigns are always under response.data.campaigns
   try {
     // Build query parameters
     const params = new URLSearchParams();
@@ -749,5 +750,67 @@ export async function getCampaignStats(campaignId: string) {
     return await response.json();
   } catch (error) {
     return handleApiError(error, `Failed to fetch stats for campaign ${campaignId}:`) as any;
+  }
+}
+
+/**
+ * Fetch active campaigns from MongoDB
+ * @param {Object} options - Query options
+ * @returns {Promise<{success: boolean, data: {campaigns: CampaignConfig[], total: number, page: number, limit: number}}>}
+ */
+export async function fetchActiveCampaigns(options: {
+  limit?: number;
+  page?: number;
+} = {}): Promise<{success: boolean, data?: {campaigns: CampaignConfig[], total: number, page: number, limit: number}, error?: string}> { // Added explicit return type
+  try {
+    const params = new URLSearchParams();
+    if (options.limit) params.append('limit', options.limit.toString());
+    if (options.page) params.append('page', options.page.toString());
+    // Assuming active campaigns are identified by a status, e.g., 'active' or 'running'
+    // This might need adjustment based on backend implementation or if multiple statuses mean active
+    params.append('status', 'active'); // Or 'running', consult backend API spec
+
+    const apiUrl = getApiUrl(`/api/db/campaigns?${params.toString()}`);
+    const response = await fetch(apiUrl);
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: `Error fetching active campaigns: ${response.statusText}` }));
+      throw new Error(errorData.error || `Error fetching active campaigns: ${response.statusText} for URL: ${apiUrl}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    return handleApiError(error, 'Failed to fetch active campaigns:') as any;
+  }
+}
+
+/**
+ * Cancel a campaign
+ * @param {string} campaignId - The ID of the campaign to cancel
+ * @returns {Promise<{success: boolean, data?: CampaignConfig, error?: string}>}
+ */
+export async function cancelCampaign(campaignId: string): Promise<{success: boolean, data?: CampaignConfig, error?: string}> {
+  try {
+    if (!campaignId) {
+      throw new Error('Campaign ID is required to cancel.');
+    }
+    // Assuming the backend endpoint to cancel a campaign is PUT /api/db/campaigns/:campaignId/cancel
+    // or perhaps PUT /api/db/campaigns/:campaignId with a body like { status: 'canceled' }
+    const apiUrl = getApiUrl(`/api/db/campaigns/${campaignId}/status`); // Changed to /status for a more RESTful update
+    const response = await fetch(apiUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ status: 'canceled' }) // Standard way to update status
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: `Error cancelling campaign: ${response.statusText}` }));
+      throw new Error(errorData.error || `Error cancelling campaign: ${response.statusText} for URL: ${apiUrl}`);
+    }
+    return await response.json();
+  } catch (error) {
+    return handleApiError(error, `Failed to cancel campaign ${campaignId}:`) as any;
   }
 }

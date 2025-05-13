@@ -11,7 +11,7 @@ import {
   ResponsiveContainer,
 } from "recharts"
 import { AnalyticsFilters } from '@/lib/types'
-import { fetchSuccessRateAnalytics } from '@/lib/mongodb-analytics'
+import { fetchSuccessRateAnalytics, SuccessRateData } from '@/lib/mongodb-analytics' // Import SuccessRateData
 import { Skeleton } from './ui/skeleton'
 
 interface SuccessRateChartProps {
@@ -19,7 +19,7 @@ interface SuccessRateChartProps {
 }
 
 export function SuccessRateChart({ filters }: SuccessRateChartProps) {
-  const [data, setData] = useState<any[]>([])
+  const [data, setData] = useState<SuccessRateData[]>([]) // Changed state type
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -33,7 +33,7 @@ export function SuccessRateChart({ filters }: SuccessRateChartProps) {
         
         if (response.success && Array.isArray(response.data)) {
           // Data is already in the correct format
-          setData(response.data)
+          setData(response.data || []) // Added fallback for undefined
         } else {
           console.error('Unexpected response format:', response)
           setError('Unexpected response format from server')

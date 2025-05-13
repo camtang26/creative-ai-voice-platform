@@ -148,8 +148,8 @@ export default function NewContactPage() {
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between">
         <DashboardHeader
-          heading="Create New Contact"
-          text="Add a new contact to your database"
+          title="Create New Contact"
+          description="Add a new contact to your database"
         />
         <Button variant="outline" asChild>
           <Link href="/contacts">

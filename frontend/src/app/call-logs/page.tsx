@@ -188,7 +188,7 @@ export default function CallLogsPage() {
                               <Eye className="h-4 w-4" />
                             </Link>
                             
-                            {Array.isArray(call.recordings) && call.recordings.length > 0 && (
+                            {Array.isArray(call.recordingIds) && call.recordingIds.length > 0 && (
                               <Link
                                 href={call.callSid ? `/recordings/${call.callSid}` : '#'}
                                 className={buttonVariants({ variant: "outline", size: "sm" })}

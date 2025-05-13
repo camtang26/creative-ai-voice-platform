@@ -11,7 +11,7 @@ import {
   ResponsiveContainer,
 } from "recharts"
 import { AnalyticsFilters } from '@/lib/types'
-import { fetchConversationAnalytics } from '@/lib/mongodb-analytics'
+import { fetchConversationAnalytics, CallVolumeData } from '@/lib/mongodb-analytics' // Import CallVolumeData
 import { Skeleton } from './ui/skeleton'
 
 interface ConversationVolumeChartProps {
@@ -19,7 +19,7 @@ interface ConversationVolumeChartProps {
 }
 
 export function ConversationVolumeChart({ filters }: ConversationVolumeChartProps) {
-  const [data, setData] = useState<any[]>([])
+  const [data, setData] = useState<CallVolumeData[]>([]) // Changed state type to CallVolumeData[]
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -33,7 +33,7 @@ export function ConversationVolumeChart({ filters }: ConversationVolumeChartProp
         
         if (response.success) {
           // Transform data for the chart if needed
-          setData(response.data)
+          setData(response.data || []) // Added fallback for undefined
         } else {
           console.error('Failed to fetch conversation volume data:', response.error)
           setError(response.error || 'Failed to load data')

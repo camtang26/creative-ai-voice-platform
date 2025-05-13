@@ -240,8 +240,8 @@ export default function ExportPage() {
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
       <DashboardHeader 
-        heading="Export Data" 
-        text="Export call data, analytics, and campaign information." 
+        title="Export Data"
+        description="Export call data, analytics, and campaign information."
       />
       
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

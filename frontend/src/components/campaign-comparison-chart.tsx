@@ -72,13 +72,13 @@ export function CampaignComparisonChart({ filters }: CampaignComparisonChartProp
         const response = await fetchCampaigns()
         
         if (response.success) {
-          setAvailableCampaigns(response.campaigns || [])
+          setAvailableCampaigns(response.campaigns || []) // Reverted to response.campaigns
           
           // Auto-select up to 3 campaigns
-          const completedCampaigns = (response.campaigns || [])
-            .filter(c => c.status === 'completed')
+          const completedCampaigns = (response.campaigns || []) // Reverted to response.campaigns
+            .filter((c: CampaignConfig) => c.status === 'completed') // Keep explicit type for safety
             .slice(0, 3)
-            .map(c => c.id!)
+            .map((c: CampaignConfig) => c.id!) // Added explicit type for c in map
           
           if (completedCampaigns.length > 0) {
             setSelectedCampaigns(completedCampaigns)
@@ -339,7 +339,7 @@ export function CampaignComparisonChart({ filters }: CampaignComparisonChartProp
               <LabelList 
                 dataKey={selectedMetric.value} 
                 position="top" 
-                formatter={(value) => selectedMetric.format(value as number)}
+                formatter={(value: number) => selectedMetric.format(value)} // Added explicit type for value, removed 'as number'
               />
             </Bar>
           </BarChart>

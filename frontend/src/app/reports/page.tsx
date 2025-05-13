@@ -165,8 +165,8 @@ export default function ReportsPage() {
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between">
         <DashboardHeader 
-          heading="Reports" 
-          text="Create, schedule, and manage reports." 
+          title="Reports"
+          description="Create, schedule, and manage reports."
         />
         <Link href="/reports/new">
           <Button>
@@ -386,15 +386,19 @@ function ReportsTable({ reports, generatingReport, onGenerateReport }: ReportsTa
               )}
             </TableCell>
             <TableCell>
-              {new Date(report.created_at).toLocaleDateString()}
+              {report.created_at ? new Date(report.created_at).toLocaleDateString() : 'N/A'}
             </TableCell>
             <TableCell>
               <div className="flex space-x-2">
                 <Button 
                   size="sm" 
                   variant="outline"
-                  onClick={() => onGenerateReport(report.id, 'pdf')}
-                  disabled={generatingReport === report.id}
+                  onClick={() => {
+                    if (report.id) {
+                      onGenerateReport(report.id, 'pdf');
+                    }
+                  }}
+                  disabled={!report.id || generatingReport === report.id}
                 >
                   {generatingReport === report.id ? (
                     <RefreshCw className="h-4 w-4 mr-1 animate-spin" />

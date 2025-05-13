@@ -281,8 +281,8 @@ export default function CampaignPageEnhanced({ params }: CampaignPageProps) {
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between">
         <DashboardHeader 
-          heading={loading ? 'Loading Campaign...' : campaign?.name || 'Campaign Details'} 
-          text={loading ? '' : campaign?.description || 'Campaign details and performance'}
+          title={loading ? 'Loading Campaign...' : campaign?.name || 'Campaign Details'}
+          description={loading ? '' : campaign?.description || 'Campaign details and performance'}
         />
         <Button variant="outline" asChild>
           <Link href="/campaigns">

@@ -10,8 +10,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { AnalyticsFilters, AgentPerformance } from '@/lib/types'
-import { fetchAgentPerformance } from '@/lib/mongodb-analytics'
+import { AnalyticsFilters } from '@/lib/types' // AgentPerformance removed
+import { fetchAgentPerformance, AgentPerformanceData } from '@/lib/mongodb-analytics' // AgentPerformanceData imported
 import { Skeleton } from './ui/skeleton'
 import { Card } from './ui/card'
 import { Button } from './ui/button'
@@ -24,7 +24,7 @@ interface AgentPerformanceTableProps {
 export function AgentPerformanceTable({ filters }: AgentPerformanceTableProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [data, setData] = useState<AgentPerformance[]>([])
+  const [data, setData] = useState<AgentPerformanceData[]>([]) // Changed to AgentPerformanceData
 
   useEffect(() => {
     loadData()
@@ -38,7 +38,7 @@ export function AgentPerformanceTable({ filters }: AgentPerformanceTableProps) {
       const response = await fetchAgentPerformance(filters)
       
       if (response.success) {
-        setData(response.data)
+        setData(response.data || []) // Provide fallback for undefined data
       } else {
         setError(response.error || 'Failed to load agent performance data')
         // Fallback to sample data
@@ -55,49 +55,32 @@ export function AgentPerformanceTable({ filters }: AgentPerformanceTableProps) {
   }
   
   // Generate sample agent data for fallback
-  function generateSampleAgentData(): AgentPerformance[] {
+  function generateSampleAgentData(): AgentPerformanceData[] { // Changed return type
     return [
       {
-        agent_id: 'agent-1',
-        agent_name: 'Sales Agent A',
-        calls_count: 248,
-        success_rate: 76.2,
-        completion_rate: 92.7,
-        average_duration: 137,
-        average_quality_score: 83.5,
-        topics_covered: [
-          { name: 'pricing', count: 156 },
-          { name: 'features', count: 132 },
-          { name: 'support', count: 85 }
-        ]
+        agent: 'Sales Agent A', // Was agent_id & agent_name
+        callsPerDay: 248,       // Was calls_count
+        successRate: 76.2,    // Was success_rate
+        // completion_rate: 92.7, // Not in AgentPerformanceData
+        avgDuration: 137,       // Was average_duration
+        qualityScore: 83.5,   // Was average_quality_score
+        // topics_covered removed
       },
       {
-        agent_id: 'agent-2',
-        agent_name: 'Technical Agent B',
-        calls_count: 187,
-        success_rate: 72.8,
-        completion_rate: 94.1,
-        average_duration: 164,
-        average_quality_score: 85.2,
-        topics_covered: [
-          { name: 'features', count: 149 },
-          { name: 'technical', count: 124 },
-          { name: 'integrations', count: 93 }
-        ]
+        agent: 'Technical Agent B',
+        callsPerDay: 187,
+        successRate: 72.8,
+        // completion_rate: 94.1,
+        avgDuration: 164,
+        qualityScore: 85.2,
       },
       {
-        agent_id: 'agent-3',
-        agent_name: 'Customer Service Agent C',
-        calls_count: 267,
-        success_rate: 81.5,
-        completion_rate: 96.3,
-        average_duration: 118,
-        average_quality_score: 88.7,
-        topics_covered: [
-          { name: 'support', count: 213 },
-          { name: 'billing', count: 98 },
-          { name: 'feedback', count: 76 }
-        ]
+        agent: 'Customer Service Agent C',
+        callsPerDay: 267,
+        successRate: 81.5,
+        // completion_rate: 96.3,
+        avgDuration: 118,
+        qualityScore: 88.7,
       }
     ]
   }
@@ -149,43 +132,31 @@ export function AgentPerformanceTable({ filters }: AgentPerformanceTableProps) {
               <TableHead>Agent</TableHead>
               <TableHead className="text-right">Calls</TableHead>
               <TableHead className="text-right">Success Rate</TableHead>
-              <TableHead className="text-right">Completion Rate</TableHead>
+              {/* <TableHead className="text-right">Completion Rate</TableHead> */} {/* Removed Completion Rate header */}
               <TableHead className="text-right">Avg. Duration</TableHead>
               <TableHead className="text-right">Quality Score</TableHead>
-              <TableHead>Top Topics</TableHead>
+              {/* <TableHead>Top Topics</TableHead> */} {/* Removed Top Topics header */}
             </TableRow>
           </TableHeader>
           <TableBody>
             {data.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
+                <TableCell colSpan={5} className="text-center py-6 text-muted-foreground"> {/* Adjusted colSpan */}
                   No agent data available for the selected period
                 </TableCell>
               </TableRow>
             ) : (
-              data.map((agent) => (
-                <TableRow key={agent.agent_id}>
-                  <TableCell className="font-medium">{agent.agent_name}</TableCell>
-                  <TableCell className="text-right">{agent.calls_count}</TableCell>
-                  <TableCell className="text-right">{agent.success_rate.toFixed(1)}%</TableCell>
-                  <TableCell className="text-right">{agent.completion_rate.toFixed(1)}%</TableCell>
-                  <TableCell className="text-right">{formatDuration(agent.average_duration)}</TableCell>
+              data.map((agent: AgentPerformanceData) => ( // Added explicit type
+                <TableRow key={agent.agent}> {/* Use agent.agent for key */}
+                  <TableCell className="font-medium">{agent.agent}</TableCell> {/* Use agent.agent for name */}
+                  <TableCell className="text-right">{agent.callsPerDay}</TableCell> {/* Use agent.callsPerDay */}
+                  <TableCell className="text-right">{agent.successRate.toFixed(1)}%</TableCell> {/* Use agent.successRate */}
+                  {/* Removed Completion Rate cell */}
+                  <TableCell className="text-right">{formatDuration(agent.avgDuration)}</TableCell> {/* Use agent.avgDuration */}
                   <TableCell className="text-right">
-                    <QualityScoreBadge score={agent.average_quality_score} />
+                    <QualityScoreBadge score={agent.qualityScore} /> {/* Use agent.qualityScore */}
                   </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {agent.topics_covered && agent.topics_covered.length > 0 ? (
-                        agent.topics_covered.slice(0, 3).map((topic) => (
-                          <Badge variant="outline" key={topic.name} className="capitalize">
-                            {topic.name}
-                          </Badge>
-                        ))
-                      ) : (
-                        <span className="text-muted-foreground text-sm">No topics</span>
-                      )}
-                    </div>
-                  </TableCell>
+                  {/* Removed Top Topics cell */}
                 </TableRow>
               ))
             )}

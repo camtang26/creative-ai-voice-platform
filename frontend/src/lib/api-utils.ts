@@ -14,7 +14,7 @@ export function handleApiError(error: any, errorMessage: string) {
   return {
     success: false,
     error: error instanceof Error ? error.message : errorMessage,
-    data: null
+    data: undefined // Changed from null to undefined
   };
 }
 

@@ -78,7 +78,7 @@ export default function ExportContactsPage() {
         setAvailableTags(Array.from(tags))
       } else {
         // Use mock data for development
-        const mockContacts = Array.from({ length: 50 }, (_, i) => ({
+        const mockContacts: Contact[] = Array.from({ length: 50 }, (_, i) => ({
           id: `contact-${i + 1}`,
           name: `Contact ${i + 1}`,
           phoneNumber: `+614${Math.floor(Math.random() * 10000000).toString().padStart(8, '0')}`,
@@ -104,7 +104,7 @@ export default function ExportContactsPage() {
       })
       
       // Use mock data on error
-      const mockContacts = Array.from({ length: 50 }, (_, i) => ({
+      const mockContacts: Contact[] = Array.from({ length: 50 }, (_, i) => ({
         id: `contact-${i + 1}`,
         name: `Contact ${i + 1}`,
         phoneNumber: `+614${Math.floor(Math.random() * 10000000).toString().padStart(8, '0')}`,
@@ -228,8 +228,8 @@ export default function ExportContactsPage() {
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between">
         <DashboardHeader
-          heading="Export Contacts"
-          text="Export your contacts to CSV or Excel"
+          title="Export Contacts"
+          description="Export your contacts to CSV or Excel"
         />
         <Button variant="outline" asChild>
           <Link href="/contacts">

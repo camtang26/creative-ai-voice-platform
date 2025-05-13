@@ -12,15 +12,30 @@ import { Bot, User, Volume2, VolumeX, Download, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { fetchCallTranscript } from '@/lib/mongodb-api'
 
+// Define interfaces for transcript structure
+interface TranscriptMessage {
+  role: 'user' | 'agent' | 'system' | string; // Allow string for flexibility if other roles exist
+  text: string;
+  timestamp?: string;
+  speaker?: string; // e.g., 'Agent', 'Customer Name', or speaker ID
+  // Add other potential message properties like sentiment, confidence, etc.
+}
+
+interface TranscriptData {
+  callSid?: string; // Optional if transcript object is self-contained
+  messages: TranscriptMessage[];
+  // Potentially other metadata like language, duration, etc.
+}
+
 interface EnhancedRealTimeTranscriptProps {
   callSid: string
-  initialTranscript?: any
+  initialTranscript?: TranscriptData | null
   className?: string
 }
 
 export function EnhancedRealTimeTranscript({ callSid, initialTranscript, className }: EnhancedRealTimeTranscriptProps) {
   const { socket, isConnected, subscribeToCall, unsubscribeFromCall } = useSocket()
-  const [transcript, setTranscript] = useState<any>(initialTranscript || { messages: [] })
+  const [transcript, setTranscript] = useState<TranscriptData | null>(initialTranscript || { messages: [] })
   const [loading, setLoading] = useState(initialTranscript ? false : true)
   const [error, setError] = useState<string | null>(null)
   const [isSubscribed, setIsSubscribed] = useState(false)
@@ -90,36 +105,57 @@ export function EnhancedRealTimeTranscript({ callSid, initialTranscript, classNa
   useEffect(() => {
     if (!socket) return
 
-    const handleTranscriptUpdate = (data: any) => {
+    // Type for socket transcript update data
+    // This should ideally come from a shared types definition with the backend/socket server
+    interface SocketTranscriptMessageData {
+      text: string;
+      role: string;
+      timestamp?: string;
+      speaker?: string;
+      // other fields from the socket message
+    }
+    interface SocketTranscriptUpdate {
+      callSid: string;
+      type: 'message' | 'typing_indicator' | 'full_transcript' | string; // Allow other types
+      data: SocketTranscriptMessageData | any; // 'any' for other update types like full_transcript
+    }
+
+    const handleTranscriptUpdate = (data: SocketTranscriptUpdate) => {
       console.log('[Transcript] Received transcript update:', data)
       
       if (data.callSid === callSid) {
         setLastActivity(new Date())
         
         // Handle different update types
-        if (data.type === 'message') {
+        if (data.type === 'message' && data.data && typeof data.data.text === 'string' && typeof data.data.role === 'string') {
           // Add a new message
-          setTranscript(prev => {
+          setTranscript((prev: TranscriptData | null) => {
+            const prevMessages = prev?.messages || [];
             // If the message already exists, don't add it again
-            const messageExists = prev.messages?.some((msg: any) => 
+            const messageExists = prevMessages.some((msg: TranscriptMessage) =>
               msg.text === data.data.text && msg.role === data.data.role
             )
             
-            if (messageExists) return prev
+            if (messageExists) return prev;
             
+            const newMessage: TranscriptMessage = {
+              text: data.data.text,
+              role: data.data.role,
+              timestamp: data.data.timestamp || new Date().toISOString(),
+              speaker: data.data.speaker
+            };
+            // Redundant prevMessages declaration removed.
+            // prevMessages from line 133 will be used.
             const updatedMessages = [
-              ...(prev.messages || []),
-              {
-                role: data.data.role,
-                text: data.data.text,
-                timestamp: data.data.timestamp || new Date().toISOString()
-              }
-            ]
+              ...prevMessages,
+              newMessage
+            ];
             
             return {
-              ...prev,
+              ...(prev || { messages: [] }),
+              callSid: prev?.callSid || callSid,
               messages: updatedMessages
-            }
+            } as TranscriptData;
           })
           
           // Show new message indicator
@@ -176,7 +212,7 @@ export function EnhancedRealTimeTranscript({ callSid, initialTranscript, classNa
 
   // Scroll to bottom when messages are added
   useEffect(() => {
-    if (transcript?.messages?.length > 0) {
+    if (transcript && transcript.messages && transcript.messages.length > 0) {
       scrollToBottom()
     }
   }, [transcript?.messages?.length])
@@ -199,7 +235,7 @@ export function EnhancedRealTimeTranscript({ callSid, initialTranscript, classNa
     }
   }
 
-  if (loading && transcript?.messages?.length === 0) {
+  if (loading && (!transcript || transcript.messages.length === 0)) {
     return (
       <Card className={cn("w-full", className)}>
         <CardHeader>
@@ -266,7 +302,7 @@ export function EnhancedRealTimeTranscript({ callSid, initialTranscript, classNa
           />
         </div>
         <CardDescription>
-          {transcript?.messages?.length > 0 
+          {transcript && transcript.messages && transcript.messages.length > 0
             ? `${transcript.messages.length} message${transcript.messages.length !== 1 ? 's' : ''} in the conversation`
             : 'Real-time conversation transcript'
           }
@@ -274,16 +310,16 @@ export function EnhancedRealTimeTranscript({ callSid, initialTranscript, classNa
       </CardHeader>
       <CardContent>
         <div className="space-y-4 max-h-[500px] overflow-y-auto mb-4 pr-2">
-          {transcript?.messages?.length === 0 ? (
+          {(!transcript || transcript.messages.length === 0) ? (
             <div className="text-center py-8 text-muted-foreground">
               <Volume2 className="h-12 w-12 mx-auto mb-2 opacity-30" />
               <p>No messages yet</p>
               <p className="text-sm">Conversation messages will appear here in real-time</p>
             </div>
           ) : (
-            transcript.messages.map((message: any, index: number) => (
-              <div 
-                key={index} 
+            transcript.messages.map((message: TranscriptMessage, index: number) => (
+              <div
+                key={index}
                 className={cn(
                   "flex items-start space-x-3",
                   message.role === 'assistant' || message.role === 'agent' ? "justify-start" : "justify-end"
@@ -299,10 +335,10 @@ export function EnhancedRealTimeTranscript({ callSid, initialTranscript, classNa
                 <div className={cn(
                   "rounded-lg p-3 max-w-[80%] transition-all",
                   message.role === 'assistant' || message.role === 'agent'
-                    ? "bg-muted text-foreground" 
+                    ? "bg-muted text-foreground"
                     : "bg-primary text-primary-foreground",
                   // Add pulse animation to the most recent message
-                  index === transcript.messages.length - 1 && newMessage && "animate-pulse"
+                  transcript.messages && index === transcript.messages.length - 1 && newMessage && "animate-pulse"
                 )}>
                   <p className="whitespace-pre-wrap break-words">{message.text}</p>
                   {message.timestamp && (
@@ -383,7 +419,7 @@ export function EnhancedRealTimeTranscript({ callSid, initialTranscript, classNa
             )}
             Refresh
           </Button>
-          {transcript?.messages?.length > 0 && (
+          {transcript && transcript.messages && transcript.messages.length > 0 && ( // This check is already correct
             <Button variant="outline" size="sm">
               <Download className="h-4 w-4 mr-2" />
               Save Transcript

@@ -18,6 +18,7 @@ import fastifySocketIO from 'fastify-socket.io'; // Import the socket.io plugin
 import { WebSocketServer, WebSocket } from 'ws'; // CORRECTED: Import WebSocketServer and WebSocket client
 import fastifyFormBody from '@fastify/formbody';
 import fastifyCors from '@fastify/cors'; // Added for CORS
+import fastifyHelmet from '@fastify/helmet'; // Added for security headers
 import fetch from 'node-fetch';
 import crypto from 'crypto';
 import getRawBody from 'raw-body'; // Import raw-body library
@@ -81,9 +82,13 @@ if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
 // Initialize Fastify
 const server = fastify({
   logger: {
-    level: 'debug', // Set log level to debug to see timer/message logs
-    // Consider adding transport for pretty-printing locally if needed:
-    // transport: { target: 'pino-pretty' }
+    level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+    redact: {
+      paths: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'],
+      censor: '[REDACTED]'
+    }
+    // Consider adding transport for pretty-printing locally if needed (ensure pino-pretty is a dev dependency):
+    // transport: process.env.NODE_ENV !== 'production' ? { target: 'pino-pretty' } : undefined,
   },
   trustProxy: true, // Trust proxy headers like X-Forwarded-Proto
   http: {
@@ -151,6 +156,10 @@ server.register(fastifyCors, {
   optionsSuccessStatus: 204 // Use 204 No Content for OPTIONS success
 });
 console.log('[Server] Registered @fastify/cors plugin');
+
+// Register Helmet for security headers
+server.register(fastifyHelmet);
+console.log('[Server] Registered @fastify/helmet plugin');
 
 // --- Add Content Type Parser to capture raw body buffer ---
 server.addContentTypeParser('application/json', { parseAs: 'buffer' }, (req, body, done) => {
@@ -686,6 +695,40 @@ async function initializeDatabase() {
     return false;
   }
 }
+
+// Custom Global Error Handler
+server.setErrorHandler((error, request, reply) => {
+  request.log.error({ err: error }, 'An error occurred');
+
+  if (error.validation) {
+    // Handle Fastify schema validation errors
+    reply.status(400).send({
+      statusCode: 400,
+      error: 'Bad Request',
+      message: 'Input validation failed',
+      details: error.validation.map(v => ({
+        path: v.instancePath || v.dataPath || 'N/A',
+        message: v.message,
+        params: v.params
+      }))
+    });
+  } else if (error.statusCode && error.statusCode < 500) {
+    // Handle errors that already have a client-side status code
+    reply.status(error.statusCode).send({
+      statusCode: error.statusCode,
+      error: error.error || 'Client Error',
+      message: error.message
+    });
+  } else {
+    // Handle generic server errors
+    reply.status(500).send({
+      statusCode: 500,
+      error: 'Internal Server Error',
+      message: 'An unexpected error occurred on the server.'
+    });
+  }
+});
+console.log('[Server] Registered custom global error handler.');
 
 // Start the server
 const start = async () => {

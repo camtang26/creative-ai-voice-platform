@@ -10,8 +10,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { AnalyticsFilters, AgentPerformance } from '@/lib/types'
-import { fetchAgentPerformance } from '@/lib/mongodb-analytics'
+import { AnalyticsFilters } from '@/lib/types' // AgentPerformance removed
+import { fetchAgentPerformance, AgentPerformanceData } from '@/lib/mongodb-analytics' // AgentPerformanceData imported
 import { Card } from './ui/card'
 import { Skeleton } from './ui/skeleton'
 import { Badge } from './ui/badge'
@@ -23,7 +23,7 @@ interface AgentPerformanceTableProps {
 export function AgentPerformanceTable({ filters }: AgentPerformanceTableProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [data, setData] = useState<AgentPerformance[]>([])
+  const [data, setData] = useState<AgentPerformanceData[]>([]) // Changed to AgentPerformanceData
 
   useEffect(() => {
     async function loadData() {
@@ -40,7 +40,7 @@ export function AgentPerformanceTable({ filters }: AgentPerformanceTableProps) {
         })
         
         if (response.success) {
-          setData(response.data)
+          setData(response.data || []) // Provide fallback for undefined data
         } else {
           setError(response.error || 'Failed to load agent performance data')
         }
@@ -100,26 +100,18 @@ export function AgentPerformanceTable({ filters }: AgentPerformanceTableProps) {
           <TableHead className="text-right">Success Rate</TableHead>
           <TableHead className="text-right">Avg. Duration</TableHead>
           <TableHead className="text-right">Quality Score</TableHead>
-          <TableHead>Top Topics</TableHead>
+          {/* <TableHead>Top Topics</TableHead> */} {/* Removed Top Topics column header */}
         </TableRow>
       </TableHeader>
       <TableBody>
-        {data.map((agent) => (
-          <TableRow key={agent.agent_id}>
-            <TableCell className="font-medium">{agent.agent_name}</TableCell>
-            <TableCell className="text-right">{agent.calls_count}</TableCell>
-            <TableCell className="text-right">{agent.success_rate.toFixed(1)}%</TableCell>
-            <TableCell className="text-right">{formatDuration(agent.average_duration)}</TableCell>
-            <TableCell className="text-right">{agent.average_quality_score.toFixed(1)}</TableCell>
-            <TableCell>
-              <div className="flex flex-wrap gap-1">
-                {agent.topics_covered.slice(0, 3).map((topic, i) => (
-                  <Badge key={i} variant="outline" className="text-xs">
-                    {topic.name} ({topic.count})
-                  </Badge>
-                ))}
-              </div>
-            </TableCell>
+        {data.map((agent: AgentPerformanceData) => ( // Added explicit type for agent
+          <TableRow key={agent.agent}> {/* Use agent.agent for key */}
+            <TableCell className="font-medium">{agent.agent}</TableCell> {/* Use agent.agent for name */}
+            <TableCell className="text-right">{agent.callsPerDay}</TableCell> {/* Use agent.callsPerDay */}
+            <TableCell className="text-right">{agent.successRate.toFixed(1)}%</TableCell> {/* Use agent.successRate */}
+            <TableCell className="text-right">{formatDuration(agent.avgDuration)}</TableCell> {/* Use agent.avgDuration */}
+            <TableCell className="text-right">{agent.qualityScore.toFixed(1)}</TableCell> {/* Use agent.qualityScore */}
+            {/* Removed Top Topics cell and logic */}
           </TableRow>
         ))}
       </TableBody>

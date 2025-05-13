@@ -17,23 +17,28 @@ import { cn } from '@/lib/utils'
 import { MessageCircle, Phone, User, Bot, Headphones, RefreshCw, AlertCircle } from 'lucide-react'
 
 interface TranscriptMessage {
-  role: 'assistant' | 'user';
-  message: string;
+  role: 'assistant' | 'user' | 'system' | string; // Made role more flexible
+  text: string; // Changed from message to text
   timestamp?: string;
+  speaker?: string; // Added speaker
+}
+
+// Define TranscriptData locally
+interface TranscriptData {
+  callSid?: string;
+  messages: TranscriptMessage[];
 }
 
 interface RealTimeTranscriptProps {
   callSid: string;
-  initialTranscript?: {
-    messages: TranscriptMessage[];
-  };
+  initialTranscript?: TranscriptData | null; // Use TranscriptData
 }
 
 export function RealTimeTranscript({ callSid, initialTranscript }: RealTimeTranscriptProps) {
-  const { 
-    socket, 
-    isConnected, 
-    subscribeToCall, 
+  const {
+    socket,
+    isConnected,
+    subscribeToCall,
     unsubscribeFromCall,
     lastTranscriptUpdate
   } = useSocket()
@@ -65,26 +70,29 @@ export function RealTimeTranscript({ callSid, initialTranscript }: RealTimeTrans
     if (lastTranscriptUpdate && lastTranscriptUpdate.callSid === callSid) {
       console.log('[Socket] Received transcript update:', lastTranscriptUpdate)
       
-      if (lastTranscriptUpdate.type === 'transcript_message' && lastTranscriptUpdate.message) {
+      // Assuming for 'transcript_message', data is a TranscriptMessage object
+      if (lastTranscriptUpdate.type === 'transcript_message' && lastTranscriptUpdate.data) {
+        const newMessage = lastTranscriptUpdate.data as TranscriptMessage; // Cast data to TranscriptMessage
         // Add single message
         setMessages(prev => {
           // Check if the message is already in the transcript
           const isDuplicate = prev.some(
-            m => m.message === lastTranscriptUpdate.message.message && 
-                 m.role === lastTranscriptUpdate.message.role
-          )
+            (m: TranscriptMessage) => m.text === newMessage.text &&
+                                     m.role === newMessage.role &&
+                                     m.timestamp === newMessage.timestamp // Optional: check timestamp too
+          );
           
           if (isDuplicate) {
-            return prev
+            return prev;
           }
           
           // Add the new message
-          return [...prev, lastTranscriptUpdate.message]
-        })
-        setIsNewMessage(true)
-      } else if (lastTranscriptUpdate.transcript?.messages) {
-        // Replace entire transcript
-        setMessages(lastTranscriptUpdate.transcript.messages)
+          return [...prev, newMessage];
+        });
+        setIsNewMessage(true);
+      } else if (lastTranscriptUpdate.type === 'full_transcript' && lastTranscriptUpdate.data && Array.isArray((lastTranscriptUpdate.data as TranscriptData).messages)) {
+        // Replace entire transcript, assuming data is TranscriptData
+        setMessages((lastTranscriptUpdate.data as TranscriptData).messages);
         setIsNewMessage(true)
       }
     }
@@ -92,23 +100,37 @@ export function RealTimeTranscript({ callSid, initialTranscript }: RealTimeTrans
   
   // Custom event handler for call transcript messages
   useEffect(() => {
-    const handleCallTranscriptMessage = (data: any) => {
-      console.log(`[Socket] Received transcript message for call ${callSid}:`, data)
+    // Assuming 'call_transcript_message' event sends data with a nested 'data' property containing the TranscriptMessage
+    interface CallTranscriptEventData {
+      callSid: string;
+      message?: TranscriptMessage; // If message is directly on event data
+      data?: TranscriptMessage;    // If message is nested under 'data' property
+      // Add other potential fields from this specific event
+    }
+    const handleCallTranscriptMessage = (eventData: CallTranscriptEventData) => {
+      console.log(`[Socket] Received transcript message for call ${callSid}:`, eventData)
       
-      if (data.callSid === callSid && data.message) {
+      const messagePayload = eventData.data || eventData.message; // Prefer eventData.data if it exists
+
+      if (eventData.callSid === callSid && messagePayload &&
+          typeof messagePayload.text === 'string' && typeof messagePayload.role === 'string') {
+        
+        const newMessage = messagePayload as TranscriptMessage;
+
         setMessages(prev => {
           // Check if the message is already in the transcript
           const isDuplicate = prev.some(
-            m => m.message === data.message.message && 
-                 m.role === data.message.role
-          )
+            (m: TranscriptMessage) => m.text === newMessage.text &&
+                                     m.role === newMessage.role &&
+                                     m.timestamp === newMessage.timestamp
+          );
           
           if (isDuplicate) {
-            return prev
+            return prev;
           }
           
           // Add the new message
-          return [...prev, data.message]
+          return [...prev, newMessage];
         })
         setIsNewMessage(true)
       }
@@ -222,7 +244,7 @@ export function RealTimeTranscript({ callSid, initialTranscript }: RealTimeTrans
                     ? "bg-muted text-foreground" 
                     : "bg-primary text-primary-foreground"
                 )}>
-                  <p className="whitespace-pre-wrap break-words text-sm">{message.message}</p>
+                  <p className="whitespace-pre-wrap break-words text-sm">{message.text}</p>
                   {message.timestamp && (
                     <span className="absolute -bottom-5 text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
                       {formatTimestamp(message.timestamp)}

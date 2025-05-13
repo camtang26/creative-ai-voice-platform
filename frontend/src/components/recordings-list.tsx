@@ -57,7 +57,7 @@ export function RecordingsList({ recordings, callSid, callDetails }: RecordingsL
       <div className="space-y-4">
         {recordings.map((recording) => (
           <RecordingItem 
-            key={recording.sid} 
+            key={recording.recordingSid} // Changed to recordingSid
             recording={recording} 
             callSid={callSid}
             callDetails={callDetails} 

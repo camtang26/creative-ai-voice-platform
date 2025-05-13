@@ -32,8 +32,9 @@ import {
   XCircle,
   RefreshCw,
   AlertCircle,
-  PulseIcon
+  Activity as PulseIcon // Use Activity as PulseIcon
 } from 'lucide-react'
+// Removed dynamic import for PulseIcon
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 

@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { io, Socket } from 'socket.io-client';
 import { SocketEventManager, createSocketEventManager } from './socket-events';
 import { mockCallStats } from './mockData';
+import { CallInfo, CampaignStats, CampaignConfig } from './types'; // Added CampaignStats and CampaignConfig
 
 // Flag to use mock socket data during development - SET TO FALSE FOR PRODUCTION
 const USE_MOCK_SOCKET = false;
@@ -39,19 +40,10 @@ type Recording = {
 type Campaign = {
   id: string;
   name: string;
-  status: string;
-  stats: {
-    totalContacts: number;
-    callsPlaced: number;
-    callsCompleted: number;
-    callsAnswered: number;
-    failedCalls: number;
-    successfulCalls: number;
-    averageDuration: number;
-    successRate: number;
-  };
-  progress: number;
-  lastUpdated: string;
+  status: string; // Consider using CampaignConfig['status'] for consistency
+  stats?: CampaignStats; // Use CampaignStats type, make it optional if not always present
+  progress?: number; // Make optional if not always present
+  lastUpdated?: string; // Make optional if not always present
 };
 
 type Transcript = {
@@ -79,7 +71,7 @@ type CallUpdate = {
   data?: any;
 };
 
-type CampaignUpdate = {
+export type CampaignUpdate = { // Added export
   type: string;
   campaignId: string;
   timestamp: string;

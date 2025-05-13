@@ -41,10 +41,10 @@ export function ActiveCallCard({ call, onCallEnded }: ActiveCallCardProps) {
     
     setIsTerminating(true);
     try {
-      const result = await terminateCall(call.sid);
+      const result = await terminateCall(call.callSid); // Changed to callSid
       if (result.success) {
         if (onCallEnded) {
-          onCallEnded(call.sid);
+          onCallEnded(call.callSid); // Changed to callSid
         }
       } else {
         console.error("Failed to terminate call:", result.error);
@@ -89,7 +89,7 @@ export function ActiveCallCard({ call, onCallEnded }: ActiveCallCardProps) {
       <CardContent className="p-4 pt-0">
         <div className="grid grid-cols-2 gap-2 text-sm">
           <div className="text-muted-foreground">Call ID:</div>
-          <div className="font-mono">{call.sid}</div>
+          <div className="font-mono">{call.callSid}</div>
           
           <div className="text-muted-foreground">From:</div>
           <div>{formatPhoneNumber(call.from)}</div>

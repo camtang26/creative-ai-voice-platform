@@ -78,8 +78,8 @@ import {
   fetchContactById, 
   updateContact, 
   deleteContact, 
-  addTagsToContact, 
-  removeTagFromContact
+  addTagsToContact,
+  removeTagsFromContact // Corrected to plural 'Tags'
 } from '@/lib/mongodb-contacts'
 import { fetchCallHistory } from '@/lib/mongodb-analytics'
 import { Contact } from '@/lib/types'
@@ -152,7 +152,7 @@ export default function ContactPage({ params }: ContactPageProps) {
     
     try {
       // Get call history for this contact
-      const callResponse = await fetchCallHistory({ contactId: params.id, limit: 10 })
+      const callResponse = await fetchCallHistory(params.id, { limit: 10, entityType: 'contact' })
       
       if (callResponse.success && callResponse.data) {
         setCalls(callResponse.data)
@@ -295,7 +295,7 @@ export default function ContactPage({ params }: ContactPageProps) {
     setActionInProgress(tag)
     
     try {
-      const response = await removeTagFromContact(contact.id, tag)
+      const response = await removeTagsFromContact(contact.id, [tag]) // Pass tag as an array
       
       if (response.success) {
         // Update local state
@@ -392,8 +392,8 @@ export default function ContactPage({ params }: ContactPageProps) {
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between">
         <DashboardHeader
-          heading={loading ? 'Loading Contact...' : contact?.name || 'Contact Details'}
-          text={loading ? '' : contact?.phoneNumber || ''}
+          title={loading ? 'Loading Contact...' : contact?.name || 'Contact Details'}
+          description={loading ? '' : contact?.phoneNumber || ''}
         />
         <Button variant="outline" asChild>
           <Link href="/contacts">

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic' // Import dynamic
 import { DashboardHeader } from '@/components/dashboard-header'
 import { Button } from '@/components/ui/button'
 import {
@@ -47,9 +48,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton' // Import Skeleton
 import { toast } from '@/components/ui/use-toast'
 
-export default function CreateReportPage() {
+// Rename the original component
+function CreateReportForm() {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [reportType, setReportType] = useState<'analytics' | 'campaign' | 'custom'>('analytics')
@@ -158,8 +161,8 @@ export default function CreateReportPage() {
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between">
         <DashboardHeader 
-          heading="Create New Report" 
-          text="Configure a new report with customized metrics and visualizations." 
+          title="Create New Report"
+          description="Configure a new report with customized metrics and visualizations."
         />
         <Button 
           variant="outline"
@@ -461,4 +464,62 @@ export default function CreateReportPage() {
       </form>
     </div>
   )
+}
+
+// Dynamically import the form component with SSR disabled
+const CreateReportPage = dynamic(() => Promise.resolve(CreateReportForm), {
+  ssr: false,
+  loading: () => <CreateReportLoadingSkeleton /> // Add a loading skeleton
+})
+
+export default CreateReportPage
+
+// Optional: Create a loading skeleton
+function CreateReportLoadingSkeleton() {
+  return (
+    <div className="flex-1 space-y-4 p-8 pt-6">
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-10 w-36" />
+      </div>
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-4 w-72" />
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-56" />
+            <Skeleton className="h-4 w-80" />
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-24 w-full" />
+          </CardContent>
+        </Card>
+      </div>
+      <Card className="mt-4">
+        <CardHeader>
+          <Skeleton className="h-6 w-40" />
+          <Skeleton className="h-4 w-72" />
+        </CardHeader>
+        <CardContent className="space-y-4">
+           <Skeleton className="h-10 w-64" />
+        </CardContent>
+        <CardFooter className="flex justify-between border-t pt-4">
+          <Skeleton className="h-10 w-24" />
+          <Skeleton className="h-10 w-40" />
+        </CardFooter>
+      </Card>
+    </div>
+  );
 }

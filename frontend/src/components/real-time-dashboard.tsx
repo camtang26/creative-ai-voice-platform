@@ -339,15 +339,15 @@ export function RealTimeDashboard() {
                       <div className="grid grid-cols-3 gap-2 text-center">
                         <div className="bg-muted p-2 rounded-md">
                           <p className="text-xs text-muted-foreground">Total</p>
-                          <p className="font-medium">{campaign.stats?.totalContacts || 0}</p>
+                          <p className="font-medium">{campaign.stats?.total_calls || 0}</p>
                         </div>
                         <div className="bg-muted p-2 rounded-md">
                           <p className="text-xs text-muted-foreground">Completed</p>
-                          <p className="font-medium">{campaign.stats?.callsCompleted || 0}</p>
+                          <p className="font-medium">{campaign.stats?.completed_calls || 0}</p>
                         </div>
                         <div className="bg-muted p-2 rounded-md">
                           <p className="text-xs text-muted-foreground">In Progress</p>
-                          <p className="font-medium">{campaign.stats?.inProgressCalls || 0}</p>
+                          <p className="font-medium">{campaign.stats?.in_progress_calls || 0}</p>
                         </div>
                       </div>
                     </div>

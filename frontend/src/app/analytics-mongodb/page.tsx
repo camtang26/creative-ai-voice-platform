@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from 'react'
+import { type DateRange } from "react-day-picker" // Import DateRange type
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { DashboardHeader } from '@/components/dashboard-header'
@@ -61,23 +62,37 @@ export default function AnalyticsMongoDBPage() {
     }
   }
   
-  const handleDateRangeChange = (dateRange: { from: Date; to: Date }) => {
-    setFilters({
-      ...filters,
-      timeframe: {
-        ...filters.timeframe,
-        start_date: dateRange.from.toISOString().split('T')[0],
-        end_date: dateRange.to.toISOString().split('T')[0]
-      }
-    })
+  const handleDateRangeChange = (dateRange: DateRange) => { // DateRange from 'react-day-picker'
+    if (dateRange?.from && dateRange?.to) {
+      setFilters({
+        ...filters,
+        timeframe: {
+          ...filters.timeframe,
+          start_date: dateRange.from.toISOString().split('T')[0],
+          end_date: dateRange.to.toISOString().split('T')[0]
+        }
+      });
+    } else {
+      // Optionally handle cases where only one date is selected or cleared
+      // For now, we only update if both are present.
+      // Or, clear the dates in the filter:
+      // setFilters({
+      //   ...filters,
+      //   timeframe: {
+      //     ...filters.timeframe,
+      //     start_date: undefined,
+      //     end_date: undefined
+      //   }
+      // });
+    }
   }
 
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between">
-        <DashboardHeader 
-          heading="Analytics (MongoDB)" 
-          text="View and analyze conversation performance metrics using MongoDB data." 
+        <DashboardHeader
+          title="Analytics (MongoDB)"
+          description="View and analyze conversation performance metrics using MongoDB data."
         />
         <div className="flex space-x-2">
           <Button variant="outline" asChild>

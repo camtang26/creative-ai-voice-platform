@@ -238,6 +238,7 @@ export interface CampaignConfig {
   };
   status?: 'draft' | 'scheduled' | 'in-progress' | 'completed' | 'paused' | 'cancelled';
   created_at?: string;
+  stats?: CampaignStats; // Added stats property
 }
 
 export interface CampaignStats {

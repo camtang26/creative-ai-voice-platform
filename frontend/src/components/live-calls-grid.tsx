@@ -45,16 +45,16 @@ export function LiveCallsGrid() {
       } 
       else if (type === 'status_update') {
         // Update existing call status
-        setActiveCalls(prev => 
-          prev.map(call => 
-            call.sid === callSid ? { ...call, ...data, status } : call
+        setActiveCalls(prev =>
+          prev.map(call =>
+            call.callSid === callSid ? { ...call, ...data, status } : call // Changed to call.callSid
           )
         );
-      } 
+      }
       else if (type === 'call_ended') {
         // Remove call that has ended
-        setActiveCalls(prev => 
-          prev.filter(call => call.sid !== callSid)
+        setActiveCalls(prev =>
+          prev.filter(call => call.callSid !== callSid) // Changed to call.callSid
         );
       }
     }
@@ -73,7 +73,7 @@ export function LiveCallsGrid() {
 
   // Handle when a call is ended by user action
   function handleCallEnded(callSid: string) {
-    setActiveCalls(prev => prev.filter(call => call.sid !== callSid));
+    setActiveCalls(prev => prev.filter(call => call.callSid !== callSid)); // Changed to call.callSid
   }
 
   // If we're still loading
@@ -126,7 +126,7 @@ export function LiveCallsGrid() {
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {activeCalls.map(call => (
         <ActiveCallCard 
-          key={call.sid} 
+          key={call.callSid}  // Changed to call.callSid
           call={call} 
           onCallEnded={handleCallEnded}
         />

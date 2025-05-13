@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react' // Import Suspense
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -26,7 +26,8 @@ import { useSocket } from '@/lib/socket-context'
 import { fetchCampaign } from '@/lib/mongodb-api'
 import { cn } from '@/lib/utils'
 
-export default function RealTimeMonitorPage() {
+// Rename the original component
+function RealTimeMonitorClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const campaignId = searchParams.get('id')
@@ -350,4 +351,33 @@ export default function RealTimeMonitorPage() {
       )}
     </div>
   )
+}
+
+// New default export wrapping the client component in Suspense
+export default function RealTimeMonitorPage() {
+  return (
+    <Suspense fallback={<RealTimeMonitorLoadingSkeleton />}>
+      <RealTimeMonitorClient />
+    </Suspense>
+  );
+}
+
+// Optional: Create a loading skeleton
+function RealTimeMonitorLoadingSkeleton() {
+  return (
+    <div className="flex-1 space-y-4 p-8 pt-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <Skeleton className="h-8 w-72 mb-1" />
+          <Skeleton className="h-4 w-48" />
+        </div>
+        <div className="flex space-x-2">
+          <Skeleton className="h-10 w-10" />
+          <Skeleton className="h-10 w-40" />
+        </div>
+      </div>
+      <Skeleton className="h-24 w-full" />
+      <Skeleton className="h-[500px] w-full" />
+    </div>
+  );
 }

@@ -189,8 +189,8 @@ export default function CampaignsPage() {
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between">
         <DashboardHeader 
-          heading="Campaigns" 
-          text="Manage and monitor your outbound calling campaigns." 
+          title="Campaigns"
+          description="Manage and monitor your outbound calling campaigns."
         />
         <div className="flex space-x-2">
           {activeCampaignsCount > 0 && (

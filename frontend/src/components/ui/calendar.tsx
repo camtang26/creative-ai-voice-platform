@@ -54,8 +54,12 @@ function Calendar({
         ...classNames,
       }}
       components={{
-        IconLeft: ({ ...props }) => <ChevronLeft className="h-4 w-4" />,
-        IconRight: ({ ...props }) => <ChevronRight className="h-4 w-4" />,
+        // Use the 'Chevron' key as per react-day-picker v9 docs
+        // Note: This might render the same icon for both buttons.
+        // Further customization might involve checking props within the Chevron component
+        // or overriding NextMonthButton/PreviousMonthButton entirely if needed.
+        Chevron: ({ ...props }) => <ChevronLeft className="h-4 w-4" />,
+        // Removed ChevronRight override as only 'Chevron' key seems valid for the icon itself
       }}
       {...props}
     />

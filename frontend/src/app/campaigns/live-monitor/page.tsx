@@ -12,11 +12,26 @@ import { useSocket } from '@/lib/socket-context'
 import { fetchActiveCampaigns } from '@/lib/mongodb-api'
 import { ChevronLeft, AlertCircle, RefreshCw } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
+import { CampaignConfig } from '@/lib/types' // Added CampaignConfig import
+
+// Define a new type for display purposes that includes runtime stats
+interface LiveCampaignDisplayDetails extends CampaignConfig {
+  progress?: number;
+  stats?: any; // Or a more specific type if known for liveData.stats
+}
+
+// LiveSocketCampaignData is removed as activeCampaigns from useSocket is likely CampaignConfig[]
+// or a similar array type that includes the necessary fields.
+// If socket data has a different structure for status/progress/stats,
+// we'll handle that during the merge.
 
 export default function LiveMonitorPage() {
-  const { isConnected, activeCampaigns } = useSocket()
+  // Let activeCampaigns be typed by useSocket()
+  // We assume useSocket() provides activeCampaigns as CampaignConfig[] or compatible
+  // If it's truly different, SocketContextType needs adjustment or mapping here.
+  const { isConnected, activeCampaigns } = useSocket();
   const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null)
-  const [campaignDetails, setCampaignDetails] = useState<any[]>([])
+  const [campaignDetails, setCampaignDetails] = useState<LiveCampaignDisplayDetails[]>([]) // Use the new type
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   
@@ -35,9 +50,9 @@ export default function LiveMonitorPage() {
           // Select the first active campaign by default
           const activeCampaign = response.data.campaigns.find(c => c.status === 'in-progress')
           if (activeCampaign) {
-            setSelectedCampaign(activeCampaign.id)
-          } else if (response.data.campaigns.length > 0) {
-            setSelectedCampaign(response.data.campaigns[0].id)
+            setSelectedCampaign(activeCampaign.id || null) // Fallback to null if id is undefined
+          } else if (response.data?.campaigns?.length > 0 && response.data.campaigns[0]) { // Added null checks
+            setSelectedCampaign(response.data.campaigns[0].id || null) // Fallback to null
           }
         } else {
           setError(response.error || 'Failed to load active campaigns')
@@ -55,33 +70,35 @@ export default function LiveMonitorPage() {
   
   // Update campaign details when socket data changes
   useEffect(() => {
-    if (activeCampaigns.length > 0 && campaignDetails.length > 0) {
-      const updatedDetails = campaignDetails.map(campaign => {
-        const socketCampaign = activeCampaigns.find(c => c.id === campaign.id)
-        if (socketCampaign) {
+    // Assuming activeCampaigns from useSocket is an array of objects that include
+    // id, status, progress, and stats.
+    if (activeCampaigns && activeCampaigns.length > 0 && campaignDetails.length > 0) {
+      const updatedDetails = campaignDetails.map(campaignInState => {
+        const liveData = activeCampaigns.find(socketCampaign => socketCampaign.id === campaignInState.id);
+        
+        if (liveData) {
+          // Ensure status from liveData is compatible with CampaignConfig['status']
+          const validStatus = liveData.status as CampaignConfig['status'];
+
           return {
-            ...campaign,
-            status: socketCampaign.status,
-            progress: socketCampaign.progress,
-            stats: {
-              ...campaign.stats,
-              ...socketCampaign.stats
-            }
-          }
+            ...campaignInState, // campaignInState is LiveCampaignDisplayDetails
+            status: validStatus,
+            progress: liveData.progress, // Assuming liveData has progress
+            stats: liveData.stats,       // Assuming liveData has stats
+          } as LiveCampaignDisplayDetails;
         }
-        return campaign
-      })
-      
-      setCampaignDetails(updatedDetails)
+        return campaignInState;
+      });
+      setCampaignDetails(updatedDetails);
     }
-  }, [activeCampaigns])
+  }, [activeCampaigns, campaignDetails]);
   
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between">
         <DashboardHeader 
-          heading="Live Campaign Monitor" 
-          text="Real-time monitoring of active campaigns and calls" 
+          title="Live Campaign Monitor"
+          description="Real-time monitoring of active campaigns and calls"
         />
         <Button variant="outline" asChild>
           <Link href="/campaigns">
@@ -161,7 +178,7 @@ export default function LiveMonitorPage() {
                     key={campaign.id}
                     variant={selectedCampaign === campaign.id ? "default" : "outline"}
                     className="flex items-center"
-                    onClick={() => setSelectedCampaign(campaign.id)}
+                    onClick={() => setSelectedCampaign(campaign.id || null)}
                   >
                     {campaign.status === 'in-progress' && (
                       <span className="h-2 w-2 rounded-full bg-green-500 mr-2"></span>
@@ -214,7 +231,7 @@ export default function LiveMonitorPage() {
                               <dt className="text-sm font-medium text-muted-foreground">Schedule</dt>
                               <dd className="text-sm">
                                 {campaignDetails.find(c => c.id === selectedCampaign)?.schedule ? (
-                                  `${new Date(campaignDetails.find(c => c.id === selectedCampaign)?.schedule.start_date).toLocaleDateString()}`
+                                  `${campaignDetails.find(c => c.id === selectedCampaign)?.schedule?.start_date ? new Date(campaignDetails.find(c => c.id === selectedCampaign)!.schedule!.start_date!).toLocaleDateString() : 'N/A'}`
                                 ) : (
                                   'No schedule'
                                 )}
@@ -224,7 +241,7 @@ export default function LiveMonitorPage() {
                               <dt className="text-sm font-medium text-muted-foreground">Created</dt>
                               <dd className="text-sm">
                                 {campaignDetails.find(c => c.id === selectedCampaign)?.created_at ? (
-                                  new Date(campaignDetails.find(c => c.id === selectedCampaign)?.created_at).toLocaleDateString()
+                                  campaignDetails.find(c => c.id === selectedCampaign)?.created_at ? new Date(campaignDetails.find(c => c.id === selectedCampaign)!.created_at!).toLocaleDateString() : 'N/A'
                                 ) : (
                                   'Unknown'
                                 )}

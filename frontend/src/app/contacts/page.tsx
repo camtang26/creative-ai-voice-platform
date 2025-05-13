@@ -137,8 +137,8 @@ export default function ContactsPage() {
       email: `contact${i + 1 + (currentPage - 1) * 10}@example.com`,
       tags: i % 2 === 0 ? ['lead'] : i % 3 === 0 ? ['customer', 'premium'] : ['prospect'],
       status: i % 5 === 0 ? 'inactive' : i % 7 === 0 ? 'do-not-call' : 'active',
-      lastContacted: i % 3 === 0 ? new Date().toISOString() : 
-                     i % 4 === 0 ? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() : null,
+      lastContacted: i % 3 === 0 ? new Date().toISOString() :
+                     i % 4 === 0 ? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() : undefined,
       callCount: Math.floor(Math.random() * 5),
       createdAt: new Date(Date.now() - Math.floor(Math.random() * 30) * 24 * 60 * 60 * 1000).toISOString()
     }))
@@ -269,7 +269,7 @@ export default function ContactsPage() {
           if (selectedContacts.includes(contact.id!)) {
             const tags = [...(contact.tags || []), newTag]
             // Remove duplicates
-            return { ...contact, tags: [...new Set(tags)] }
+            return { ...contact, tags: Array.from(new Set(tags)) }
           }
           return contact
         }))
@@ -326,8 +326,8 @@ export default function ContactsPage() {
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between">
         <DashboardHeader 
-          heading="Contacts" 
-          text={`Manage your contact database (${totalContacts} contacts)`} 
+          title="Contacts"
+          description={`Manage your contact database (${totalContacts} contacts)`}
         />
         <Button asChild>
           <Link href="/contacts/new">

@@ -10,7 +10,7 @@ import {
   ResponsiveContainer 
 } from 'recharts'
 import { AnalyticsFilters } from '@/lib/types'
-import { fetchTopicDistribution } from '@/lib/mongodb-analytics'
+import { fetchTopicDistribution, TopicDistributionData } from '@/lib/mongodb-analytics' // Import TopicDistributionData
 import { Card } from './ui/card'
 import { Skeleton } from './ui/skeleton'
 
@@ -21,7 +21,7 @@ interface TopicDistributionChartProps {
 export function TopicDistributionChart({ filters }: TopicDistributionChartProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [data, setData] = useState<any[]>([])
+  const [data, setData] = useState<TopicDistributionData[]>([]) // Changed state type
 
   // Colors for the pie chart slices
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#FF6B6B', '#6B8E23', '#48D1CC'];
@@ -35,7 +35,7 @@ export function TopicDistributionChart({ filters }: TopicDistributionChartProps)
         const response = await fetchTopicDistribution(filters)
         
         if (response.success) {
-          setData(response.data)
+          setData(response.data || []) // Added fallback for undefined
         } else {
           setError(response.error || 'Failed to load topic distribution data')
           setData(generateSampleData())

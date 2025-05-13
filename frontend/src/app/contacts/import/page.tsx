@@ -357,8 +357,8 @@ export default function ImportContactsPage() {
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between">
         <DashboardHeader
-          heading="Import Contacts"
-          text="Import contacts from CSV or Google Sheets"
+          title="Import Contacts"
+          description="Import contacts from CSV or Google Sheets"
         />
         <Button variant="outline" asChild>
           <Link href="/contacts">
@@ -630,11 +630,11 @@ export default function ImportContactsPage() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {sheetData.slice(0, 5).map((row, rowIndex) => (
+                            {sheetData && sheetData.slice(0, 5).map((row: any[], rowIndex: number) => ( // Added types for row and rowIndex
                               <TableRow key={rowIndex}>
-                                {row.map((cell, cellIndex) => (
+                                {row.map((cell: string | number, cellIndex: number) => ( // Added types for cell and cellIndex
                                   <TableCell key={cellIndex}>
-                                    {cell}
+                                    {String(cell)} {/* Ensure cell is a string for rendering */}
                                   </TableCell>
                                 ))}
                               </TableRow>

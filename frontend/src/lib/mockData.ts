@@ -174,7 +174,7 @@ export const mockCampaigns = {
     sheet_id: `sheet-${i}`,
     prompt_template: 'You are a sales agent for our company...',
     first_message_template: 'Hello, this is an AI assistant calling from...',
-    status: ['draft', 'scheduled', 'in-progress', 'completed', 'paused'][i],
+    status: (['draft', 'scheduled', 'in-progress', 'completed', 'paused'] as const)[i], // Moved 'as const' to the array literal
     created_at: new Date(Date.now() - i * 86400000).toISOString()
   }))
 };
