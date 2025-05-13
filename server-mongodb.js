@@ -562,30 +562,33 @@ wss.on('connection', (ws, request) => {
             }
           } else { server.log.warn('[WS Manual] conversation_initiation_metadata missing conversation_id'); }
 
-          // Prepare the first_message, replacing {name}
-          let processedFirstMessage = customParameters?.first_message || "Hello, this is an AI assistant. May I please speak with {name}?"; // Default if not provided
-          if (customParameters?.name && processedFirstMessage.includes('{name}')) {
-              processedFirstMessage = processedFirstMessage.replace(/{name}/g, customParameters.name);
-          }
-
-          // Prepare the agent config part of conversation_config_override
           const agentConfig = {};
-          // Always send a first_message, even if it's the default or processed default
-          agentConfig.first_message = processedFirstMessage;
 
+          // Handle first_message override
+          if (customParameters?.first_message && customParameters.first_message.trim() !== "") {
+            let processedFirstMessage = customParameters.first_message;
+            if (customParameters?.name && processedFirstMessage.includes('{name}')) {
+              processedFirstMessage = processedFirstMessage.replace(/{name}/g, customParameters.name);
+            }
+            agentConfig.first_message = processedFirstMessage;
+          }
+          // If customParameters.first_message is empty, we don't set agentConfig.first_message,
+          // allowing ElevenLabs to use its own default. The 'name' in dynamic_variables will be available for it.
+
+          // Handle system_prompt override
           // Only add system_prompt if customParameters.prompt is non-empty and not just whitespace
           if (customParameters?.prompt && customParameters.prompt.trim() !== "") {
-              agentConfig.system_prompt = customParameters.prompt;
+            agentConfig.system_prompt = customParameters.prompt;
           }
 
           const initialConfig = {
             type: "conversation_initiation_client_data",
-            // Use the prepared agentConfig. Only include conversation_config_override if agentConfig has properties.
+            // Only include conversation_config_override if agentConfig has any properties to override
             ...(Object.keys(agentConfig).length > 0 && { conversation_config_override: { agent: agentConfig } }),
             dynamic_variables: {
               phone_number: customParameters?.to || "Unknown",
-              name: customParameters?.name || "Unknown",
-              contact_name: customParameters?.name || "Unknown", // Keep for potential other uses
+              name: customParameters?.name || "Unknown", // This makes 'name' available for EL's default messages
+              contact_name: customParameters?.name || "Unknown",
               call_sid: callSid || "Unknown",
               campaign_id: customParameters?.campaignId || null,
               contact_id: customParameters?.contactId || null
