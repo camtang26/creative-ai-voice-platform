@@ -17,6 +17,7 @@ import fastifySocketIO from 'fastify-socket.io'; // Import the socket.io plugin
 // REMOVED: fastifyWebsocket import
 import { WebSocketServer, WebSocket } from 'ws'; // CORRECTED: Import WebSocketServer and WebSocket client
 import fastifyFormBody from '@fastify/formbody';
+import fastifyMultipart from '@fastify/multipart'; // Import multipart plugin
 import fastifyCors from '@fastify/cors'; // Added for CORS
 import fastifyHelmet from '@fastify/helmet'; // Added for security headers
 import fetch from 'node-fetch';
@@ -133,6 +134,18 @@ server.register(fastifySocketIO, {
 
 // REMOVED: @fastify/websocket registration
 server.register(fastifyFormBody);
+server.register(fastifyMultipart, {
+  attachFieldsToBody: true, // Make non-file fields available on request.body
+  // limits: { // Optional: configure limits
+  //   fieldNameSize: 100, // Max field name size in bytes
+  //   fieldSize: 1000000, // Max field value size in bytes
+  //   fields: 10,         // Max number of non-file fields
+  //   fileSize: 10000000, // For multipart forms, the max file size in bytes
+  //   files: 1,           // Max number of file fields
+  //   headerPairs: 2000   // Max number of header key=>value pairs
+  // }
+});
+console.log('[Server] Registered @fastify/multipart plugin');
 
 // Register @fastify/cors
 server.register(fastifyCors, {

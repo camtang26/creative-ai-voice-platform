@@ -821,3 +821,36 @@ export async function validateSheet(sheetId: string) {
     };
   }
 }
+
+/**
+ * Start a campaign from an uploaded CSV file and campaign details
+ */
+export async function startCampaignFromCsv(formData: FormData): Promise<{ success: boolean; message?: string; data?: any; error?: string }> {
+  // We don't use mock data for this specific new functionality directly,
+  // as it involves file upload which is harder to mock meaningfully here.
+  // The backend will handle the CSV processing.
+
+  try {
+    const response = await fetch(getApiUrl('/api/db/campaigns/start-from-csv'), {
+      method: 'POST',
+      body: formData, // FormData will set the Content-Type to multipart/form-data automatically
+    });
+
+    if (!response.ok) {
+      // Try to parse error from backend if available
+      try {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Error starting campaign from CSV: ${response.statusText}`);
+      } catch (e) {
+        throw new Error(`Error starting campaign from CSV: ${response.statusText}`);
+      }
+    }
+    return await response.json();
+  } catch (error: any) {
+    console.error('Failed to start campaign from CSV:', error);
+    return {
+      success: false,
+      error: error.message || 'An unexpected error occurred while starting campaign from CSV.'
+    };
+  }
+}

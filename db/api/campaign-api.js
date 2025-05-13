@@ -14,7 +14,14 @@ import {
   updateCampaignStatus,
   updateCampaignStats
 } from '../repositories/campaign.repository.js';
+import { saveContact, getContactByPhoneNumber } from '../repositories/contact.repository.js'; // Corrected import
 import { getCacheValue, setCacheValue } from '../utils/cache.js';
+import fs from 'node:fs';
+import { pipeline } from 'node:stream/promises';
+import csvParser from 'fast-csv';
+import os from 'node:os';
+import path from 'node:path';
+
 
 // Cache TTL in milliseconds (5 minutes)
 const CACHE_TTL = 300000;
@@ -660,6 +667,138 @@ export async function registerCampaignApiRoutes(fastify, options = {}) {
   });
   
   console.log('[MongoDB] Registered campaign API routes');
+// Start campaign from CSV upload
+  fastify.post('/api/db/campaigns/start-from-csv', async (request, reply) => {
+    try {
+      const parts = request.parts();
+      let csvFileStream;
+      const campaignDetails = {};
+
+      for await (const part of parts) {
+        if (part.type === 'file' && part.fieldname === 'file') { // Assuming frontend sends file with fieldname 'file'
+          csvFileStream = part.file;
+        } else if (part.type === 'field') {
+          campaignDetails[part.fieldname] = part.value;
+        }
+      }
+
+      if (!csvFileStream) {
+        return reply.code(400).send({ success: false, error: 'CSV file is required.' });
+      }
+
+      const { campaignName, agentPrompt, firstMessage } = campaignDetails;
+
+      if (!campaignName || !agentPrompt || !firstMessage) {
+        return reply.code(400).send({ success: false, error: 'Campaign name, agent prompt, and first message are required.' });
+      }
+
+      const contacts = [];
+      const processingPromises = [];
+
+      const stream = csvFileStream.pipe(csvParser.parse({ headers: true }))
+        .on('error', error => {
+          console.error('[API] CSV parsing error:', error);
+          if (!reply.sent) {
+            reply.code(500).send({ success: false, error: 'Error parsing CSV file.', details: error.message });
+          }
+        })
+        .on('data', async (row) => {
+          const phoneNumber = row.phoneNumber || row.phone_number || row.Phone || row.Mobile || row.phone;
+          const name = row.name || row.Name;
+          const email = row.email || row.Email;
+
+          if (phoneNumber && String(phoneNumber).trim()) {
+            const contactData = {
+              phoneNumber: String(phoneNumber).trim(),
+              name: name ? String(name).trim() : '',
+              email: email ? String(email).trim() : '',
+              status: 'active',
+            };
+            
+            processingPromises.push(
+              (async () => {
+                try {
+                  let existingContact = await findContactByPhoneNumber(contactData.phoneNumber);
+                  if (existingContact) {
+                    contacts.push(existingContact._id.toString());
+                  } else {
+                    const savedContact = await saveContact(contactData);
+                    contacts.push(savedContact._id.toString());
+                  }
+                } catch (contactError) {
+                  console.error(`[API] Error processing contact row: ${JSON.stringify(row)}, Error: ${contactError}`);
+                }
+              })()
+            );
+          } else {
+            console.warn(`[API] Skipping row due to missing phone number: ${JSON.stringify(row)}`);
+          }
+        });
+      
+      await new Promise((resolve, reject) => {
+        stream.on('end', async (rowCount) => {
+          try {
+            await Promise.all(processingPromises); 
+            console.log(`[API] Parsed ${rowCount !== undefined ? rowCount : 'unknown'} rows from CSV. Processed ${contacts.length} contacts for campaign.`);
+
+            if (contacts.length === 0) {
+              if (!reply.sent) {
+                reply.code(400).send({ success: false, error: 'No valid contacts with phone numbers found in CSV to process.' });
+              }
+              return resolve();
+            }
+            
+            const campaignData = {
+              name: campaignName,
+              agentPrompt,
+              firstMessage,
+              status: 'pending', 
+              contacts,
+            };
+
+            const savedCampaign = await saveCampaign(campaignData);
+            
+            if (!reply.sent) {
+              reply.send({
+                success: true,
+                message: 'Campaign created successfully from CSV.',
+                data: {
+                  campaign: savedCampaign,
+                  contactsProcessed: contacts.length,
+                },
+                timestamp: new Date().toISOString()
+              });
+            }
+            resolve();
+          } catch (dbError) {
+            console.error('[API] Error saving contacts/campaign from CSV during stream end:', dbError);
+            if (!reply.sent) {
+               reply.code(500).send({ success: false, error: 'Database error after CSV processing.', details: dbError.message });
+            }
+            reject(dbError); 
+          }
+        });
+        stream.on('error', (streamError) => {
+            console.error('[API] CSV Stream processing error:', streamError);
+            if (!reply.sent) {
+                reply.code(500).send({ success: false, error: 'Error processing CSV stream.', details: streamError.message });
+            }
+            reject(streamError);
+        });
+      });
+
+    } catch (error) {
+      console.error('[API] Error processing start-from-csv route:', error);
+      if (!reply.sent) { 
+        reply.code(500).send({
+          success: false,
+          error: 'Error processing CSV for campaign.',
+          details: error.message,
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
+  });
 }
 
 export default {

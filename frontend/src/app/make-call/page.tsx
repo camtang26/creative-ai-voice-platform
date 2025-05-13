@@ -1,3 +1,4 @@
+import { useState } from 'react' // Import useState
 import { DashboardHeader } from '@/components/dashboard-header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -7,6 +8,10 @@ import { MakeCallForm } from '@/components/make-call-form'
 import { UploadSheetForm } from '@/components/upload-sheet-form'
 
 export default function MakeCallPage() {
+  const [csvCampaignName, setCsvCampaignName] = useState('');
+  const [csvAgentPrompt, setCsvAgentPrompt] = useState('');
+  const [csvFirstMessage, setCsvFirstMessage] = useState('');
+
   return (
     <div className="flex flex-col gap-6">
       <DashboardHeader 
@@ -128,9 +133,52 @@ export default function MakeCallPage() {
                 Upload a CSV file containing phone numbers to make outbound calls.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <UploadSheetForm />
+            <CardContent className="space-y-6"> {/* Added space-y-6 for consistency */}
+              {/* Campaign Name Input */}
+              <div className="space-y-2">
+                <label htmlFor="csvCampaignName" className="text-sm font-medium">Campaign Name</label>
+                <input
+                  id="csvCampaignName"
+                  type="text"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="Enter campaign name"
+                  value={csvCampaignName}
+                  onChange={(e) => setCsvCampaignName(e.target.value)}
+                />
+              </div>
+
+              {/* Agent Prompt Textarea */}
+              <div className="space-y-2">
+                <label htmlFor="csvAgentPrompt" className="text-sm font-medium">Agent Prompt</label>
+                <textarea
+                  id="csvAgentPrompt"
+                  className="flex min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="Instructions for your AI agent"
+                  value={csvAgentPrompt}
+                  onChange={(e) => setCsvAgentPrompt(e.target.value)}
+                />
+              </div>
+
+              {/* First Message Input */}
+              <div className="space-y-2">
+                <label htmlFor="csvFirstMessage" className="text-sm font-medium">First Message</label>
+                <input
+                  id="csvFirstMessage"
+                  type="text"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="Hello, this is [Company Name]..."
+                  value={csvFirstMessage}
+                  onChange={(e) => setCsvFirstMessage(e.target.value)}
+                />
+              </div>
+              
+              <UploadSheetForm
+                campaignName={csvCampaignName}
+                agentPrompt={csvAgentPrompt}
+                firstMessage={csvFirstMessage}
+              />
             </CardContent>
+            {/* CardFooter might be needed here if UploadSheetForm doesn't have its own submit button for the whole campaign */}
           </Card>
         </TabsContent>
       </Tabs>
