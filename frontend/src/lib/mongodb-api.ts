@@ -589,27 +589,23 @@ export async function fetchCampaign(campaignId: string): Promise<{success: boole
       return { success: false, error: errorMsg };
     }
     
-    const rawCampaignData = await response.json();
-
-    if (rawCampaignData && typeof rawCampaignData === 'object' && rawCampaignData._id) {
-      // Assuming the backend returns the campaign object directly on success
-      // And it might contain _id instead of id
-      const campaign = { ...rawCampaignData, id: rawCampaignData._id } as CampaignConfig;
-      // delete (campaign as any)._id; // Optional: remove _id if not needed elsewhere
-      return { success: true, campaign: campaign };
-    } else if (rawCampaignData && rawCampaignData.success === false && rawCampaignData.error) {
-      // Handle cases where backend itself returns a { success: false, error: ... }
-      return { success: false, error: rawCampaignData.error };
+    const result = await response.json();
+    // Correctly unwrap campaign data from response.data.data
+    if (result.success && result.data && result.data.data) {
+      // Ensure _id is mapped to id
+      const campaignData = result.data.data;
+      const campaign = { ...campaignData, id: campaignData._id };
+      delete campaign._id;
+      return { success: true, campaign };
     } else {
-      // If the response is not the expected campaign object or a known error structure
-      console.error(`[API Fetch] Unexpected response structure for ${apiUrl}:`, rawCampaignData);
-      return { success: false, error: 'Unexpected response structure from server.' };
+      // Handle cases where success is true but no data, or success is false, or data.data is missing
+      const errorMessage = result.error || (result.data && !result.data.data ? 'Unexpected response structure from server' : 'Campaign data not found or error in response.');
+      console.error(`Error in campaign response for ${campaignId}:`, errorMessage);
+      return { success: false, error: errorMessage };
     }
-
-  } catch (error) {
-    // This catch block handles network errors or other unexpected issues during fetch
-    const apiError = handleApiError(error, `Network or other error fetching campaign ${campaignId}:`);
-    return { success: false, error: apiError.error }; // Adapt to expected return type
+  } catch (error: any) {
+    console.error(`Network or other error fetching campaign ${campaignId}:`, error);
+    return { success: false, error: error.message || 'Network error or an unknown issue occurred' };
   }
 }
 
