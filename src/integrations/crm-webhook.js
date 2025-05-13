@@ -54,11 +54,18 @@ export async function sendCallToCRM(callDetails) {
     });
     console.log(`[CRM Webhook] Successfully sent call data to CRM. Status: ${response.status}`);
   } catch (error) {
-    let errorMessage = error.message;
     if (error.response) {
-      errorMessage = `Status: ${error.response.status}, Data: ${JSON.stringify(error.response.data)}`;
+      // The request was made and the server responded with a status code
+      // that falls out of the range of 2xx
+      console.error(`[CRM Webhook] Error sending data - Server responded: Status ${error.response.status}`, error.response.data);
+    } else if (error.request) {
+      // The request was made but no response was received
+      console.error('[CRM Webhook] Error sending data - No response received:', error.request);
+    } else {
+      // Something happened in setting up the request that triggered an Error
+      console.error('[CRM Webhook] Error sending data - Request setup error:', error.message);
     }
-    console.error(`[CRM Webhook] Error sending call data to CRM: ${errorMessage}`);
+    // console.error('[CRM Webhook] Full error config:', error.config); // Optional: for more detailed debugging
     // TODO: Implement retry logic or dead-letter queue if necessary
   }
 }
