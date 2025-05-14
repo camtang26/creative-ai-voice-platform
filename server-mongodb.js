@@ -434,6 +434,49 @@ server.post('/quality-insights-callback', async (request, reply) => {
     return reply.code(200).send({ success: true, status: 'error', message: error.message });
   }
 });
+// API endpoint for sending emails
+server.post('/api/email/send', async (request, reply) => {
+  try {
+    // API Key Authentication
+    const apiKey = process.env.EMAIL_API_KEY;
+    const authHeader = request.headers.authorization;
+
+    if (!apiKey) {
+      console.error('[API Email] EMAIL_API_KEY is not set on the server.');
+      return reply.code(500).send({ success: false, error: 'Email service not configured (no API key).' });
+    }
+
+    if (!authHeader || !authHeader.startsWith('Bearer ') || authHeader.substring(7) !== apiKey) {
+      console.warn('[API Email] Unauthorized attempt to send email. Invalid or missing API key.');
+      return reply.code(401).send({ success: false, error: 'Unauthorized' });
+    }
+
+    const { to_email, subject, content, customer_name } = request.body;
+
+    if (!to_email || !subject || !content) {
+      return reply.code(400).send({ success: false, error: 'Missing required fields: to_email, subject, content' });
+    }
+
+    console.log(`[API Email] Received request to send email to: ${to_email} | Subject: ${subject}`);
+
+    const result = await sendEmail({ to_email, subject, content, customer_name });
+    
+    console.log('[API Email] Email sent successfully via api-email-service.');
+    return reply.code(200).send({ success: true, message: 'Email sent successfully', details: result });
+
+  } catch (error) {
+    console.error('[API Email] Error processing /api/email/send:', error.message);
+    // Check if the error is from the sendEmail function (e.g., validation or API call failure)
+    if (error.message.includes('Invalid email format') || error.message.includes('Email address, subject, and content are required')) {
+      return reply.code(400).send({ success: false, error: error.message });
+    }
+    if (error.message.includes('API responded with status')) {
+      return reply.code(502).send({ success: false, error: `Email service provider error: ${error.message}` });
+    }
+    // Generic server error
+    return reply.code(500).send({ success: false, error: 'Internal server error while sending email.' });
+  }
+});
 
 // REMOVED: Old WebSocket Proxy Handler
 
