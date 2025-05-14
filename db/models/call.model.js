@@ -86,8 +86,8 @@ const callSchema = new Schema({
   answeredBy: { 
     type: String,
     enum: [
-      'human', 'machine_start', 'machine_end_beep', 
-      'machine_end_silence', 'fax', 'unknown'
+      'human', 'machine_start', 'machine_end_beep',
+      'machine_end_silence', 'machine_end_other', 'fax', 'unknown'
     ]
   },
   machineBehavior: { 
