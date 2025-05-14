@@ -275,6 +275,12 @@ export function processMachineDetection(amdData) {
   callInfo.machineBehavior = MachineBehavior;
   
   console.log(`[Machine Detection] Call ${CallSid} answered by: ${AnsweredBy}`);
+// Terminate call if machine detected
+  if (AnsweredBy && (AnsweredBy.startsWith('machine_') || AnsweredBy === 'fax' || AnsweredBy === 'unknown_machine')) {
+    console.log(`[AMD] Machine detected (${AnsweredBy}). Terminating call ${CallSid}.`);
+    // Assuming terminateCall is imported or available in this scope
+    terminateCall(CallSid, { reason: 'amd_machine_detected' });
+  }
   
   // Update call info in the map
   activeCalls.set(CallSid, callInfo);
