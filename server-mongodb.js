@@ -514,7 +514,7 @@ wss.on('connection', (ws, request) => {
   let customParameters = {}; // Will be populated from 'start' message
   let conversationId = null;
   let initialConfigSent = false;
-  const INACTIVITY_TIMEOUT_MS = 60000; // 60 seconds
+  const INACTIVITY_TIMEOUT_MS = 300000; // 300 seconds (5 minutes)
   let inactivityTimeout = null; // Stores the timeout ID
 
   const clearExistingInactivityTimer = () => {
