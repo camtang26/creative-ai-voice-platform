@@ -24,6 +24,7 @@ import fetch from 'node-fetch';
 import crypto from 'crypto';
 import getRawBody from 'raw-body'; // Import raw-body library
 import Twilio from 'twilio';
+import mongoose from 'mongoose';
 import {
   registerOutboundRoutes,
   activeCalls,
@@ -58,12 +59,17 @@ import {
   getRecordingRepository,
   getTranscriptRepository, // Ensure this is exported from db/index.js
   getCallEventRepository,
-  getAnalyticsRepository
+  getAnalyticsRepository,
+  getCampaignRepository, // Added for Google Sheet campaign
+  getContactRepository   // Added for Google Sheet campaign
   // getRecordingRepository // Removed dangling identifier causing SyntaxError
 } from './db/index.js';
 // Import specific repository function needed for the temporary route
 import { getRecordingBySid } from './db/repositories/recording.repository.js';
 import { verifyWebhookSignature } from './db/webhook-handler-db.js';
+import { google } from 'googleapis';
+import fs from 'fs/promises';
+import path from 'path';
 
 // Get Twilio credentials from environment
 const {
@@ -256,6 +262,392 @@ function verifySignature(payload, signature, secret) {
     return receivedHash === calculatedHash;
   } catch (error) {
     console.error('[Webhook] Signature verification error:', error.message);
+// --- Google Sheets API Helper ---
+let sheetsApiInstance; // To cache the initialized sheets API
+
+async function getGoogleSheetsApi() {
+  if (sheetsApiInstance) {
+    return sheetsApiInstance;
+  }
+  try {
+    const credentialsPath = path.join(process.cwd(), 'credentials.json');
+    try {
+      await fs.access(credentialsPath);
+    } catch (error) {
+      console.error('[Google Sheets] Error: credentials.json file not found.');
+      console.error('[Google Sheets] Please download your Google API credentials file and save it as credentials.json in the project root.');
+      throw new Error('credentials.json not found');
+    }
+
+    const credentials = JSON.parse(await fs.readFile(credentialsPath, 'utf8'));
+    
+    const tokenPath = path.join(process.cwd(), 'token.json');
+    let token;
+    try {
+      token = JSON.parse(await fs.readFile(tokenPath, 'utf8'));
+    } catch (error) {
+      console.error('[Google Sheets] No token.json file found. Please authenticate first by running: node google-auth.js');
+      throw new Error('token.json not found, please run google-auth.js');
+    }
+
+    const { client_secret, client_id, redirect_uris } = credentials.installed || credentials.web;
+    if (!client_secret || !client_id || !redirect_uris || !redirect_uris.length) {
+      console.error('[Google Sheets] Invalid credentials.json structure. Missing client_secret, client_id, or redirect_uris.');
+      throw new Error('Invalid credentials.json structure');
+    }
+    const oAuth2Client = new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
+    oAuth2Client.setCredentials(token);
+
+    // Check if token is expired and refresh if necessary
+    if (oAuth2Client.isTokenExpiring()) {
+      console.log('[Google Sheets] Token is expiring or expired, attempting to refresh...');
+      try {
+        const { credentials: newCredentials } = await oAuth2Client.refreshAccessToken();
+        oAuth2Client.setCredentials(newCredentials);
+        await fs.writeFile(tokenPath, JSON.stringify(newCredentials));
+        console.log('[Google Sheets] Token refreshed and saved successfully.');
+      } catch (refreshError) {
+        console.error('[Google Sheets] Error refreshing token:', refreshError.message);
+        console.error('[Google Sheets] Please re-authenticate by running: node google-auth.js');
+        throw new Error('Failed to refresh Google API token. Please re-authenticate.');
+      }
+    }
+
+    sheetsApiInstance = google.sheets({ version: 'v4', auth: oAuth2Client });
+    console.log('[Google Sheets] Successfully authenticated and initialized Google Sheets API client.');
+    return sheetsApiInstance;
+  } catch (error) {
+    console.error('[Google Sheets] Error setting up Google Sheets API client:', error.message);
+    // Ensure sheetsApiInstance is not set if setup fails
+    sheetsApiInstance = null; 
+    throw error; // Re-throw the error to be caught by the route handler
+  }
+}
+// --- End Google Sheets API Helper ---
+// --- Google Sheet Campaign API Endpoints ---
+
+// Endpoint to load and preview Google Sheet data
+server.post('/api/campaigns/google-sheet/load-data', async (request, reply) => {
+  const { spreadsheetId, sheetName = 'Sheet1' } = request.body; // Default to 'Sheet1'
+
+  if (!spreadsheetId) {
+    return reply.code(400).send({ success: false, error: 'Spreadsheet ID is required.' });
+  }
+
+  try {
+    const sheets = await getGoogleSheetsApi();
+    server.log.info(`[GS Load] Attempting to load data for Spreadsheet ID: ${spreadsheetId}, Sheet: ${sheetName}`);
+
+    // Fetch a limited range for preview, e.g., A1:Z10 (headers + 9 data rows)
+    // Adjust range as needed, e.g., more columns if necessary
+    const range = `${sheetName}!A1:Z10`; 
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range,
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) {
+      server.log.warn(`[GS Load] No data found in sheet: ${sheetName} for ID: ${spreadsheetId}`);
+      return reply.code(404).send({ success: false, error: 'No data found in the specified sheet.' });
+    }
+
+    const headers = rows[0];
+    const previewRows = rows.slice(1);
+
+    server.log.info(`[GS Load] Successfully loaded ${previewRows.length} preview rows from ${sheetName}`);
+    return reply.code(200).send({ 
+      success: true, 
+      message: 'Sheet data loaded successfully for preview.',
+      spreadsheetId,
+      sheetName,
+      headers,
+      previewRows,
+      totalRowsInPreviewRange: rows.length -1 // Total data rows in the fetched range
+    });
+
+  } catch (error) {
+    server.log.error({ err: error, spreadsheetId, sheetName }, '[GS Load] Error loading Google Sheet data');
+    if (error.message === 'credentials.json not found' || error.message === 'token.json not found, please run google-auth.js' || error.message === 'Invalid credentials.json structure' || error.message === 'Failed to refresh Google API token. Please re-authenticate.') {
+        return reply.code(500).send({ success: false, error: `Google Sheets authentication error: ${error.message}. Please check server configuration and run google-auth.js if needed.` });
+    }
+    // Check for specific Google API errors by code
+    if (error.code === 404) {
+        return reply.code(404).send({ success: false, error: 'Spreadsheet not found. Please check the Spreadsheet ID.' });
+    }
+    if (error.code === 403) {
+        return reply.code(403).send({ success: false, error: 'Permission denied to access the Spreadsheet. Check sharing settings and API permissions.' });
+    }
+    if (error.message && error.message.includes('Requested entity was not found')) { // Another way Google API might report not found for sheets within a spreadsheet
+        return reply.code(404).send({ success: false, error: `Sheet "${sheetName}" not found in spreadsheet. Please check the sheet name.` });
+    }
+    return reply.code(500).send({ success: false, error: 'Failed to load Google Sheet data.', details: error.message });
+  }
+// Endpoint to start a campaign from Google Sheet
+server.post('/api/campaigns/google-sheet/start', async (request, reply) => {
+  const { 
+    spreadsheetId, 
+    sheetName = 'Sheet1', 
+    maxCalls: maxCallsStr, // Will be string from JSON
+    agentPrompt, 
+    firstMessage,
+    campaignName: customCampaignName 
+  } = request.body;
+
+  const maxCalls = maxCallsStr ? parseInt(maxCallsStr) : undefined;
+
+  if (!spreadsheetId) {
+    return reply.code(400).send({ success: false, error: 'Spreadsheet ID is required.' });
+  }
+  if (!agentPrompt) {
+    return reply.code(400).send({ success: false, error: 'Agent prompt is required.' });
+  }
+  if (!firstMessage) {
+    return reply.code(400).send({ success: false, error: 'First message is required.' });
+  }
+
+  server.log.info(`[GS Start] Received request to start campaign from Spreadsheet ID: ${spreadsheetId}, Sheet: ${sheetName}`);
+
+  try {
+    const sheets = await getGoogleSheetsApi();
+    const campaignRepository = getCampaignRepository();
+    const contactRepository = getContactRepository();
+    
+    // 1. Setup Campaign in MongoDB
+    const campaignTitle = customCampaignName || `Google Sheet Campaign ${spreadsheetId.substring(0,6)} - ${new Date().toISOString().split('T')[0]}`;
+    let currentCampaign;
+
+    const existingCampaigns = await campaignRepository.getCampaigns({
+      name: campaignTitle, // More specific search if possible
+      "sheetInfo.spreadsheetId": spreadsheetId,
+      "sheetInfo.sheetName": sheetName
+    });
+
+    if (existingCampaigns && existingCampaigns.campaigns && existingCampaigns.campaigns.length > 0) {
+      currentCampaign = existingCampaigns.campaigns[0];
+      // Update existing campaign with potentially new prompt/message
+      currentCampaign = await campaignRepository.updateCampaign(currentCampaign._id, {
+        prompt: agentPrompt,
+        firstMessage: firstMessage,
+        // Potentially update other settings if they are part of the UI form
+        sheetInfo: { // Ensure sheetInfo is preserved/updated
+          spreadsheetId,
+          sheetName,
+          phoneColumn: 'phone', // Keep defaults or make configurable
+          nameColumn: 'name',
+          statusColumn: 'status',
+          customMessageColumn: 'message'
+        }
+      });
+      server.log.info(`[GS Start] Using and updated existing campaign: ${currentCampaign.name} (${currentCampaign._id})`);
+    } else {
+      currentCampaign = await campaignRepository.saveCampaign({
+        name: campaignTitle,
+        description: `Campaign created from Google Sheet: ${spreadsheetId}/${sheetName}`,
+        status: 'draft', // Start as draft, will be activated after contact import
+        prompt: agentPrompt,
+        firstMessage: firstMessage,
+        callerId: process.env.TWILIO_PHONE_NUMBER,
+        sheetInfo: {
+          spreadsheetId,
+          sheetName,
+          phoneColumn: 'phone',
+          nameColumn: 'name',
+          statusColumn: 'status',
+          customMessageColumn: 'message'
+        },
+        settings: { // Default settings, consider making these configurable
+          callDelay: 10000, // 10 seconds
+          maxConcurrentCalls: 1,
+          retryCount: 1,
+          retryDelay: 3600000 // 1 hour
+        },
+        // stats will be initialized by default in the model
+      });
+      server.log.info(`[GS Start] Created new campaign: ${currentCampaign.name} (${currentCampaign._id})`);
+    }
+    
+    // 2. Get Contacts from Sheet (adapted from mongodb-sheet-call.js)
+    server.log.info(`[GS Start] Reading data from spreadsheet: ${spreadsheetId}, sheet: ${sheetName}`);
+    const range = `${sheetName}!A:Z`; // Read all columns
+    const sheetResponse = await sheets.spreadsheets.values.get({ spreadsheetId, range });
+    const rows = sheetResponse.data.values;
+
+    if (!rows || rows.length === 0) {
+      server.log.warn(`[GS Start] No data found in sheet: ${sheetName} for ID: ${spreadsheetId}`);
+      // await campaignRepository.updateCampaignStatus(currentCampaign._id, 'failed', { reason: 'No data in sheet' });
+      return reply.code(404).send({ success: false, error: 'No data found in the specified sheet.' });
+    }
+
+    const headers = rows[0].map(h => String(h).toLowerCase().trim());
+    const phoneIndex = headers.findIndex(h => ['phone', 'phone number', 'mobile'].includes(h));
+    const nameIndex = headers.findIndex(h => ['name', 'contact name', 'full name'].includes(h));
+    const statusIndex = headers.findIndex(h => ['status', 'call status'].includes(h)); // For updating sheet
+    const customMessageIndex = headers.findIndex(h => ['message', 'custom message'].includes(h));
+
+    if (phoneIndex === -1) {
+      server.log.error('[GS Start] Phone column not found in sheet.');
+      return reply.code(400).send({ success: false, error: 'A "phone" column (e.g., "phone", "phone number", "mobile") is required in the sheet.' });
+    }
+    if (nameIndex === -1) { // Added check for name column
+      server.log.error('[GS Start] Name column not found in sheet.');
+      return reply.code(400).send({ success: false, error: 'A "name" column (e.g., "name", "contact name", "full name") is required in the sheet for personalized first messages.' });
+    }
+
+    const sheetContactsData = rows.slice(1)
+      .map((row, index) => ({
+        rowIndex: index + 2, // 1-indexed + header
+        phone: String(row[phoneIndex] || '').trim(),
+        name: nameIndex !== -1 ? String(row[nameIndex] || '').trim() : '', // Name is now guaranteed to be found due to check above, but keep defensive access
+        currentSheetStatus: statusIndex !== -1 ? String(row[statusIndex] || '').toLowerCase().trim() : '',
+        customMessage: customMessageIndex !== -1 ? String(row[customMessageIndex] || '').trim() : ''
+      }))
+      .filter(c => c.phone && c.name && (c.currentSheetStatus === 'pending' || c.currentSheetStatus === '')); // Added c.name to filter
+
+    if (sheetContactsData.length === 0) {
+        server.log.info('[GS Start] No pending contacts found in the sheet.');
+        // await campaignRepository.updateCampaignStatus(currentCampaign._id, 'completed');
+        return reply.code(200).send({ success: true, message: 'No pending contacts to call.', campaignId: currentCampaign._id });
+    }
+    
+    const contactsToCall = maxCalls ? sheetContactsData.slice(0, maxCalls) : sheetContactsData;
+    server.log.info(`[GS Start] Prepared ${contactsToCall.length} contacts for calling for campaign ${currentCampaign.name}.`);
+
+    // Import/Update contacts in MongoDB
+    const contactsToImport = sheetContactsData.map(contact => ({
+      phoneNumber: contact.phone,
+      name: contact.name,
+      email: '', // Assuming email is not a primary field from sheet for now
+      status: 'active', // Default status for new/updated contacts in DB
+      campaigns: [currentCampaign._id], // Associate with current campaign
+      customFields: {
+        customMessage: contact.customMessage,
+        // sheet_status: contact.currentSheetStatus // Optionally store original sheet status
+      },
+      sheetInfo: { // Store sheet origin info
+        spreadsheetId,
+        sheetName,
+        rowIndex: contact.rowIndex
+      }
+    }));
+
+    if (contactsToImport.length > 0) {
+      server.log.info(`[GS Start] Importing/updating ${contactsToImport.length} contacts into MongoDB for campaign ${currentCampaign.name}...`);
+      const importResults = await contactRepository.importContacts(contactsToImport, currentCampaign._id); // Pass campaignId for association
+      server.log.info(`[GS Start] MongoDB Import Results: Created ${importResults.created}, Updated: ${importResults.updated}, Failed: ${importResults.failed}`);
+    }
+    
+    // Fetch all contacts newly associated or already part of this campaign that are pending a call
+    // This requires a method in contactRepository to fetch by campaign and status
+    // For now, we'll use the sheetContactsData and assume they are the ones to call if pending
+    // A more robust way: query contactRepository for contacts linked to campaignId with a 'pending_call' status.
+    
+    // Update campaign with total contacts (consider only new ones or all for this run)
+    await campaignRepository.updateCampaignStats(currentCampaign._id, {
+      totalContacts: contactsToCall.length // Based on filtered contacts from sheet for this run
+    });
+    
+    // Activate campaign now that contacts are processed
+    currentCampaign = await campaignRepository.updateCampaignStatus(currentCampaign._id, 'active');
+    server.log.info(`[GS Start] Campaign ${currentCampaign.name} activated.`);
+
+    // 3. Initiate Calls (Loop and call /outbound-call)
+    // IMPORTANT: This is a simplified loop. For production, use a job queue.
+    let callsInitiatedCount = 0;
+    for (const contact of contactsToCall) {
+      try {
+        const effectiveFirstMessage = contact.customMessage || firstMessage.replace("{name}", contact.name || "there");
+        
+        server.log.info(`[GS Start] Initiating call to ${contact.name || contact.phone} for campaign ${currentCampaign.name}`);
+        const callApiResponse = await fetch(`${request.protocol}://${request.hostname}/api/outbound-call`, { // Use relative URL
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            number: contact.phone,
+            prompt: agentPrompt,
+            first_message: effectiveFirstMessage,
+            name: contact.name || "Unknown",
+            campaignId: currentCampaign._id,
+            contactId: contact.db_id || null // Pass MongoDB contact ID if available after import
+          }),
+        });
+
+        const callApiData = await callApiResponse.json();
+        if (callApiResponse.ok && callApiData.success) {
+          callsInitiatedCount++;
+          server.log.info(`[GS Start] Call to ${contact.phone} initiated. SID: ${callApiData.callSid}`);
+          // Update sheet status (simplified)
+          if (statusIndex !== -1) {
+            await sheets.spreadsheets.values.update({
+              spreadsheetId,
+              range: `${sheetName}!${String.fromCharCode(65 + statusIndex)}${contact.rowIndex}`,
+              valueInputOption: 'USER_ENTERED', // Or 'RAW'
+              resource: { values: [['Calling...']] }, // Or 'Dialing'
+            });
+          }
+        } else {
+          server.log.error(`[GS Start] Failed to initiate call to ${contact.phone}: ${callApiData.error || 'Unknown error'}`);
+           if (statusIndex !== -1) {
+            await sheets.spreadsheets.values.update({
+              spreadsheetId,
+              range: `${sheetName}!${String.fromCharCode(65 + statusIndex)}${contact.rowIndex}`,
+              valueInputOption: 'USER_ENTERED',
+              resource: { values: [['Failed to initiate']] },
+            });
+          }
+        }
+      } catch (callError) {
+        server.log.error({ err: callError, contactPhone: contact.phone }, `[GS Start] Error during call initiation loop for ${contact.phone}`);
+      }
+      // Optional: Add a delay between calls if needed
+      // await new Promise(resolve => setTimeout(resolve, 1000)); 
+    }
+    
+    await campaignRepository.updateCampaignStats(currentCampaign._id, {
+      callsPlaced: (currentCampaign.stats.callsPlaced || 0) + callsInitiatedCount
+      // Potentially update other stats like 'inProgress' or 'completed' based on loop outcome
+    });
+
+    // If all contacts intended for this run were processed, consider updating campaign status
+    // This logic might be more complex depending on whether this is a partial run or full campaign execution
+    if (callsInitiatedCount > 0 && callsInitiatedCount === contactsToCall.length) {
+       server.log.info(`[GS Start] All ${callsInitiatedCount} contacts for this run processed for campaign ${currentCampaign.name}.`);
+       // Optionally set to 'in-progress' or 'completed' if this run finishes the campaign batch
+       // For now, leave as 'active' as calls are asynchronous.
+    } else if (callsInitiatedCount === 0 && contactsToCall.length > 0) {
+        server.log.warn(`[GS Start] No calls were successfully initiated for campaign ${currentCampaign.name} despite having contacts.`);
+    }
+
+
+    server.log.info(`[GS Start] Finished processing ${contactsToCall.length} contacts for campaign ${currentCampaign.name}. Successfully initiated ${callsInitiatedCount} calls.`);
+    return reply.code(200).send({ 
+      success: true, 
+      message: `Campaign started. Attempted to initiate ${callsInitiatedCount} of ${contactsToCall.length} calls.`,
+      campaignId: currentCampaign._id,
+      campaignName: currentCampaign.name,
+      contactsProcessed: contactsToCall.length,
+      callsInitiated: callsInitiatedCount
+    });
+
+  } catch (error) {
+    server.log.error({ err: error, spreadsheetId, sheetName }, '[GS Start] Error starting Google Sheet campaign');
+     if (error.message === 'credentials.json not found' || error.message === 'token.json not found, please run google-auth.js' || error.message === 'Invalid credentials.json structure' || error.message === 'Failed to refresh Google API token. Please re-authenticate.') {
+        return reply.code(500).send({ success: false, error: `Google Sheets authentication error: ${error.message}. Please check server configuration and run google-auth.js if needed.` });
+    }
+    if (error.code === 404) {
+        return reply.code(404).send({ success: false, error: 'Spreadsheet not found. Please check the Spreadsheet ID.' });
+    }
+    if (error.code === 403) {
+        return reply.code(403).send({ success: false, error: 'Permission denied to access the Spreadsheet. Check sharing settings and API permissions.' });
+    }
+     if (error.message && error.message.includes('Requested entity was not found')) { 
+        return reply.code(404).send({ success: false, error: `Sheet "${sheetName}" not found in spreadsheet. Please check the sheet name.` });
+    }
+    return reply.code(500).send({ success: false, error: 'Failed to start Google Sheet campaign.', details: error.message });
+  }
+});
+});
+// --- End Google Sheet Campaign API Endpoints ---
     return false;
   }
 }
