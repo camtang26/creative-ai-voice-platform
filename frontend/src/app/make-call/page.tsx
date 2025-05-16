@@ -9,10 +9,117 @@ import { Upload, Phone, FileSpreadsheet } from 'lucide-react'
 import { MakeCallForm } from '@/components/make-call-form'
 import { UploadSheetForm } from '@/components/upload-sheet-form'
 
+interface SheetPreviewData {
+  headers: string[];
+  rows: any[][]; // Using any for rows for now, can be refined if row structure is known
+}
+
+interface CampaignStartResponse {
+  success: boolean;
+  message: string;
+  campaignId?: string;
+}
+
 export default function MakeCallPage() {
   const [csvCampaignName, setCsvCampaignName] = useState('');
   const [csvAgentPrompt, setCsvAgentPrompt] = useState('');
   const [csvFirstMessage, setCsvFirstMessage] = useState('');
+
+  // State for Google Sheet campaign
+  const [googleSheetId, setGoogleSheetId] = useState('');
+  const [sheetName, setSheetName] = useState('Sheet1');
+  const [maxCalls, setMaxCalls] = useState('10');
+  const [gSheetAgentPrompt, setGSheetAgentPrompt] = useState('');
+  const [gSheetFirstMessage, setGSheetFirstMessage] = useState('');
+  
+  const [isLoadingSheet, setIsLoadingSheet] = useState(false);
+  const [sheetDataPreview, setSheetDataPreview] = useState<SheetPreviewData | null>(null);
+  const [sheetError, setSheetError] = useState('');
+  
+  const [isStartingCampaign, setIsStartingCampaign] = useState(false);
+  const [campaignStartResponse, setCampaignStartResponse] = useState<CampaignStartResponse | null>(null);
+
+  const extractSheetId = (urlOrId: string) => {
+    if (!urlOrId) return '';
+    const match = urlOrId.match(/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+    return match ? match[1] : urlOrId;
+  };
+
+  const handleLoadSheetData = async () => {
+    setIsLoadingSheet(true);
+    setSheetError('');
+    setSheetDataPreview(null);
+    const id = extractSheetId(googleSheetId);
+
+    if (!id) {
+      setSheetError('Please enter a valid Google Sheet ID or URL.');
+      setIsLoadingSheet(false);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/campaigns/google-sheet/load-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ spreadsheetId: id, sheetName }),
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setSheetDataPreview({ headers: data.headers, rows: data.previewRows });
+        // Optionally, you could also set a success message to be displayed
+      } else {
+        setSheetError(data.error || 'Failed to load sheet data.');
+      }
+    } catch (error) {
+      console.error('Error loading sheet data:', error);
+      setSheetError('An unexpected error occurred while loading sheet data.');
+    } finally {
+      setIsLoadingSheet(false);
+    }
+  };
+
+  const handleStartGoogleSheetCampaign = async () => {
+    setIsStartingCampaign(true);
+    setCampaignStartResponse(null); // Clear previous response
+    setSheetError(''); // Clear sheet errors as well
+
+    const id = extractSheetId(googleSheetId);
+
+    if (!id || !gSheetAgentPrompt.trim() || !gSheetFirstMessage.trim()) {
+      setSheetError('Sheet ID, Agent Prompt, and First Message are required to start a campaign.');
+      setIsStartingCampaign(false);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/campaigns/google-sheet/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          spreadsheetId: id,
+          sheetName,
+          maxCalls: parseInt(maxCalls, 10) || undefined, // Ensure maxCalls is a number or undefined
+          agentPrompt: gSheetAgentPrompt,
+          firstMessage: gSheetFirstMessage,
+          // campaignName: googleSheetId, // Optional: could add a campaign name field in UI
+        }),
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setCampaignStartResponse({ success: true, message: data.message, campaignId: data.campaignId });
+        // Potentially clear form fields or redirect
+      } else {
+        setCampaignStartResponse({ success: false, message: data.error || 'Failed to start campaign.' });
+        setSheetError(data.error || 'Failed to start campaign.'); // Also show error in sheet error section
+      }
+    } catch (error) {
+      console.error('Error starting Google Sheet campaign:', error);
+      setCampaignStartResponse({ success: false, message: 'An unexpected error occurred.' });
+      setSheetError('An unexpected error occurred while starting the campaign.');
+    } finally {
+      setIsStartingCampaign(false);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -64,13 +171,16 @@ export default function MakeCallPage() {
                 <div className="space-y-2">
                   <h3 className="font-medium">Google Sheet ID</h3>
                   <div className="flex">
-                    <input 
-                      type="text" 
+                    <input
+                      id="googleSheetId"
+                      type="text"
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      placeholder="Enter Google Sheet ID from URL" 
+                      placeholder="Enter Google Sheet ID from URL"
+                      value={googleSheetId}
+                      onChange={(e) => setGoogleSheetId(e.target.value)}
                     />
-                    <Button className="ml-2">
-                      Load
+                    <Button className="ml-2" onClick={handleLoadSheetData} disabled={isLoadingSheet || !googleSheetId.trim()}>
+                      {isLoadingSheet ? 'Loading...' : 'Load'}
                     </Button>
                   </div>
                   <p className="text-sm text-muted-foreground">
@@ -81,19 +191,23 @@ export default function MakeCallPage() {
                   <h3 className="font-medium">Sheet Configuration</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="text-sm font-medium">Sheet Name</label>
-                      <input 
-                        type="text" 
+                      <label htmlFor="sheetName" className="text-sm font-medium">Sheet Name</label>
+                      <input
+                        id="sheetName"
+                        type="text"
                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        defaultValue="Sheet1" 
+                        value={sheetName}
+                        onChange={(e) => setSheetName(e.target.value)}
                       />
                     </div>
                     <div>
-                      <label className="text-sm font-medium">Max Calls</label>
-                      <input 
-                        type="number" 
+                      <label htmlFor="maxCalls" className="text-sm font-medium">Max Calls</label>
+                      <input
+                        id="maxCalls"
+                        type="number"
                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        defaultValue="10" 
+                        value={maxCalls}
+                        onChange={(e) => setMaxCalls(e.target.value)}
                       />
                     </div>
                   </div>
@@ -103,26 +217,76 @@ export default function MakeCallPage() {
                   <h3 className="font-medium">Call Settings</h3>
                   <div className="grid gap-4">
                     <div>
-                      <label className="text-sm font-medium">Agent Prompt</label>
-                      <textarea 
+                      <label htmlFor="gSheetAgentPrompt" className="text-sm font-medium">Agent Prompt</label>
+                      <textarea
+                        id="gSheetAgentPrompt"
                         className="flex min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        placeholder="Instructions for your AI agent" 
+                        placeholder="Instructions for your AI agent"
+                        value={gSheetAgentPrompt}
+                        onChange={(e) => setGSheetAgentPrompt(e.target.value)}
                       />
                     </div>
                     <div>
-                      <label className="text-sm font-medium">First Message</label>
-                      <input 
-                        type="text" 
+                      <label htmlFor="gSheetFirstMessage" className="text-sm font-medium">First Message</label>
+                      <input
+                        id="gSheetFirstMessage"
+                        type="text"
                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        placeholder="Hello, this is [Company Name]..." 
+                        placeholder="Hello, this is [Company Name]..."
+                        value={gSheetFirstMessage}
+                        onChange={(e) => setGSheetFirstMessage(e.target.value)}
                       />
                     </div>
                   </div>
                 </div>
+
+                {/* Sheet Data Preview and Error/Success Messages */}
+                {sheetError && (
+                  <p className="text-sm text-red-600">{sheetError}</p>
+                )}
+                {sheetDataPreview && (
+                  <div className="mt-4 space-y-2">
+                    <h4 className="font-medium">Sheet Preview (first {sheetDataPreview.rows.length} data rows):</h4>
+                    <div className="overflow-x-auto rounded-md border">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            {sheetDataPreview.headers.map((header, index) => (
+                              <th key={index} scope="col" className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                                {header}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 bg-white">
+                          {sheetDataPreview.rows.map((row, rowIndex) => (
+                            <tr key={rowIndex}>
+                              {row.map((cell, cellIndex) => (
+                                <td key={cellIndex} className="whitespace-nowrap px-3 py-2 text-sm text-gray-700">
+                                  {cell}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+                {campaignStartResponse && (
+                  <p className={`mt-4 text-sm ${campaignStartResponse.success ? 'text-green-600' : 'text-red-600'}`}>
+                    {campaignStartResponse.message}
+                    {campaignStartResponse.success && campaignStartResponse.campaignId && (
+                      <span> Campaign ID: {campaignStartResponse.campaignId}</span>
+                    )}
+                  </p>
+                )}
               </div>
             </CardContent>
             <CardFooter>
-              <Button>Start Calling Campaign</Button>
+              <Button onClick={handleStartGoogleSheetCampaign} disabled={isStartingCampaign || !googleSheetId.trim() || !gSheetAgentPrompt.trim() || !gSheetFirstMessage.trim()}>
+                {isStartingCampaign ? 'Starting...' : 'Start Calling Campaign'}
+              </Button>
             </CardFooter>
           </Card>
         </TabsContent>
