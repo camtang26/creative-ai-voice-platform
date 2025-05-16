@@ -600,7 +600,9 @@ server.post('/api/campaigns/google-sheet/start', async (request, reply) => {
         server.log.error({ err: callError, contactPhone: contact.phone }, `[GS Start] Error during call initiation loop for ${contact.phone}`);
       }
       // Optional: Add a delay between calls if needed
-      // await new Promise(resolve => setTimeout(resolve, 1000)); 
+      const callDelay = currentCampaign.settings?.callDelay || 60000; // Use campaign setting or default to 60s
+      server.log.info(`[GS Start] Waiting for ${callDelay / 1000} seconds before next call.`);
+      await new Promise(resolve => setTimeout(resolve, callDelay));
     }
     
     await campaignRepository.updateCampaignStats(currentCampaign._id, {
