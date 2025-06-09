@@ -156,12 +156,38 @@ console.log('[Server] Registered @fastify/multipart plugin');
 // Register @fastify/cors
 server.register(fastifyCors, {
   origin: (origin, cb) => {
-    // Allow requests from localhost:3000 for local development
-    // In production, you might want to use an environment variable for the frontend URL
-    const allowedOrigins = ['http://localhost:3000'];
+    // Allow requests from localhost:3000 and localhost:3001 for local development
+    // In production, allow Render.com frontend deployments and custom frontend URLs
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'https://localhost:3000',
+      'https://localhost:3001'
+    ];
+    
+    // Add frontend URL from environment variable
     if (process.env.FRONTEND_URL) {
       allowedOrigins.push(process.env.FRONTEND_URL);
     }
+    
+    // In production, allow common deployment platforms
+    if (process.env.NODE_ENV === 'production') {
+      // Allow any Vercel deployment
+      if (origin && origin.includes('.vercel.app')) {
+        allowedOrigins.push(origin);
+      }
+      // Allow any Netlify deployment
+      if (origin && origin.includes('.netlify.app')) {
+        allowedOrigins.push(origin);
+      }
+      // Allow any Render deployment
+      if (origin && origin.includes('.onrender.com')) {
+        allowedOrigins.push(origin);
+      }
+    }
+    
+    console.log(`[CORS] Checking origin: ${origin}, allowed: ${allowedOrigins.includes(origin)}`);
+    
     if (!origin || allowedOrigins.includes(origin)) {
       cb(null, true);
       return;
