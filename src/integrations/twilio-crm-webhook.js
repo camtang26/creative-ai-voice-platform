@@ -286,5 +286,11 @@ export async function handleTwilioCallCompletion(twilioCallbackData) {
 
   console.log(`[Twilio CRM] Processing ${CallStatus} call for CRM: ${CallSid}`);
 
+  // Add a delay for completed calls to give ElevenLabs time to process
+  if (CallStatus === 'completed') {
+    console.log('[Twilio CRM] Waiting 3 seconds for ElevenLabs processing...');
+    await new Promise(resolve => setTimeout(resolve, 3000));
+  }
+
   return await sendTwilioCallToCRM(CallSid, twilioCallbackData);
 }
