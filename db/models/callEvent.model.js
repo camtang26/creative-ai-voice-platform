@@ -35,7 +35,10 @@ const callEventSchema = new Schema({
       'call_quality',
       'error',
       'custom',
-      'transcript_saved' // ADDED for when full transcript is saved
+      'transcript_saved', // ADDED for when full transcript is saved
+      'crm_webhook_sent', // ADDED for CRM webhook success
+      'crm_webhook_failed', // ADDED for CRM webhook failure
+      'crm_webhook_error' // ADDED for CRM webhook errors
     ],
     index: true
   },
