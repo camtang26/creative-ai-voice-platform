@@ -22,8 +22,8 @@ https://[YOUR_SERVER_URL]/webhooks/elevenlabs
 
 I've implemented a new approach that:
 1. **Triggers from Twilio's call completion events** (100% reliable)
-2. **Fetches the conversation summary from ElevenLabs API** if available
-3. **Combines both data sources** before sending to Craig's CRM
+2. **Generates simple summaries** based on call metadata
+3. **No dependency on ElevenLabs** - works 100% of the time
 4. **Sends to Craig's endpoint** with all required data
 
 ### How It Works
@@ -31,9 +31,8 @@ I've implemented a new approach that:
 1. **Twilio calls your server** when a call ends with status: `completed`, `failed`, `busy`, `no-answer`, or `canceled`
 2. **Your server immediately**:
    - Gets call metadata from MongoDB
-   - Attempts to fetch conversation summary from ElevenLabs
-   - Combines all data
-   - Sends to Craig's CRM endpoint
+   - Generates a simple summary based on call outcome
+   - Sends complete data to Craig's CRM endpoint
 
 ### Data Sent to CRM
 ```json
@@ -42,11 +41,17 @@ I've implemented a new approach that:
   "subject": "Campaign Name from Database",
   "to": "+61413052898",
   "name": "Contact Name",
-  "summary": "AI-generated conversation summary from ElevenLabs",
+  "summary": "Call completed successfully. Duration: 1m 25s. Contact: John Smith.",
   "status": "held|no answer|no connection|voicemail",
-  "duration": 60
+  "duration": 85
 }
 ```
+
+### Example Summaries
+- **Successful call**: "Call completed successfully. Duration: 2m 15s. Contact: Sarah Jones."
+- **Voicemail**: "Call reached voicemail/answering machine."
+- **No answer**: "Call was not answered."
+- **Failed**: "Call could not be connected."
 
 ### Status Mapping
 - **"held"** - Call was completed and duration > 0
@@ -58,7 +63,8 @@ I've implemented a new approach that:
 - ✅ **100% reliable** - Twilio always sends status callbacks
 - ✅ **Complete metadata** - All call information available
 - ✅ **Fast** - Triggers immediately on call end
-- ✅ **Fallback handling** - Works even if ElevenLabs data unavailable
+- ✅ **No dependencies** - Works without ElevenLabs webhooks
+- ✅ **Simple and maintainable** - No complex API calls or delays
 
 ## Configuration Required
 
@@ -68,9 +74,6 @@ Make sure these are set in your `.env` file:
 # Craig's CRM endpoint
 CRM_WEBHOOK_URL=https://qr4h1dage6.execute-api.ap-southeast-2.amazonaws.com/crm/calls/webhook/is
 ENABLE_CRM_WEBHOOK=true
-
-# ElevenLabs API (for fetching summaries)
-ELEVENLABS_API_KEY=your_api_key_here
 ```
 
 ### 2. Twilio Configuration
@@ -102,7 +105,7 @@ When a call completes, Craig's endpoint receives:
   "subject": "Actual campaign name or 'Outbound Call'",
   "to": "+61413052898",
   "name": "John Smith",
-  "summary": "The customer expressed interest in the product. They asked about pricing and availability. A follow-up meeting was scheduled for next week.",
+  "summary": "Call completed successfully. Duration: 2m 5s. Contact: John Smith.",
   "status": "held",
   "duration": 125
 }

@@ -1,46 +1,33 @@
 /**
  * Twilio-based CRM Webhook Integration
  * 
- * This module handles sending call data to the CRM after Twilio call completion,
- * combining Twilio metadata with ElevenLabs conversation summaries.
+ * This module handles sending call data to the CRM after Twilio call completion.
+ * Generates simple summaries based on call metadata for maximum reliability.
  */
 import fetch from 'node-fetch';
 import { getCallBySid } from '../../db/repositories/call.repository.js';
-import { getTranscriptByCallSid } from '../../db/repositories/transcript.repository.js';
 import { getCampaignById } from '../../db/repositories/campaign.repository.js';
 import { logEvent } from '../../db/repositories/callEvent.repository.js';
 
 /**
- * Fetch conversation summary from ElevenLabs API
- * @param {string} conversationId - ElevenLabs conversation ID
- * @returns {Promise<Object>} Conversation data with summary
+ * Generate a simple call summary based on call metadata
+ * @param {Object} callData - Call information
+ * @param {string} status - Call status
+ * @param {number} duration - Call duration in seconds
+ * @returns {string} Generated summary
  */
-async function fetchElevenLabsConversation(conversationId) {
-  const apiKey = process.env.ELEVENLABS_API_KEY;
-  if (!apiKey || !conversationId) {
-    console.log('[Twilio CRM] Missing API key or conversation ID for ElevenLabs fetch');
-    return null;
-  }
-
-  try {
-    const response = await fetch(
-      `https://api.elevenlabs.io/v1/convai/conversations/${conversationId}`,
-      {
-        method: 'GET',
-        headers: { 'xi-api-key': apiKey }
-      }
-    );
-
-    if (!response.ok) {
-      console.error(`[Twilio CRM] ElevenLabs API error (${response.status})`);
-      return null;
-    }
-
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('[Twilio CRM] Error fetching from ElevenLabs:', error.message);
-    return null;
+function generateCallSummary(callData, status, duration) {
+  if (status === 'held' && duration > 0) {
+    const minutes = Math.floor(duration / 60);
+    const seconds = duration % 60;
+    const durationText = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+    return `Call completed successfully. Duration: ${durationText}. Contact: ${callData.contactName || 'Unknown'}.`;
+  } else if (status === 'voicemail') {
+    return `Call reached voicemail/answering machine.`;
+  } else if (status === 'no answer') {
+    return `Call was not answered.`;
+  } else {
+    return `Call could not be connected.`;
   }
 }
 
@@ -105,27 +92,8 @@ export async function sendTwilioCallToCRM(callSid, twilioCallData = {}) {
       }
     }
 
-    // 4. Try to get conversation summary from ElevenLabs
-    let summary = 'No summary available';
-    let elevenLabsData = null;
-
-    // First check if we have a transcript in MongoDB
-    try {
-      const transcript = await getTranscriptByCallSid(callSid);
-      if (transcript && transcript.analysis && transcript.analysis.transcript_summary) {
-        summary = transcript.analysis.transcript_summary;
-        console.log('[Twilio CRM] Found summary in MongoDB transcript');
-      } else if (callDocument.conversationId) {
-        // If not in DB, try fetching from ElevenLabs API
-        console.log('[Twilio CRM] Fetching summary from ElevenLabs API');
-        elevenLabsData = await fetchElevenLabsConversation(callDocument.conversationId);
-        if (elevenLabsData && elevenLabsData.analysis && elevenLabsData.analysis.transcript_summary) {
-          summary = elevenLabsData.analysis.transcript_summary;
-        }
-      }
-    } catch (error) {
-      console.warn('[Twilio CRM] Could not fetch conversation summary:', error.message);
-    }
+    // 4. Generate a simple summary based on call metadata
+    const summary = generateCallSummary(callDocument, status, callDocument.duration || 0);
 
     // 5. Calculate duration (prefer Twilio data)
     const duration = twilioCallData.CallDuration 
@@ -236,12 +204,6 @@ export async function handleTwilioCallCompletion(twilioCallbackData) {
   }
 
   console.log(`[Twilio CRM] Processing ${CallStatus} call for CRM: ${CallSid}`);
-
-  // Add a small delay to ensure ElevenLabs data might be available
-  if (CallStatus === 'completed') {
-    console.log('[Twilio CRM] Waiting 2 seconds for ElevenLabs data...');
-    await new Promise(resolve => setTimeout(resolve, 2000));
-  }
 
   return await sendTwilioCallToCRM(CallSid, twilioCallbackData);
 }
