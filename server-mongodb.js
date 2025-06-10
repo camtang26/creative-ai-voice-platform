@@ -35,6 +35,7 @@ import {
 } from './outbound.js';
 import { sendEmail } from './email-tools/api-email-service.js';
 import { sendSESEmail } from './email-tools/aws-ses-email.js';
+import { handleTwilioCallCompletion } from './src/integrations/twilio-crm-webhook.js';
 import enhancedCallHandler from './enhanced-call-handler.js';
 import recordingHandler from './recording-handler.js';
 import callQualityMetrics from './call-quality-metrics.js';
@@ -732,6 +733,37 @@ server.post('/webhooks/elevenlabs',
   }
 });
 
+// Test endpoint for CRM webhook
+server.post('/api/test-crm-webhook', async (request, reply) => {
+  try {
+    const { callSid } = request.body;
+    if (!callSid) {
+      return reply.code(400).send({ 
+        success: false, 
+        error: 'Missing callSid in request body' 
+      });
+    }
+    
+    console.log(`[API] Testing CRM webhook for call ${callSid}`);
+    const result = await handleTwilioCallCompletion({ 
+      CallSid: callSid, 
+      CallStatus: 'completed' 
+    });
+    
+    return reply.send({
+      success: result.success,
+      message: result.success ? 'CRM webhook sent successfully' : 'CRM webhook failed',
+      details: result
+    });
+  } catch (error) {
+    console.error('[API] Error testing CRM webhook:', error);
+    return reply.code(500).send({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
 // Fallback TwiML endpoint
 server.all('/fallback-twiml', async (request, reply) => {
   const { CallSid, ErrorCode } = request.body;
@@ -819,6 +851,19 @@ server.post('/call-status-callback', async (request, reply) => {
     if (['completed', 'failed', 'canceled', 'busy', 'no-answer'].includes(CallStatus)) {
       callInfo.endTime = new Date();
       if (callInfo.startTime) { callInfo.duration = Math.round((callInfo.endTime - new Date(callInfo.startTime)) / 1000); }
+      
+      // Trigger CRM webhook for completed calls
+      try {
+        console.log(`[Twilio Callback] Triggering CRM webhook for ${CallStatus} call ${CallSid}`);
+        const crmResult = await handleTwilioCallCompletion(request.body);
+        if (!crmResult.success) {
+          console.error(`[Twilio Callback] CRM webhook failed:`, crmResult.error);
+        } else {
+          console.log(`[Twilio Callback] CRM webhook sent successfully for call ${CallSid}`);
+        }
+      } catch (crmError) {
+        console.error(`[Twilio Callback] Error sending to CRM:`, crmError);
+      }
     }
     activeCalls.set(CallSid, callInfo);
     if (previousStatus !== CallStatus) { handleCallStatusChange(CallSid, CallStatus, callInfo); }
