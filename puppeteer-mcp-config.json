@@ -1,0 +1,10 @@
+{
+  "puppeteer": {
+    "command": "npx",
+    "args": ["-y", "puppeteer-mcp-server"],
+    "env": {
+      "LOG_LEVEL": "debug",
+      "NODE_ENV": "development"
+    }
+  }
+}

@@ -58,6 +58,7 @@
     "fast-csv": "^5.0.2",
     "fastify": "^4.29.0",
     "fastify-socket.io": "^5.1.0",
+    "form-data": "^4.0.3",
     "googleapis": "^129.0.0",
     "libphonenumber-js": "^1.12.9",
     "mongoose": "^7.5.0",

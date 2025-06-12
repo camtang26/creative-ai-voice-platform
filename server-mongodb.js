@@ -68,6 +68,7 @@ import {
 // Import specific repository function needed for the temporary route
 import { getRecordingBySid } from './db/repositories/recording.repository.js';
 import { verifyWebhookSignature } from './db/webhook-handler-db.js';
+import { initializeCampaignEngine, handleCallStatusUpdate as handleCampaignCallStatus } from './db/campaign-engine.js';
 import { google } from 'googleapis';
 import fs from 'fs/promises';
 import path from 'path';
@@ -685,19 +686,25 @@ server.post('/api/db/campaigns/start-from-csv', async (request, reply) => {
   server.log.info('[CSV Upload] Received request to start campaign from CSV upload');
   
   try {
-    // Parse multipart form data
-    const data = await request.file();
-    if (!data) {
-      return reply.code(400).send({ success: false, error: 'No file uploaded.' });
-    }
-
-    // Get form fields from the multipart data
+    // Parse multipart form data - process all parts
+    const parts = request.parts();
+    let fileData = null;
     const fields = {};
-    const otherParts = request.parts();
-    for await (const part of otherParts) {
-      if (part.type === 'field') {
+    
+    for await (const part of parts) {
+      if (part.type === 'file') {
+        // This is the CSV file
+        fileData = part;
+        server.log.info(`[CSV Upload] Received file: ${part.filename}`);
+      } else if (part.type === 'field') {
+        // This is a form field
         fields[part.fieldname] = part.value;
+        server.log.info(`[CSV Upload] Received field ${part.fieldname}: ${part.value}`);
       }
+    }
+    
+    if (!fileData) {
+      return reply.code(400).send({ success: false, error: 'No file uploaded.' });
     }
 
     const { 
@@ -707,6 +714,14 @@ server.post('/api/db/campaigns/start-from-csv', async (request, reply) => {
       callInterval: callIntervalStr,
       validatePhoneNumbers 
     } = fields;
+    
+    server.log.info('[CSV Upload] Form fields:', { 
+      campaignName: customCampaignName, 
+      hasAgentPrompt: !!agentPrompt, 
+      hasFirstMessage: !!firstMessage,
+      callInterval: callIntervalStr,
+      validatePhoneNumbers 
+    });
 
     // Parse call interval (default to 90 seconds - middle of 1-2 minute range)
     const callInterval = callIntervalStr ? parseInt(callIntervalStr) : 90000;
@@ -719,7 +734,7 @@ server.post('/api/db/campaigns/start-from-csv', async (request, reply) => {
     }
 
     // Read and parse CSV file
-    const csvContent = await data.toBuffer();
+    const csvContent = await fileData.toBuffer();
     const csvText = csvContent.toString('utf-8');
     
     server.log.info('[CSV Upload] Parsing CSV file...');
@@ -1138,6 +1153,17 @@ server.post('/call-status-callback', async (request, reply) => {
     activeCalls.set(CallSid, callInfo);
     if (previousStatus !== CallStatus) { handleCallStatusChange(CallSid, CallStatus, callInfo); }
     enhancedCallHandler.updateCallActivity(CallSid);
+    
+    // Update campaign status if this call is part of a campaign
+    if (callInfo.campaignId) {
+      try {
+        await handleCampaignCallStatus(CallSid, CallStatus);
+        console.log(`[Campaign Engine] Updated campaign status for call ${CallSid}`);
+      } catch (campaignError) {
+        console.error(`[Campaign Engine] Error updating campaign status:`, campaignError);
+      }
+    }
+    
     if (RecordingUrl && RecordingSid) { recordingHandler.processRecordingCallback({ ...request.body, RecordingUrl, RecordingSid, CallSid }); }
     return reply.code(200).send({ success: true, message: "Status update received" });
   } catch (error) {
@@ -1597,6 +1623,15 @@ const start = async () => {
       console.log('[Server] Socket.IO logic initialized using fastify-socket.io');
     } catch (socketErr) {
        console.error('[Server] Socket.IO logic initialization failed:', socketErr);
+    }
+    
+    // Initialize Campaign Engine
+    try {
+      await initializeCampaignEngine();
+      console.log('[Server] Campaign engine initialized successfully');
+    } catch (campaignErr) {
+      console.error('[Server] Campaign engine initialization failed:', campaignErr);
+      // Continue running - campaigns won't work but other features will
     }
     
     // Removed custom WebSocket server initialization - moved to media-proxy-server.js
