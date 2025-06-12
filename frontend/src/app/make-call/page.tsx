@@ -85,8 +85,8 @@ export default function MakeCallPage() {
 
     const id = extractSheetId(googleSheetId);
 
-    if (!id || !gSheetAgentPrompt.trim() || !gSheetFirstMessage.trim()) {
-      setSheetError('Sheet ID, Agent Prompt, and First Message are required to start a campaign.');
+    if (!id || !gSheetFirstMessage.trim()) {
+      setSheetError('Sheet ID and First Message are required to start a campaign.');
       setIsStartingCampaign(false);
       return;
     }
@@ -217,11 +217,11 @@ export default function MakeCallPage() {
                   <h3 className="font-medium">Call Settings</h3>
                   <div className="grid gap-4">
                     <div>
-                      <label htmlFor="gSheetAgentPrompt" className="text-sm font-medium">Agent Prompt</label>
+                      <label htmlFor="gSheetAgentPrompt" className="text-sm font-medium">Agent Prompt (Optional)</label>
                       <textarea
                         id="gSheetAgentPrompt"
                         className="flex min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        placeholder="Instructions for your AI agent"
+                        placeholder="Leave blank to use ElevenLabs default, or enter custom instructions..."
                         value={gSheetAgentPrompt}
                         onChange={(e) => setGSheetAgentPrompt(e.target.value)}
                       />
@@ -315,11 +315,11 @@ export default function MakeCallPage() {
 
               {/* Agent Prompt Textarea */}
               <div className="space-y-2">
-                <label htmlFor="csvAgentPrompt" className="text-sm font-medium">Agent Prompt</label>
+                <label htmlFor="csvAgentPrompt" className="text-sm font-medium">Agent Prompt (Optional)</label>
                 <textarea
                   id="csvAgentPrompt"
                   className="flex min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  placeholder="Instructions for your AI agent"
+                  placeholder="Leave blank to use ElevenLabs default, or enter custom instructions..."
                   value={csvAgentPrompt}
                   onChange={(e) => setCsvAgentPrompt(e.target.value)}
                 />

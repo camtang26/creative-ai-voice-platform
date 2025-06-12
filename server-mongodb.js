@@ -726,8 +726,10 @@ server.post('/api/db/campaigns/start-from-csv', async (request, reply) => {
     // Parse call interval (default to 90 seconds - middle of 1-2 minute range)
     const callInterval = callIntervalStr ? parseInt(callIntervalStr) : 90000;
 
-    if (!agentPrompt || agentPrompt.trim() === '') {
-      return reply.code(400).send({ success: false, error: 'Agent prompt is required.' });
+    // Agent prompt is optional - if blank, ElevenLabs will use default system prompt
+    // Only validate if it's provided but contains only whitespace
+    if (agentPrompt && agentPrompt.trim() === '') {
+      return reply.code(400).send({ success: false, error: 'Agent prompt cannot be just whitespace. Leave blank to use default.' });
     }
     if (!firstMessage || firstMessage.trim() === '') {
       return reply.code(400).send({ success: false, error: 'First message is required.' });
@@ -834,7 +836,7 @@ server.post('/api/db/campaigns/start-from-csv', async (request, reply) => {
       name: campaignTitle,
       description: `Campaign created from CSV upload with ${validContacts.length} contacts`,
       status: 'draft',
-      agentPrompt: agentPrompt,
+      agentPrompt: agentPrompt || null, // Allow null for default ElevenLabs prompt
       firstMessage: firstMessage,
       callerId: process.env.TWILIO_PHONE_NUMBER,
       csvInfo: {
@@ -873,13 +875,19 @@ server.post('/api/db/campaigns/start-from-csv', async (request, reply) => {
       server.log.warn('[CSV Upload] Import errors:', importResults.errors);
     }
     
-    if (importResults.created === 0 && importResults.updated === 0) {
-      server.log.error('[CSV Upload] No contacts were imported!');
+    // Consider both created and updated as "valid contacts" for the campaign
+    const totalValidContacts = importResults.created + importResults.updated;
+    if (totalValidContacts === 0) {
+      server.log.error('[CSV Upload] No contacts were imported or updated!');
+      return reply.code(500).send({ 
+        success: false, 
+        error: 'Failed to import any contacts from CSV.' 
+      });
     }
 
-    // Update campaign stats
+    // Update campaign stats with actual imported contacts
     await campaignRepository.updateCampaignStats(campaign._id, {
-      totalContacts: validContacts.length
+      totalContacts: totalValidContacts
     });
 
     // Activate campaign
@@ -906,7 +914,7 @@ server.post('/api/db/campaigns/start-from-csv', async (request, reply) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               number: contact.phoneNumber,
-              prompt: agentPrompt,
+              prompt: agentPrompt || undefined, // Pass undefined to use ElevenLabs default
               first_message: personalizedFirstMessage,
               name: contact.name,
               campaignId: campaign._id
