@@ -726,11 +726,14 @@ server.post('/api/db/campaigns/start-from-csv', async (request, reply) => {
     // Parse call interval (default to 90 seconds - middle of 1-2 minute range)
     const callInterval = callIntervalStr ? parseInt(callIntervalStr) : 90000;
 
-    if (!agentPrompt) {
+    if (!agentPrompt || agentPrompt.trim() === '') {
       return reply.code(400).send({ success: false, error: 'Agent prompt is required.' });
     }
-    if (!firstMessage) {
+    if (!firstMessage || firstMessage.trim() === '') {
       return reply.code(400).send({ success: false, error: 'First message is required.' });
+    }
+    if (!customCampaignName || customCampaignName.trim() === '') {
+      return reply.code(400).send({ success: false, error: 'Campaign name is required.' });
     }
 
     // Read and parse CSV file
@@ -831,11 +834,11 @@ server.post('/api/db/campaigns/start-from-csv', async (request, reply) => {
       name: campaignTitle,
       description: `Campaign created from CSV upload with ${validContacts.length} contacts`,
       status: 'draft',
-      prompt: agentPrompt,
+      agentPrompt: agentPrompt,
       firstMessage: firstMessage,
       callerId: process.env.TWILIO_PHONE_NUMBER,
       csvInfo: {
-        originalFileName: data.filename,
+        originalFileName: fileData.filename,
         totalRecords: records.length,
         validContacts: validContacts.length,
         invalidContacts: invalidNumbers.length
@@ -856,7 +859,7 @@ server.post('/api/db/campaigns/start-from-csv', async (request, reply) => {
       name: contact.name,
       email: contact.email,
       status: 'active',
-      campaigns: [campaign._id],
+      campaignIds: [campaign._id],
       customFields: {
         firstName: contact.firstName,
         lastName: contact.lastName
@@ -865,6 +868,14 @@ server.post('/api/db/campaigns/start-from-csv', async (request, reply) => {
 
     const importResults = await contactRepository.importContacts(contactsToImport, campaign._id);
     server.log.info(`[CSV Upload] Import results: Created ${importResults.created}, Updated: ${importResults.updated}, Failed: ${importResults.failed}`);
+    
+    if (importResults.errors && importResults.errors.length > 0) {
+      server.log.warn('[CSV Upload] Import errors:', importResults.errors);
+    }
+    
+    if (importResults.created === 0 && importResults.updated === 0) {
+      server.log.error('[CSV Upload] No contacts were imported!');
+    }
 
     // Update campaign stats
     await campaignRepository.updateCampaignStats(campaign._id, {
