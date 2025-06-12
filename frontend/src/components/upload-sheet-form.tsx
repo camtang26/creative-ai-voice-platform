@@ -3,6 +3,9 @@
 import { useState } from 'react'
 import { Button } from "@/components/ui/button"
 import { Upload } from 'lucide-react'
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { startCampaignFromCsv } from '@/lib/api'; // Prepare for API call
 
 interface UploadSheetFormProps {
@@ -14,6 +17,8 @@ interface UploadSheetFormProps {
 export function UploadSheetForm({ campaignName, agentPrompt, firstMessage }: UploadSheetFormProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isUploading, setIsUploading] = useState(false)
+  const [callInterval, setCallInterval] = useState(90) // Default 90 seconds
+  const [validatePhoneNumbers, setValidatePhoneNumbers] = useState(true)
   const [uploadStatus, setUploadStatus] = useState<{
     success?: boolean;
     message?: string;
@@ -23,6 +28,8 @@ export function UploadSheetForm({ campaignName, agentPrompt, firstMessage }: Upl
     submittedCampaignName?: string;
     submittedAgentPrompt?: string;
     submittedFirstMessage?: string;
+    invalidNumbers?: number;
+    invalidNumbersList?: Array<{name: string; phone: string; reason: string}>;
   } | null>(null)
 
   // Handle file selection
@@ -73,6 +80,8 @@ export function UploadSheetForm({ campaignName, agentPrompt, firstMessage }: Upl
         formData.append('campaignName', campaignName); // Will be at least an empty string if prop is passed
         formData.append('agentPrompt', agentPrompt || ''); // Send empty string if undefined/null
         formData.append('firstMessage', firstMessage || ''); // Send empty string if undefined/null
+        formData.append('callInterval', (callInterval * 1000).toString()); // Convert seconds to milliseconds
+        formData.append('validatePhoneNumbers', validatePhoneNumbers.toString());
       } else {
          // This block would be for a generic file upload not tied to a campaign,
          // which is not the current use case for this form in make-call/page.tsx
@@ -86,11 +95,13 @@ export function UploadSheetForm({ campaignName, agentPrompt, firstMessage }: Upl
         setUploadStatus({
           success: true,
           message: response.message || 'Campaign started successfully from CSV!',
-          sheetId: response.data?.campaign?._id || 'N/A', // Use actual campaign ID if available
-          rowCount: response.data?.contactsProcessed || 0,
+          sheetId: response.data?.campaignId || 'N/A', // Use actual campaign ID if available
+          rowCount: response.data?.totalContacts || 0,
           submittedCampaignName: campaignName,
           submittedAgentPrompt: agentPrompt,
           submittedFirstMessage: firstMessage,
+          invalidNumbers: response.data?.invalidNumbers || 0,
+          invalidNumbersList: response.data?.invalidNumbersList || []
         });
       } else {
         setUploadStatus({
@@ -99,6 +110,8 @@ export function UploadSheetForm({ campaignName, agentPrompt, firstMessage }: Upl
           submittedCampaignName: campaignName, // Keep these for context on error
           submittedAgentPrompt: agentPrompt,
           submittedFirstMessage: firstMessage,
+          invalidNumbers: response.invalidNumbers || 0,
+          invalidNumbersList: response.invalidNumbersList || []
         });
       }
 
@@ -153,6 +166,42 @@ export function UploadSheetForm({ campaignName, agentPrompt, firstMessage }: Upl
         </div>
       )}
       
+      {/* Call Configuration Options */}
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="call-interval">
+            Call Interval (seconds between calls)
+          </Label>
+          <Input
+            id="call-interval"
+            type="number"
+            min="60"
+            max="300"
+            value={callInterval}
+            onChange={(e) => setCallInterval(parseInt(e.target.value) || 90)}
+            placeholder="90"
+            className="w-full"
+          />
+          <p className="text-xs text-muted-foreground">
+            Recommended: 60-120 seconds. Default: 90 seconds.
+          </p>
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="validate-phone"
+            checked={validatePhoneNumbers}
+            onCheckedChange={setValidatePhoneNumbers}
+          />
+          <Label htmlFor="validate-phone" className="cursor-pointer">
+            Validate phone numbers before calling
+          </Label>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          When enabled, invalid phone numbers will be filtered out and reported.
+        </p>
+      </div>
+      
       <Button
         type="submit"
         className="w-full"
@@ -175,8 +224,11 @@ export function UploadSheetForm({ campaignName, agentPrompt, firstMessage }: Upl
           <p>{uploadStatus.message}</p>
           {uploadStatus.success && (
             <div className="mt-2 text-sm">
-              <p>Sheet ID: {uploadStatus.sheetId}</p>
-              <p>Row Count: {uploadStatus.rowCount}</p>
+              <p>Campaign ID: {uploadStatus.sheetId}</p>
+              <p>Valid Contacts: {uploadStatus.rowCount}</p>
+              {uploadStatus.invalidNumbers > 0 && (
+                <p>Invalid Numbers Filtered: {uploadStatus.invalidNumbers}</p>
+              )}
               {uploadStatus.submittedCampaignName && (
                 <>
                   <p>Campaign Name: {uploadStatus.submittedCampaignName}</p>
@@ -185,6 +237,21 @@ export function UploadSheetForm({ campaignName, agentPrompt, firstMessage }: Upl
                 </>
               )}
             </div>
+          )}
+          {uploadStatus.invalidNumbersList && uploadStatus.invalidNumbersList.length > 0 && (
+            <details className="mt-3">
+              <summary className="text-sm cursor-pointer underline">
+                View invalid numbers ({uploadStatus.invalidNumbersList.length})
+              </summary>
+              <div className="mt-2 max-h-40 overflow-y-auto">
+                {uploadStatus.invalidNumbersList.map((invalid, idx) => (
+                  <div key={idx} className="text-xs py-1 border-b last:border-0">
+                    <span className="font-medium">{invalid.name}</span>: {invalid.phone} - 
+                    <span className="italic"> {invalid.reason}</span>
+                  </div>
+                ))}
+              </div>
+            </details>
           )}
         </div>
       )}

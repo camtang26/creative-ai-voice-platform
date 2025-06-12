@@ -71,6 +71,8 @@ import { verifyWebhookSignature } from './db/webhook-handler-db.js';
 import { google } from 'googleapis';
 import fs from 'fs/promises';
 import path from 'path';
+import { parse } from 'csv-parse';
+import { parsePhoneNumber, isValidPhoneNumber } from 'libphonenumber-js';
 
 // Get Twilio credentials from environment
 const {
@@ -677,6 +679,274 @@ server.post('/api/campaigns/google-sheet/start', async (request, reply) => {
 });
 });
 // --- End Google Sheet Campaign API Endpoints ---
+
+// --- CSV Upload Campaign API Endpoint ---
+server.post('/api/db/campaigns/start-from-csv', async (request, reply) => {
+  server.log.info('[CSV Upload] Received request to start campaign from CSV upload');
+  
+  try {
+    // Parse multipart form data
+    const data = await request.file();
+    if (!data) {
+      return reply.code(400).send({ success: false, error: 'No file uploaded.' });
+    }
+
+    // Get form fields from the multipart data
+    const fields = {};
+    const otherParts = request.parts();
+    for await (const part of otherParts) {
+      if (part.type === 'field') {
+        fields[part.fieldname] = part.value;
+      }
+    }
+
+    const { 
+      agentPrompt, 
+      firstMessage, 
+      campaignName: customCampaignName,
+      callInterval: callIntervalStr,
+      validatePhoneNumbers 
+    } = fields;
+
+    // Parse call interval (default to 90 seconds - middle of 1-2 minute range)
+    const callInterval = callIntervalStr ? parseInt(callIntervalStr) : 90000;
+
+    if (!agentPrompt) {
+      return reply.code(400).send({ success: false, error: 'Agent prompt is required.' });
+    }
+    if (!firstMessage) {
+      return reply.code(400).send({ success: false, error: 'First message is required.' });
+    }
+
+    // Read and parse CSV file
+    const csvContent = await data.toBuffer();
+    const csvText = csvContent.toString('utf-8');
+    
+    server.log.info('[CSV Upload] Parsing CSV file...');
+    
+    // Parse CSV with header row
+    const records = await new Promise((resolve, reject) => {
+      parse(csvText, {
+        columns: true,
+        skip_empty_lines: true,
+        trim: true
+      }, (err, records) => {
+        if (err) reject(err);
+        else resolve(records);
+      });
+    });
+
+    if (!records || records.length === 0) {
+      return reply.code(400).send({ success: false, error: 'CSV file is empty or invalid.' });
+    }
+
+    server.log.info(`[CSV Upload] Found ${records.length} records in CSV`);
+
+    // Process and validate contacts
+    const validContacts = [];
+    const invalidNumbers = [];
+    
+    for (const record of records) {
+      // Try to find phone number in various possible column names
+      const phoneNumber = record.Phone || record.phone || record['Phone Number'] || record['phone number'] || record.Mobile || record.mobile;
+      const firstName = record.FirstName || record.firstname || record['First Name'] || record['first name'] || '';
+      const lastName = record.LastName || record.lastname || record['Last Name'] || record['last name'] || '';
+      const email = record.Email || record.email || '';
+      
+      if (!phoneNumber) {
+        server.log.warn('[CSV Upload] Skipping record - no phone number found:', record);
+        continue;
+      }
+
+      const fullName = `${firstName} ${lastName}`.trim() || 'Unknown';
+      
+      // Validate phone number if requested
+      let isValid = true;
+      let formattedPhone = phoneNumber;
+      
+      if (validatePhoneNumbers === 'true') {
+        try {
+          // Try to parse with US as default country
+          const phoneObj = parsePhoneNumber(phoneNumber, 'US');
+          if (phoneObj && phoneObj.isValid()) {
+            formattedPhone = phoneObj.format('E.164');
+            isValid = true;
+          } else {
+            // Try without country code
+            isValid = isValidPhoneNumber(phoneNumber, 'US');
+            if (!isValid) {
+              invalidNumbers.push({ name: fullName, phone: phoneNumber, reason: 'Invalid phone number format' });
+              continue;
+            }
+          }
+        } catch (error) {
+          server.log.warn(`[CSV Upload] Phone validation error for ${phoneNumber}:`, error.message);
+          invalidNumbers.push({ name: fullName, phone: phoneNumber, reason: error.message });
+          continue;
+        }
+      }
+
+      validContacts.push({
+        phoneNumber: formattedPhone,
+        name: fullName,
+        email: email,
+        firstName: firstName,
+        lastName: lastName
+      });
+    }
+
+    server.log.info(`[CSV Upload] Valid contacts: ${validContacts.length}, Invalid: ${invalidNumbers.length}`);
+
+    if (validContacts.length === 0) {
+      return reply.code(400).send({ 
+        success: false, 
+        error: 'No valid contacts found in CSV.', 
+        invalidNumbers: invalidNumbers 
+      });
+    }
+
+    // Get repositories
+    const campaignRepository = getCampaignRepository();
+    const contactRepository = getContactRepository();
+
+    // Create campaign
+    const campaignTitle = customCampaignName || `CSV Campaign - ${new Date().toISOString().split('T')[0]}`;
+    
+    const campaign = await campaignRepository.saveCampaign({
+      name: campaignTitle,
+      description: `Campaign created from CSV upload with ${validContacts.length} contacts`,
+      status: 'draft',
+      prompt: agentPrompt,
+      firstMessage: firstMessage,
+      callerId: process.env.TWILIO_PHONE_NUMBER,
+      csvInfo: {
+        originalFileName: data.filename,
+        totalRecords: records.length,
+        validContacts: validContacts.length,
+        invalidContacts: invalidNumbers.length
+      },
+      settings: {
+        callDelay: callInterval, // Use the configured interval
+        maxConcurrentCalls: 1,
+        retryCount: 1,
+        retryDelay: 3600000 // 1 hour
+      }
+    });
+
+    server.log.info(`[CSV Upload] Created campaign: ${campaign.name} (${campaign._id})`);
+
+    // Import contacts
+    const contactsToImport = validContacts.map(contact => ({
+      phoneNumber: contact.phoneNumber,
+      name: contact.name,
+      email: contact.email,
+      status: 'active',
+      campaigns: [campaign._id],
+      customFields: {
+        firstName: contact.firstName,
+        lastName: contact.lastName
+      }
+    }));
+
+    const importResults = await contactRepository.importContacts(contactsToImport, campaign._id);
+    server.log.info(`[CSV Upload] Import results: Created ${importResults.created}, Updated: ${importResults.updated}, Failed: ${importResults.failed}`);
+
+    // Update campaign stats
+    await campaignRepository.updateCampaignStats(campaign._id, {
+      totalContacts: validContacts.length
+    });
+
+    // Activate campaign
+    await campaignRepository.updateCampaignStatus(campaign._id, 'active');
+
+    // Start calling process
+    server.log.info(`[CSV Upload] Starting to call ${validContacts.length} contacts with ${callInterval/1000}s intervals`);
+    
+    let callsInitiated = 0;
+    let callsFailed = 0;
+
+    // Process calls asynchronously to not block the response
+    setImmediate(async () => {
+      for (let i = 0; i < validContacts.length; i++) {
+        const contact = validContacts[i];
+        try {
+          // Personalize first message
+          const personalizedFirstMessage = firstMessage.replace('{name}', contact.name || 'there');
+          
+          server.log.info(`[CSV Upload] Initiating call ${i + 1}/${validContacts.length} to ${contact.name} (${contact.phoneNumber})`);
+          
+          const callResponse = await fetch(`${request.protocol}://${request.hostname}/api/outbound-call`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              number: contact.phoneNumber,
+              prompt: agentPrompt,
+              first_message: personalizedFirstMessage,
+              name: contact.name,
+              campaignId: campaign._id
+            })
+          });
+
+          const callResult = await callResponse.json();
+          
+          if (callResponse.ok && callResult.success) {
+            callsInitiated++;
+            server.log.info(`[CSV Upload] Call initiated successfully: ${callResult.callSid}`);
+          } else {
+            callsFailed++;
+            server.log.error(`[CSV Upload] Failed to initiate call to ${contact.phoneNumber}: ${callResult.error}`);
+          }
+
+          // Update campaign stats
+          await campaignRepository.updateCampaignStats(campaign._id, {
+            callsPlaced: callsInitiated,
+            callsFailed: callsFailed
+          });
+
+          // Wait before next call (except for the last one)
+          if (i < validContacts.length - 1) {
+            server.log.info(`[CSV Upload] Waiting ${callInterval/1000} seconds before next call...`);
+            await new Promise(resolve => setTimeout(resolve, callInterval));
+          }
+        } catch (error) {
+          callsFailed++;
+          server.log.error(`[CSV Upload] Error calling ${contact.phoneNumber}:`, error);
+        }
+      }
+
+      // Update final campaign status
+      if (callsInitiated === validContacts.length) {
+        await campaignRepository.updateCampaignStatus(campaign._id, 'completed');
+        server.log.info(`[CSV Upload] Campaign completed successfully. All ${callsInitiated} calls initiated.`);
+      } else {
+        server.log.warn(`[CSV Upload] Campaign finished with issues. Calls initiated: ${callsInitiated}/${validContacts.length}`);
+      }
+    });
+
+    // Return immediate response
+    return reply.code(200).send({
+      success: true,
+      message: `Campaign created successfully. Starting to call ${validContacts.length} contacts.`,
+      data: {
+        campaignId: campaign._id,
+        campaignName: campaign.name,
+        totalContacts: validContacts.length,
+        invalidNumbers: invalidNumbers.length,
+        callInterval: callInterval / 1000, // Return in seconds
+        invalidNumbersList: invalidNumbers // Include details about invalid numbers
+      }
+    });
+
+  } catch (error) {
+    server.log.error({ err: error }, '[CSV Upload] Error processing CSV campaign');
+    return reply.code(500).send({ 
+      success: false, 
+      error: 'Failed to process CSV file.', 
+      details: error.message 
+    });
+  }
+});
+// --- End CSV Upload Campaign API Endpoint ---
     return false;
   }
 }

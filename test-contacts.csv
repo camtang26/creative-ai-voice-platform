@@ -1,0 +1,8 @@
+ID,FirstName,LastName,Email,Phone
+1,John,Doe,john.doe@example.com,+14155552671
+2,Jane,Smith,jane.smith@example.com,+14155552672
+3,Bob,Johnson,bob.johnson@example.com,+14155552673
+4,Alice,Williams,alice.williams@example.com,+14155552674
+5,Invalid,Number,invalid@example.com,123456789
+6,Another,Invalid,invalid2@example.com,not-a-phone
+7,Charlie,Brown,charlie.brown@example.com,+14155552675
