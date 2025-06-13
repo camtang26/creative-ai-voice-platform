@@ -77,7 +77,7 @@ export default function ContactsPage() {
   const [totalContacts, setTotalContacts] = useState(0)
   const [isNewTagDialogOpen, setIsNewTagDialogOpen] = useState(false)
   const [newTag, setNewTag] = useState('')
-  const [actionInProgress, setActionInProgress] = useState(false)
+  const [actionInProgress, setActionInProgress] = useState<string | null>(null)
   const { toast } = useToast()
   
   // Debounce search query
@@ -164,7 +164,7 @@ export default function ContactsPage() {
   
   // Handle contact deletion
   const handleDeleteContact = async (contactId: string) => {
-    setActionInProgress(true)
+    setActionInProgress(contactId)
     
     try {
       const response = await deleteContact(contactId)
@@ -172,11 +172,18 @@ export default function ContactsPage() {
       if (response.success) {
         // Remove the contact from the list
         setContacts(prev => prev.filter(c => c.id !== contactId))
+        // Update total count
+        setTotalContacts(prev => Math.max(0, prev - 1))
         
         toast({
           title: "Contact deleted",
           description: "The contact has been successfully deleted."
         })
+        
+        // If we deleted the last contact on this page and we're not on page 1, go to previous page
+        if (contacts.length === 1 && currentPage > 1) {
+          setCurrentPage(currentPage - 1)
+        }
       } else {
         toast({
           title: "Error",
@@ -192,7 +199,7 @@ export default function ContactsPage() {
         variant: "destructive"
       })
     } finally {
-      setActionInProgress(false)
+      setActionInProgress(null)
     }
   }
   
@@ -200,7 +207,7 @@ export default function ContactsPage() {
   const handleBulkDelete = async () => {
     if (selectedContacts.length === 0) return
     
-    setActionInProgress(true)
+    setActionInProgress('bulk-delete')
     
     try {
       // Use the bulk delete API endpoint
@@ -253,7 +260,7 @@ export default function ContactsPage() {
         variant: "destructive"
       })
     } finally {
-      setActionInProgress(false)
+      setActionInProgress(null)
     }
   }
   
@@ -261,7 +268,7 @@ export default function ContactsPage() {
   const handleAddTag = async () => {
     if (selectedContacts.length === 0 || !newTag.trim()) return
     
-    setActionInProgress(true)
+    setActionInProgress('add-tag')
     
     try {
       // In a real implementation, use a bulk update API endpoint
@@ -305,7 +312,7 @@ export default function ContactsPage() {
         variant: "destructive"
       })
     } finally {
-      setActionInProgress(false)
+      setActionInProgress(null)
     }
   }
   
@@ -420,10 +427,10 @@ export default function ContactsPage() {
                     </div>
                     <Button 
                       onClick={handleAddTag} 
-                      disabled={!newTag.trim() || actionInProgress} 
+                      disabled={!newTag.trim() || actionInProgress === 'add-tag'} 
                       className="w-full"
                     >
-                      {actionInProgress ? (
+                      {actionInProgress === 'add-tag' ? (
                         <RefreshCw className="h-4 w-4 animate-spin mr-2" />
                       ) : (
                         <Tag className="h-4 w-4 mr-2" />
@@ -461,7 +468,7 @@ export default function ContactsPage() {
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                     <AlertDialogAction onClick={handleBulkDelete}>
-                      {actionInProgress ? (
+                      {actionInProgress === 'bulk-delete' ? (
                         <RefreshCw className="h-4 w-4 animate-spin mr-2" />
                       ) : (
                         <Trash2 className="h-4 w-4 mr-2" />
@@ -530,7 +537,7 @@ export default function ContactsPage() {
                         checked={selectedContacts.length > 0 && selectedContacts.length === contacts.filter(c => c.id).length} 
                         onCheckedChange={toggleSelectAll}
                         aria-label="Select all contacts"
-                        indeterminate={selectedContacts.length > 0 && selectedContacts.length < contacts.filter(c => c.id).length}
+                        {...(selectedContacts.length > 0 && selectedContacts.length < contacts.filter(c => c.id).length ? { 'data-state': 'indeterminate' } : {})}
                       />
                     </TableHead>
                     <TableHead>Name</TableHead>
@@ -619,7 +626,7 @@ export default function ContactsPage() {
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    disabled={actionInProgress}
+                                    disabled={actionInProgress === contact.id}
                                   >
                                     <Trash2 className="h-4 w-4 text-destructive" />
                                     <span className="sr-only">Delete contact</span>
@@ -639,7 +646,7 @@ export default function ContactsPage() {
                                       onClick={() => handleDeleteContact(contact.id!)}
                                       className="bg-destructive text-destructive-foreground"
                                     >
-                                      {actionInProgress ? (
+                                      {actionInProgress === contact.id ? (
                                         <RefreshCw className="h-4 w-4 animate-spin mr-2" />
                                       ) : (
                                         <Trash2 className="h-4 w-4 mr-2" />
