@@ -26,27 +26,6 @@ export function registerApiRoutes(server, twilioClient, activeCalls) {
   // Register the authentication decorator
   server.decorate('authenticate', authenticate);
 
-  // Add error handler to the server
-  server.setErrorHandler((error, request, reply) => {
-    const isApiError = error instanceof ApiError;
-    const statusCode = isApiError ? error.statusCode : 500;
-    
-    let errorResponse = {
-      success: false,
-      error: {
-        message: error.message,
-        code: isApiError ? error.errorCode : 'UNKNOWN_ERROR',
-        details: isApiError ? error.details : null,
-      },
-      timestamp: new Date().toISOString(),
-      requestId: request.requestId || 'unknown'
-    };
-    
-    console.error(`[API Error] [${request.requestId || 'unknown'}] ${error.message}`, error);
-    
-    return reply.code(statusCode).send(errorResponse);
-  });
-
   // Get call statistics
   server.get('/api/call-stats', asyncHandler(async (request, reply) => {
     // Basic stats about calls
@@ -314,9 +293,11 @@ export function registerApiRoutes(server, twilioClient, activeCalls) {
   
   // Validate phone number endpoint
   server.post('/api/validate-phone', asyncHandler(async (request, reply) => {
+    console.log('[Phone Validation] Received request:', request.body);
     const { phoneNumber } = request.body;
     
     if (!phoneNumber) {
+      console.log('[Phone Validation] Missing phone number in request');
       throw ApiError.badRequest(
         'Phone number is required',
         'MISSING_PHONE_NUMBER'
@@ -338,12 +319,15 @@ export function registerApiRoutes(server, twilioClient, activeCalls) {
     const isValid = isE164 || isUS10 || isUS11 || isUSWithPlus;
     
     if (!isValid) {
-      return createSuccessResponse({
+      const invalidResponse = createSuccessResponse({
         isValid: false,
         error: 'Invalid phone number format',
         originalNumber: phoneNumber,
         cleanedNumber: cleaned
       }, 'Phone validation completed');
+      
+      console.log('[Phone Validation] Sending invalid response:', invalidResponse);
+      return invalidResponse;
     }
     
     // Format the number to E.164 if it's valid
@@ -356,12 +340,15 @@ export function registerApiRoutes(server, twilioClient, activeCalls) {
       formatted = '+' + cleaned;
     }
     
-    return createSuccessResponse({
+    const response = createSuccessResponse({
       isValid: true,
       originalNumber: phoneNumber,
       formattedNumber: formatted,
       cleanedNumber: cleaned
     }, 'Phone number is valid');
+    
+    console.log('[Phone Validation] Sending response:', response);
+    return response;
   }));
   
   // Transcript route is likely registered within db/api/transcript-api.js via initializeMongoDB

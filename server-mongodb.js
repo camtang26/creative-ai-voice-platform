@@ -231,7 +231,6 @@ console.log('[Server] Added application/json content type parser to capture raw 
 
 // Register API middleware
 registerApiMiddleware(server);
-registerApiMiddleware(server);
 
 // Explicit OPTIONS handler for /api/outbound-call to ensure CORS preflight works on Render
 server.options('/api/outbound-call', async (request, reply) => {

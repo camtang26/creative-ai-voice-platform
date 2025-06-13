@@ -8,8 +8,20 @@
  * @returns {Function} Wrapped function with error handling
  */
 export const asyncHandler = (fn) => (request, reply) => {
-  Promise.resolve(fn(request, reply)).catch((err) => {
-    reply.send(err);
+  return Promise.resolve(fn(request, reply)).catch((err) => {
+    // If err is an ApiError, let Fastify's error handler manage it
+    if (err instanceof ApiError) {
+      throw err;
+    }
+    // For other errors, send a generic error response
+    reply.code(500).send({
+      success: false,
+      error: {
+        message: err.message || 'Internal server error',
+        code: 'INTERNAL_ERROR'
+      },
+      timestamp: new Date().toISOString()
+    });
   });
 };
 
