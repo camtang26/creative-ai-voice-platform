@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { DashboardHeader } from '@/components/dashboard-header'
 import {
@@ -18,7 +18,7 @@ import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { fetchContacts, deleteContact, addTagsToContact } from '@/lib/mongodb-contacts'
+import { fetchContacts, deleteContact, addTagsToContact, bulkDeleteContacts } from '@/lib/mongodb-contacts'
 import { Contact, ContactFilters } from '@/lib/types'
 import { useToast } from '@/components/ui/use-toast'
 import {
@@ -69,6 +69,7 @@ export default function ContactsPage() {
   const [error, setError] = useState<string | null>(null)
   const [selectedContacts, setSelectedContacts] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -78,10 +79,19 @@ export default function ContactsPage() {
   const [actionInProgress, setActionInProgress] = useState(false)
   const { toast } = useToast()
   
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery)
+    }, 300)
+    
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+  
   // Load contacts when filters change
   useEffect(() => {
     loadContacts()
-  }, [searchQuery, statusFilter, currentPage])
+  }, [debouncedSearchQuery, statusFilter, currentPage])
   
   const loadContacts = async () => {
     setLoading(true)
@@ -91,16 +101,16 @@ export default function ContactsPage() {
       // Prepare filters
       const filters: ContactFilters = {}
       
-      if (searchQuery) {
-        filters.search = searchQuery
+      if (debouncedSearchQuery) {
+        filters.search = debouncedSearchQuery
       }
       
       if (statusFilter && statusFilter !== 'all') {
         filters.status = statusFilter
       }
       
-      // Fetch contacts with pagination
-      const response = await fetchContacts(filters, currentPage, 10)
+      // Fetch contacts with pagination (increased from 10 to 20 for better UX)
+      const response = await fetchContacts(filters, currentPage, 20)
       
       if (response.success && response.data) {
         setContacts(response.data.contacts)
@@ -108,44 +118,22 @@ export default function ContactsPage() {
         setTotalContacts(response.data.pagination.total)
       } else {
         setError(response.error || 'Failed to load contacts')
-        
-        // Generate sample contacts for development
-        const sampleContacts = generateSampleContacts()
-        setContacts(sampleContacts)
-        setTotalPages(3)
-        setTotalContacts(28)
+        setContacts([])
+        setTotalPages(0)
+        setTotalContacts(0)
       }
     } catch (err) {
       console.error('Error loading contacts:', err)
       setError('An unexpected error occurred')
-      
-      // Generate sample contacts for development
-      const sampleContacts = generateSampleContacts()
-      setContacts(sampleContacts)
-      setTotalPages(3)
-      setTotalContacts(28)
+      setContacts([])
+      setTotalPages(0)
+      setTotalContacts(0)
     } finally {
       setLoading(false)
     }
   }
-  
-  const generateSampleContacts = (): Contact[] => {
-    return Array.from({ length: 10 }, (_, i) => ({
-      id: `contact-${i + 1 + (currentPage - 1) * 10}`,
-      phoneNumber: `+614${Math.floor(Math.random() * 10000000).toString().padStart(8, '0')}`,
-      name: `Contact ${i + 1 + (currentPage - 1) * 10}`,
-      email: `contact${i + 1 + (currentPage - 1) * 10}@example.com`,
-      tags: i % 2 === 0 ? ['lead'] : i % 3 === 0 ? ['customer', 'premium'] : ['prospect'],
-      status: i % 5 === 0 ? 'inactive' : i % 7 === 0 ? 'do-not-call' : 'active',
-      lastContacted: i % 3 === 0 ? new Date().toISOString() :
-                     i % 4 === 0 ? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() : undefined,
-      callCount: Math.floor(Math.random() * 5),
-      createdAt: new Date(Date.now() - Math.floor(Math.random() * 30) * 24 * 60 * 60 * 1000).toISOString()
-    }))
-  }
-  
   // Handle contact selection
-  const toggleContactSelection = (contactId: string) => {
+  const toggleContactSelection = useCallback((contactId: string) => {
     setSelectedContacts(prev => {
       if (prev.includes(contactId)) {
         return prev.filter(id => id !== contactId)
@@ -153,23 +141,25 @@ export default function ContactsPage() {
         return [...prev, contactId]
       }
     })
-  }
+  }, [])
   
   // Handle "select all" checkbox
-  const toggleSelectAll = () => {
+  const toggleSelectAll = useCallback(() => {
     if (selectedContacts.length === contacts.length) {
       setSelectedContacts([])
     } else {
       setSelectedContacts(contacts.map(contact => contact.id!))
     }
-  }
+  }, [selectedContacts.length, contacts])
   
   // Handle pagination
-  const handlePageChange = (newPage: number) => {
+  const handlePageChange = useCallback((newPage: number) => {
     if (newPage > 0 && newPage <= totalPages) {
       setCurrentPage(newPage)
+      // Clear selection when changing pages to avoid confusion
+      setSelectedContacts([])
     }
-  }
+  }, [totalPages])
   
   // Handle contact deletion
   const handleDeleteContact = async (contactId: string) => {
@@ -212,28 +202,45 @@ export default function ContactsPage() {
     setActionInProgress(true)
     
     try {
-      // In a real implementation, use a bulk delete API endpoint
-      // For now, delete contacts one by one
-      const promises = selectedContacts.map(id => deleteContact(id))
-      const results = await Promise.all(promises)
+      // Use the bulk delete API endpoint
+      const response = await bulkDeleteContacts(selectedContacts)
       
-      const successCount = results.filter(r => r.success).length
-      
-      if (successCount > 0) {
-        // Remove deleted contacts from the list
-        setContacts(prev => prev.filter(c => !selectedContacts.includes(c.id!)))
+      if (response.success && response.data) {
+        const { success: successCount, failed: failedCount } = response.data
         
-        // Clear selected contacts
-        setSelectedContacts([])
-        
-        toast({
-          title: "Contacts deleted",
-          description: `Successfully deleted ${successCount} contacts.`
-        })
+        if (successCount > 0) {
+          // Remove deleted contacts from the list
+          setContacts(prev => prev.filter(c => !selectedContacts.includes(c.id!)))
+          
+          // Clear selected contacts
+          setSelectedContacts([])
+          
+          // Reload the current page to get updated pagination
+          await loadContacts()
+          
+          if (failedCount === 0) {
+            toast({
+              title: "Contacts deleted",
+              description: `Successfully deleted ${successCount} contacts.`
+            })
+          } else {
+            toast({
+              title: "Partial success",
+              description: `Deleted ${successCount} contacts. ${failedCount} failed.`,
+              variant: "default"
+            })
+          }
+        } else {
+          toast({
+            title: "Error",
+            description: response.error || "Failed to delete the selected contacts",
+            variant: "destructive"
+          })
+        }
       } else {
         toast({
           title: "Error",
-          description: "Failed to delete the selected contacts",
+          description: response.error || "Failed to delete the selected contacts",
           variant: "destructive"
         })
       }

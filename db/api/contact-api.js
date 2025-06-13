@@ -504,6 +504,60 @@ export async function registerContactApiRoutes(fastify, options = {}) {
     }
   });
   
+  // Bulk delete contacts
+  fastify.post('/api/db/contacts/bulk-delete', async (request, reply) => {
+    try {
+      const { contactIds } = request.body;
+      
+      if (!contactIds || !Array.isArray(contactIds) || contactIds.length === 0) {
+        return reply.code(400).send({
+          success: false,
+          error: 'Contact IDs array is required',
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      console.log(`[API] Bulk deleting ${contactIds.length} contacts`);
+      
+      // Delete contacts one by one and track results
+      const results = {
+        success: 0,
+        failed: 0,
+        errors: []
+      };
+      
+      for (const contactId of contactIds) {
+        try {
+          const result = await deleteContact(contactId);
+          if (result) {
+            results.success++;
+          } else {
+            results.failed++;
+            results.errors.push({ id: contactId, error: 'Contact not found' });
+          }
+        } catch (error) {
+          results.failed++;
+          results.errors.push({ id: contactId, error: error.message });
+        }
+      }
+      
+      return {
+        success: true,
+        data: results,
+        message: `Deleted ${results.success} contacts successfully, ${results.failed} failed`,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error(`[API] Error bulk deleting contacts:`, error);
+      return reply.code(500).send({
+        success: false,
+        error: 'Error bulk deleting contacts',
+        details: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+  
   // Import contacts
   fastify.post('/api/db/contacts/import', async (request, reply) => {
     try {

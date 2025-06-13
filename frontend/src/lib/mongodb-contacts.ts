@@ -173,6 +173,43 @@ export async function deleteContact(contactId: string): Promise<{
 }
 
 /**
+ * Bulk delete contacts
+ * @param contactIds Array of contact IDs to delete
+ * @returns Deletion results
+ */
+export async function bulkDeleteContacts(contactIds: string[]): Promise<{ 
+  success: boolean; 
+  data?: {
+    success: number;
+    failed: number;
+    errors: Array<{ id: string; error: string }>;
+  };
+  error?: string;
+  message?: string;
+}> {
+  try {
+    // Use getApiUrl with the correct full path
+    const apiUrl = getApiUrl(`/api/db/contacts/bulk-delete`);
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ contactIds })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Error bulk deleting contacts: ${response.statusText} for URL: ${apiUrl}`);
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    return handleApiError(error, 'Failed to bulk delete contacts');
+  }
+}
+
+/**
  * Add tags to a contact
  * @param contactId The ID of the contact
  * @param tags Array of tags to add

@@ -36,24 +36,7 @@ import { CampaignConfig } from '@/lib/types'
 import { startCampaign, pauseCampaign, deleteCampaign, fetchCampaigns } from '@/lib/mongodb-api'
 import { cn } from '@/lib/utils'
 
-// Fallback sample data in case API fails
-const fallbackCampaigns: CampaignConfig[] = [
-  {
-    id: 'camp_1',
-    name: 'March Re-Engagement Campaign',
-    description: 'Re-engage with customers who signed up for a free trial but did not convert',
-    prompt_template: 'You are a customer outreach specialist for Investor Signals...',
-    first_message_template: 'Hello {name}, this is Investor Signals reaching out about your free trial...',
-    status: 'in-progress',
-    created_at: '2025-03-15T10:00:00Z',
-    schedule: {
-      start_date: '2025-03-15T10:00:00Z',
-      end_date: '2025-03-25T23:59:59Z',
-      max_concurrent_calls: 3,
-      call_interval_ms: 60000
-    }
-  }
-];
+// No fallback data - show real state to user
 
 // Main campaign page component
 export default function CampaignsPage() {
@@ -107,27 +90,27 @@ export default function CampaignsPage() {
         } else {
           console.error('Failed to fetch campaigns:', response.error);
           setError('Failed to load campaigns');
-          setCampaigns(fallbackCampaigns);
+          setCampaigns([]);
           
-          // Set metrics from fallback data
+          // Set metrics to zero
           setMetrics({
-            totalCampaigns: fallbackCampaigns.length,
-            activeCampaigns: fallbackCampaigns.filter(c => c.status === 'in-progress').length,
-            scheduledCampaigns: fallbackCampaigns.filter(c => c.status === 'scheduled').length,
-            completedCampaigns: fallbackCampaigns.filter(c => c.status === 'completed').length
+            totalCampaigns: 0,
+            activeCampaigns: 0,
+            scheduledCampaigns: 0,
+            completedCampaigns: 0
           });
         }
       } catch (err) {
         console.error('Error loading campaigns:', err);
         setError('An error occurred while loading campaigns');
-        setCampaigns(fallbackCampaigns);
+        setCampaigns([]);
         
-        // Set metrics from fallback data
+        // Set metrics to zero
         setMetrics({
-          totalCampaigns: fallbackCampaigns.length,
-          activeCampaigns: fallbackCampaigns.filter(c => c.status === 'in-progress').length,
-          scheduledCampaigns: fallbackCampaigns.filter(c => c.status === 'scheduled').length,
-          completedCampaigns: fallbackCampaigns.filter(c => c.status === 'completed').length
+          totalCampaigns: 0,
+          activeCampaigns: 0,
+          scheduledCampaigns: 0,
+          completedCampaigns: 0
         });
       } finally {
         setIsLoading(false);

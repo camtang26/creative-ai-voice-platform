@@ -66,6 +66,7 @@ import { RealTimeCampaignMonitor } from '@/components/real-time-campaign-monitor
 import { RealTimeCallMonitor } from '@/components/real-time-call-monitor'
 import { CampaignConfig } from '@/lib/types'
 import { fetchCampaign, startCampaign, pauseCampaign, cancelCampaign } from '@/lib/mongodb-api'
+import { getApiUrl } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 interface CampaignPageProps {
@@ -180,31 +181,43 @@ export default function CampaignPageEnhanced({ params }: CampaignPageProps) {
   // Load campaign stats and call data
   useEffect(() => {
     if (campaign?.id) {
-      loadCampaignStats()
-      loadCampaignCalls()
+      // Load both in parallel for better performance
+      Promise.all([
+        loadCampaignStats(),
+        loadCampaignCalls()
+      ])
     }
   }, [campaign?.id])
   
   // Load campaign statistics
   const loadCampaignStats = async () => {
     try {
-      // In a real implementation, fetch from API
-      // const response = await fetch(`/api/db/campaigns/${campaign.id}/stats`)
+      // Use the actual campaign data from MongoDB
+      if (!campaign) return
       
-      // For now, use sample data
-      setTimeout(() => {
-        setCampaignStats({
-          totalContacts: 150,
-          completedCalls: 87,
-          successfulCalls: 45,
-          failedCalls: 28,
-          inProgressCalls: 14,
-          pendingCalls: 63,
-          progress: 58, // percentage
-          averageDuration: 145, // seconds
-          successRate: 52, // percentage
-        })
-      }, 500)
+      // Calculate stats from the campaign data
+      const totalContacts = campaign.contactCount || 0
+      const completedCalls = campaign.callsCompleted || 0
+      const successfulCalls = campaign.callsSuccessful || 0
+      const failedCalls = campaign.callsFailed || 0
+      const inProgressCalls = campaign.callsInProgress || 0
+      const pendingCalls = campaign.callsQueued || 0
+      
+      const progress = totalContacts > 0 ? Math.round((completedCalls / totalContacts) * 100) : 0
+      const averageDuration = campaign.averageCallDuration || 0
+      const successRate = completedCalls > 0 ? Math.round((successfulCalls / completedCalls) * 100) : 0
+      
+      setCampaignStats({
+        totalContacts,
+        completedCalls,
+        successfulCalls,
+        failedCalls,
+        inProgressCalls,
+        pendingCalls,
+        progress,
+        averageDuration,
+        successRate,
+      })
     } catch (error) {
       console.error("Error loading campaign stats:", error)
     }
@@ -212,67 +225,41 @@ export default function CampaignPageEnhanced({ params }: CampaignPageProps) {
   
   // Load campaign calls
   const loadCampaignCalls = async () => {
+    if (!campaign?.id) return
+    
     setCallsLoading(true)
     
     try {
-      // In a real implementation, fetch from API
-      // const response = await fetch(`/api/db/campaigns/${campaign.id}/calls`)
+      // Fetch real campaign calls from MongoDB API
+      const response = await fetch(getApiUrl(`/api/db/calls?campaignId=${campaign.id}&limit=50`))
       
-      // For now, use sample data
-      setTimeout(() => {
-        const sampleCallData = [
-          {
-            sid: 'CA123456789abcdef',
-            phone: '+61412345678',
-            name: 'John Smith',
-            status: 'completed',
-            duration: 132,
-            outcome: 'successful',
-            date: '2025-03-18T14:25:00Z'
-          },
-          {
-            sid: 'CA234567890abcdef',
-            phone: '+61423456789',
-            name: 'Sarah Johnson',
-            status: 'completed',
-            duration: 217,
-            outcome: 'unsuccessful',
-            date: '2025-03-18T15:10:00Z'
-          },
-          {
-            sid: 'CA345678901abcdef',
-            phone: '+61434567890',
-            name: 'Michael Wong',
-            status: 'completed',
-            duration: 94,
-            outcome: 'successful',
-            date: '2025-03-18T15:45:00Z'
-          },
-          {
-            sid: 'CA456789012abcdef',
-            phone: '+61445678901',
-            name: 'Emily Taylor',
-            status: 'in-progress',
-            duration: null,
-            outcome: null,
-            date: '2025-03-18T16:30:00Z'
-          },
-          {
-            sid: 'CA567890123abcdef',
-            phone: '+61456789012',
-            name: 'David Chen',
-            status: 'scheduled',
-            duration: null,
-            outcome: null,
-            date: null
-          }
-        ]
+      if (!response.ok) {
+        throw new Error(`Failed to fetch campaign calls: ${response.statusText}`)
+      }
+      
+      const result = await response.json()
+      
+      if (result.success && result.data) {
+        // Transform the call data to match our interface
+        const transformedCalls = result.data.calls.map((call: any) => ({
+          sid: call.sid,
+          phone: call.to,
+          name: call.contactName || 'Unknown',
+          status: call.status,
+          duration: call.duration,
+          outcome: call.callOutcome || null,
+          date: call.startTime
+        }))
         
-        setCallData(sampleCallData)
-        setCallsLoading(false)
-      }, 800)
+        setCallData(transformedCalls)
+      } else {
+        console.error("Failed to load campaign calls:", result.error)
+        setCallData([])
+      }
     } catch (error) {
       console.error("Error loading campaign calls:", error)
+      setCallData([])
+    } finally {
       setCallsLoading(false)
     }
   }
