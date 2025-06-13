@@ -737,9 +737,13 @@ server.post('/api/db/campaigns/start-from-csv', async (request, reply) => {
     if (agentPrompt && agentPrompt.trim() === '') {
       return reply.code(400).send({ success: false, error: 'Agent prompt cannot be just whitespace. Leave blank to use default.' });
     }
-    if (!firstMessage || firstMessage.trim() === '') {
-      return reply.code(400).send({ success: false, error: 'First message is required.' });
-    }
+    
+    // First message - use default if not provided
+    const actualFirstMessage = firstMessage && firstMessage.trim() !== '' 
+      ? firstMessage 
+      : "Hey {name}, I'm calling from ElevenLabs. I noticed you signed up for a trial a while back but never got started. I'd love to help you explore what we can do for your voice AI needs. Do you have a moment to chat?";
+    
+    server.log.info('[CSV Upload] Using first message:', actualFirstMessage.substring(0, 50) + '...');
     if (!customCampaignName || customCampaignName.trim() === '') {
       return reply.code(400).send({ success: false, error: 'Campaign name is required.' });
     }
@@ -843,7 +847,7 @@ server.post('/api/db/campaigns/start-from-csv', async (request, reply) => {
       description: `Campaign created from CSV upload with ${validContacts.length} contacts`,
       status: 'draft',
       agentPrompt: agentPrompt || null, // Allow null for default ElevenLabs prompt
-      firstMessage: firstMessage,
+      firstMessage: actualFirstMessage,
       callerId: process.env.TWILIO_PHONE_NUMBER,
       csvInfo: {
         originalFileName: fileData.filename,
@@ -911,7 +915,7 @@ server.post('/api/db/campaigns/start-from-csv', async (request, reply) => {
         const contact = validContacts[i];
         try {
           // Personalize first message
-          const personalizedFirstMessage = firstMessage.replace('{name}', contact.name || 'there');
+          const personalizedFirstMessage = actualFirstMessage.replace('{name}', contact.name || 'there');
           
           server.log.info(`[CSV Upload] Initiating call ${i + 1}/${validContacts.length} to ${contact.name} (${contact.phoneNumber})`);
           
