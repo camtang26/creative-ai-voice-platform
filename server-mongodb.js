@@ -261,6 +261,12 @@ server.get('/healthz', async (request, reply) => {
 });
 console.log('[Server] Registered /healthz endpoint');
 
+// Test route to verify CSV endpoint registration
+server.get('/test-csv-route', async (request, reply) => {
+  return { message: 'CSV route registration area reached', timestamp: new Date().toISOString() };
+});
+console.log('[Server] Registered test CSV route');
+
 // Removed simple test route
 
 // Share the active calls map with handlers
@@ -980,6 +986,13 @@ server.post('/api/db/campaigns/start-from-csv', async (request, reply) => {
     });
   }
 });
+
+// Test route to verify CSV endpoint was registered
+server.get('/test-csv-after', async (request, reply) => {
+  return { message: 'Route defined after CSV endpoint', timestamp: new Date().toISOString() };
+});
+console.log('[Server] Registered test route after CSV endpoint');
+
 // --- End CSV Upload Campaign API Endpoint ---
     return false;
   }
