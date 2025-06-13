@@ -152,7 +152,6 @@ export function isConversationComplete(message) { // Added export
   // Case 2: Let ElevenLabs handle conversation completion logic
   // Removed hardcoded goodbye phrase detection - ElevenLabs will send
   // conversation_completed event when appropriate based on agent config
-  }
 
   // Case 3: Check for conversation state indicators
   if (message.type === 'conversation_state_update' &&
