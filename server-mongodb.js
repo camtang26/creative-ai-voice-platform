@@ -298,6 +298,10 @@ function verifySignature(payload, signature, secret) {
     return receivedHash === calculatedHash;
   } catch (error) {
     console.error('[Webhook] Signature verification error:', error.message);
+    return false;
+  }
+}
+
 // --- Google Sheets API Helper ---
 let sheetsApiInstance; // To cache the initialized sheets API
 
@@ -994,9 +998,6 @@ server.get('/test-csv-after', async (request, reply) => {
 console.log('[Server] Registered test route after CSV endpoint');
 
 // --- End CSV Upload Campaign API Endpoint ---
-    return false;
-  }
-}
 
 // --- WebSocket Proxy Handler Removed (Moved to media-proxy-server.js) ---
 
