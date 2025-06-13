@@ -17,7 +17,7 @@ interface UploadSheetFormProps {
 export function UploadSheetForm({ campaignName, agentPrompt, firstMessage }: UploadSheetFormProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isUploading, setIsUploading] = useState(false)
-  const [callInterval, setCallInterval] = useState(90) // Default 90 seconds
+  const [callInterval, setCallInterval] = useState(60) // Default 60 seconds (max allowed)
   const [validatePhoneNumbers, setValidatePhoneNumbers] = useState(true)
   const [uploadStatus, setUploadStatus] = useState<{
     success?: boolean;
@@ -175,15 +175,15 @@ export function UploadSheetForm({ campaignName, agentPrompt, firstMessage }: Upl
           <Input
             id="call-interval"
             type="number"
-            min="60"
-            max="300"
+            min="30"
+            max="60"
             value={callInterval}
-            onChange={(e) => setCallInterval(parseInt(e.target.value) || 90)}
-            placeholder="90"
+            onChange={(e) => setCallInterval(parseInt(e.target.value) || 60)}
+            placeholder="60"
             className="w-full"
           />
           <p className="text-xs text-muted-foreground">
-            Recommended: 60-120 seconds. Default: 90 seconds.
+            Time between calls: 30-60 seconds. Default: 60 seconds.
           </p>
         </div>
         
