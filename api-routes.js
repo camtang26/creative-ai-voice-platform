@@ -311,5 +311,58 @@ export function registerApiRoutes(server, twilioClient, activeCalls) {
       { providedSid: callSid, twilioClientAvailable: !!twilioClient }
     );
   }));
+  
+  // Validate phone number endpoint
+  server.post('/api/validate-phone', asyncHandler(async (request, reply) => {
+    const { phoneNumber } = request.body;
+    
+    if (!phoneNumber) {
+      throw ApiError.badRequest(
+        'Phone number is required',
+        'MISSING_PHONE_NUMBER'
+      );
+    }
+    
+    // Basic phone validation
+    // Remove all non-digit characters except + at the beginning
+    const cleaned = phoneNumber.toString().replace(/[^\d+]/g, '');
+    
+    // Check if it's a valid format
+    // E.164 format: + followed by 1-15 digits
+    // or US format: 10 or 11 digits
+    const isE164 = /^\+[1-9]\d{1,14}$/.test(cleaned);
+    const isUS10 = /^[2-9]\d{9}$/.test(cleaned);
+    const isUS11 = /^1[2-9]\d{9}$/.test(cleaned);
+    const isUSWithPlus = /^\+1[2-9]\d{9}$/.test(cleaned);
+    
+    const isValid = isE164 || isUS10 || isUS11 || isUSWithPlus;
+    
+    if (!isValid) {
+      return createSuccessResponse({
+        isValid: false,
+        error: 'Invalid phone number format',
+        originalNumber: phoneNumber,
+        cleanedNumber: cleaned
+      }, 'Phone validation completed');
+    }
+    
+    // Format the number to E.164 if it's valid
+    let formatted = cleaned;
+    if (isUS10) {
+      formatted = '+1' + cleaned;
+    } else if (isUS11 && !cleaned.startsWith('+')) {
+      formatted = '+' + cleaned;
+    } else if (!cleaned.startsWith('+')) {
+      formatted = '+' + cleaned;
+    }
+    
+    return createSuccessResponse({
+      isValid: true,
+      originalNumber: phoneNumber,
+      formattedNumber: formatted,
+      cleanedNumber: cleaned
+    }, 'Phone number is valid');
+  }));
+  
   // Transcript route is likely registered within db/api/transcript-api.js via initializeMongoDB
 }

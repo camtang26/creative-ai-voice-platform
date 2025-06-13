@@ -595,6 +595,47 @@ export async function registerCampaignApiRoutes(fastify, options = {}) {
     }
   });
   
+  // Cancel campaign (alias for stop - marks campaign as cancelled)
+  fastify.post('/api/db/campaigns/:campaignId/cancel', async (request, reply) => {
+    try {
+      const { campaignId } = request.params;
+      
+      if (!campaignId) {
+        return reply.code(400).send({
+          success: false,
+          error: 'Campaign ID is required',
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      // Update campaign status to cancelled
+      const updatedCampaign = await updateCampaignStatus(campaignId, 'cancelled');
+      
+      if (!updatedCampaign) {
+        return reply.code(404).send({
+          success: false,
+          error: `Campaign not found with ID: ${campaignId}`,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      return {
+        success: true,
+        data: updatedCampaign,
+        message: 'Campaign cancelled successfully',
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error(`[API] Error cancelling campaign:`, error);
+      return reply.code(500).send({
+        success: false,
+        error: 'Error cancelling campaign',
+        details: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+  
   // Get campaign statistics
   fastify.get('/api/db/campaigns/:campaignId/stats', async (request, reply) => {
     try {
