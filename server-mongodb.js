@@ -738,12 +738,14 @@ server.post('/api/db/campaigns/start-from-csv', async (request, reply) => {
       return reply.code(400).send({ success: false, error: 'Agent prompt cannot be just whitespace. Leave blank to use default.' });
     }
     
-    // First message - use default if not provided
-    const actualFirstMessage = firstMessage && firstMessage.trim() !== '' 
-      ? firstMessage 
-      : "Hey {name}, I'm calling from ElevenLabs. I noticed you signed up for a trial a while back but never got started. I'd love to help you explore what we can do for your voice AI needs. Do you have a moment to chat?";
+    // First message is optional - if not provided, ElevenLabs will use the platform's default
+    const actualFirstMessage = firstMessage && firstMessage.trim() !== '' ? firstMessage : null;
     
-    server.log.info('[CSV Upload] Using first message:', actualFirstMessage.substring(0, 50) + '...');
+    if (actualFirstMessage) {
+      server.log.info('[CSV Upload] Using custom first message:', actualFirstMessage.substring(0, 50) + '...');
+    } else {
+      server.log.info('[CSV Upload] Using ElevenLabs platform default first message');
+    }
     if (!customCampaignName || customCampaignName.trim() === '') {
       return reply.code(400).send({ success: false, error: 'Campaign name is required.' });
     }
@@ -914,8 +916,10 @@ server.post('/api/db/campaigns/start-from-csv', async (request, reply) => {
       for (let i = 0; i < validContacts.length; i++) {
         const contact = validContacts[i];
         try {
-          // Personalize first message
-          const personalizedFirstMessage = actualFirstMessage.replace('{name}', contact.name || 'there');
+          // Personalize first message if provided
+          const personalizedFirstMessage = actualFirstMessage 
+            ? actualFirstMessage.replace('{name}', contact.name || 'there')
+            : undefined;
           
           server.log.info(`[CSV Upload] Initiating call ${i + 1}/${validContacts.length} to ${contact.name} (${contact.phoneNumber})`);
           
