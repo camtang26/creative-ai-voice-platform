@@ -3,6 +3,10 @@
 import { useState } from 'react'
 import { Button } from "@/components/ui/button"
 import { makeCall } from '@/lib/api'
+import { validatePhoneNumber, validateFirstMessage, validateAgentPrompt } from '@/lib/validation'
+import { retryApiCall } from '@/lib/retry-utils'
+import { ErrorState, getErrorType } from '@/components/error-state'
+import { AlertCircle } from 'lucide-react'
 
 export function MakeCallForm() {
   const [isLoading, setIsLoading] = useState(false)
@@ -11,11 +15,17 @@ export function MakeCallForm() {
     message?: string;
     callSid?: string;
   } | null>(null)
+  const [validationErrors, setValidationErrors] = useState<{
+    phoneNumber?: string;
+    callerId?: string;
+    firstMessage?: string;
+    prompt?: string;
+  }>({})
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setIsLoading(true)
     setCallStatus(null)
+    setValidationErrors({})
     
     const formData = new FormData(event.currentTarget)
     const data = {
@@ -23,30 +33,76 @@ export function MakeCallForm() {
       prompt: formData.get('prompt') as string,
       first_message: formData.get('firstMessage') as string,
       callerId: formData.get('callerId') as string || undefined,
-      name: formData.get('contactName') as string // Made mandatory, will be empty string if not filled, but input is now required
+      name: formData.get('contactName') as string
     }
     
+    // Validate phone number
+    const phoneValidation = validatePhoneNumber(data.number)
+    if (!phoneValidation.isValid) {
+      setValidationErrors(prev => ({ ...prev, phoneNumber: phoneValidation.error }))
+      return
+    }
+    
+    // Validate caller ID if provided
+    if (data.callerId) {
+      const callerIdValidation = validatePhoneNumber(data.callerId)
+      if (!callerIdValidation.isValid) {
+        setValidationErrors(prev => ({ ...prev, callerId: callerIdValidation.error }))
+        return
+      }
+    }
+    
+    // Validate first message if provided
+    if (data.first_message) {
+      const firstMessageValidation = validateFirstMessage(data.first_message)
+      if (!firstMessageValidation.isValid) {
+        setValidationErrors(prev => ({ ...prev, firstMessage: firstMessageValidation.error }))
+        return
+      }
+    }
+    
+    // Validate prompt if provided
+    if (data.prompt) {
+      const promptValidation = validateAgentPrompt(data.prompt)
+      if (!promptValidation.isValid) {
+        setValidationErrors(prev => ({ ...prev, prompt: promptValidation.error }))
+        return
+      }
+    }
+    
+    setIsLoading(true)
+    
     try {
-      // Format number to E.164 format if needed
-      let formattedNumber = data.number.trim()
-      if (!formattedNumber.startsWith('+')) {
-        formattedNumber = `+${formattedNumber}`
+      // Use the validated and formatted phone number
+      const formattedData = {
+        ...data,
+        number: phoneValidation.formatted!,
+        callerId: data.callerId ? validatePhoneNumber(data.callerId).formatted : undefined
       }
       
-      const result = await makeCall({
-        ...data,
-        number: formattedNumber
-      })
+      // Use retry logic for the API call
+      const result = await retryApiCall(() => makeCall(formattedData))
       
       setCallStatus({
         success: result.success,
         message: result.success ? 'Call initiated successfully' : result.error,
         callSid: result.callSid
       })
-    } catch (error) {
+      
+      // Clear form on success
+      if (result.success) {
+        event.currentTarget.reset()
+      }
+    } catch (error: any) {
+      console.error('Call initiation error:', error)
+      
+      // Determine error type and show appropriate message
+      const errorType = getErrorType(error)
+      const message = error.message || 'Failed to initiate call. Please try again.'
+      
       setCallStatus({
         success: false,
-        message: 'Failed to initiate call. Please try again.'
+        message
       })
     } finally {
       setIsLoading(false)
@@ -57,7 +113,7 @@ export function MakeCallForm() {
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
         <label htmlFor="phoneNumber" className="text-sm font-medium">
-          Phone Number
+          Phone Number <span className="text-red-500">*</span>
         </label>
         <input
           id="phoneNumber"
@@ -65,11 +121,20 @@ export function MakeCallForm() {
           type="tel"
           required
           placeholder="+61412345678"
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          className={`flex h-10 w-full rounded-md border ${
+            validationErrors.phoneNumber ? 'border-red-500' : 'border-input'
+          } bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50`}
         />
-        <p className="text-xs text-muted-foreground">
-          Enter phone number in E.164 format (e.g., +61412345678)
-        </p>
+        {validationErrors.phoneNumber ? (
+          <p className="text-xs text-red-500 flex items-center gap-1">
+            <AlertCircle className="h-3 w-3" />
+            {validationErrors.phoneNumber}
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Enter phone number (e.g., +61412345678 or 61412345678)
+          </p>
+        )}
       </div>
       
       <div className="space-y-2">
@@ -81,16 +146,25 @@ export function MakeCallForm() {
           name="callerId"
           type="tel"
           placeholder="+61412345678"
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          className={`flex h-10 w-full rounded-md border ${
+            validationErrors.callerId ? 'border-red-500' : 'border-input'
+          } bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50`}
         />
-        <p className="text-xs text-muted-foreground">
-          Leave empty to use default number
-        </p>
+        {validationErrors.callerId ? (
+          <p className="text-xs text-red-500 flex items-center gap-1">
+            <AlertCircle className="h-3 w-3" />
+            {validationErrors.callerId}
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Leave empty to use default number
+          </p>
+        )}
       </div>
       
       <div className="space-y-2">
         <label htmlFor="contactName" className="text-sm font-medium">
-          Contact Name
+          Contact Name <span className="text-red-500">*</span>
         </label>
         <input
           id="contactName"
@@ -114,11 +188,20 @@ export function MakeCallForm() {
           name="prompt"
           rows={4}
           placeholder="You are a sales agent calling about..."
-          className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          className={`flex w-full rounded-md border ${
+            validationErrors.prompt ? 'border-red-500' : 'border-input'
+          } bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50`}
         />
-        <p className="text-xs text-muted-foreground">
-          Optionally override the default System Prompt configured in ElevenLabs for this specific call. Leave empty to use the default.
-        </p>
+        {validationErrors.prompt ? (
+          <p className="text-xs text-red-500 flex items-center gap-1">
+            <AlertCircle className="h-3 w-3" />
+            {validationErrors.prompt}
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Optionally override the default System Prompt configured in ElevenLabs for this specific call. Leave empty to use the default.
+          </p>
+        )}
       </div>
       
       <div className="space-y-2">
@@ -130,23 +213,37 @@ export function MakeCallForm() {
           name="firstMessage"
           type="text"
           placeholder="Hello, this is [Company Name]..."
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          className={`flex h-10 w-full rounded-md border ${
+            validationErrors.firstMessage ? 'border-red-500' : 'border-input'
+          } bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50`}
         />
-        <p className="text-xs text-muted-foreground">
-          First message the agent will say when call connects
-        </p>
+        {validationErrors.firstMessage ? (
+          <p className="text-xs text-red-500 flex items-center gap-1">
+            <AlertCircle className="h-3 w-3" />
+            {validationErrors.firstMessage}
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            First message the agent will say when call connects (optional, uses ElevenLabs default if empty)
+          </p>
+        )}
       </div>
       
       <Button type="submit" className="w-full" disabled={isLoading}>
         {isLoading ? 'Initiating Call...' : 'Make Call'}
       </Button>
       
-      {callStatus && (
-        <div className={`p-4 rounded-md border ${
-          callStatus.success ? 'bg-green-50 border-green-200 text-green-700' : 
-          'bg-red-50 border-red-200 text-red-700'
-        }`}>
-          <p>{callStatus.message}</p>
+      {callStatus && !callStatus.success && (
+        <ErrorState 
+          error={callStatus.message || 'Failed to initiate call'} 
+          type={getErrorType(new Error(callStatus.message || ''))}
+          showDetails
+        />
+      )}
+      
+      {callStatus && callStatus.success && (
+        <div className="p-4 rounded-md border bg-green-50 border-green-200 text-green-700">
+          <p className="font-medium">{callStatus.message}</p>
           {callStatus.callSid && (
             <p className="text-sm mt-1">Call SID: {callStatus.callSid}</p>
           )}

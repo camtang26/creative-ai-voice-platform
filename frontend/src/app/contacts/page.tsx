@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { DashboardHeader } from '@/components/dashboard-header'
+import { ErrorState, getErrorType } from '@/components/error-state'
 import {
   Table,
   TableBody,
@@ -491,18 +492,13 @@ export default function ContactsPage() {
               <Skeleton className="h-16 w-full" />
             </div>
           ) : error ? (
-            <div className="flex flex-col items-center justify-center h-60">
-              <XCircle className="h-10 w-10 text-destructive mb-2" />
-              <p className="text-lg font-medium text-center">{error}</p>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="mt-4" 
-                onClick={loadContacts}
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Retry
-              </Button>
+            <div className="py-6">
+              <ErrorState 
+                error={error} 
+                type={getErrorType(new Error(error))}
+                onRetry={loadContacts}
+                showDetails
+              />
             </div>
           ) : contacts.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-60">
