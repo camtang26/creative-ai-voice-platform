@@ -149,19 +149,9 @@ export function isConversationComplete(message) { // Added export
     return true;
   }
 
-  // Case 2: Check if the agent says a closing statement
-  if (message.type === 'transcript_update' && message.transcript_update?.role === 'agent') {
-    const text = message.transcript_update.message.toLowerCase();
-    const goodbyePhrases = [
-      'goodbye', 'thank you for your time', 'have a good day',
-      'thanks for speaking', 'thank you for speaking', 'have a nice day',
-      'have a great day', 'thank you and goodbye', 'thanks for your time'
-    ];
-
-    if (goodbyePhrases.some(phrase => text.includes(phrase))) {
-      console.log('[ElevenLabs] Detected conversation end from agent goodbye phrase');
-      return true;
-    }
+  // Case 2: Let ElevenLabs handle conversation completion logic
+  // Removed hardcoded goodbye phrase detection - ElevenLabs will send
+  // conversation_completed event when appropriate based on agent config
   }
 
   // Case 3: Check for conversation state indicators
@@ -186,8 +176,8 @@ export async function makeOutboundCall(params) { // Added export
     to,
     from = process.env.TWILIO_PHONE_NUMBER,
     region = 'au1',
-    prompt = "You are a helpful assistant making a phone call. Be friendly and professional.",
-    firstMessage = "Hello, this is an AI assistant. May I please speak with {name}?",
+    prompt, // No default - use ElevenLabs configured prompt
+    firstMessage, // No default - use ElevenLabs configured first message
     name = "Unknown", // Now received from caller
     campaignId = null, // Now received from caller
     contactId = null, // Now received from caller
