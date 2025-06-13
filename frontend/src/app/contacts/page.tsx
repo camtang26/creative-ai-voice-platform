@@ -603,16 +603,53 @@ export default function ContactsPage() {
                       <TableCell className="text-right">
                         <div className="flex justify-end space-x-1">
                           {contact.id && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              asChild
-                            >
-                              <Link href={`/contacts/${contact.id}`}>
-                                <MoreHorizontal className="h-4 w-4" />
-                                <span className="sr-only">View details</span>
-                              </Link>
-                            </Button>
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                asChild
+                              >
+                                <Link href={`/contacts/${contact.id}`}>
+                                  <MoreHorizontal className="h-4 w-4" />
+                                  <span className="sr-only">View details</span>
+                                </Link>
+                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    disabled={actionInProgress}
+                                  >
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                    <span className="sr-only">Delete contact</span>
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This action cannot be undone. This will permanently delete
+                                      {contact.name ? ` ${contact.name}` : ' this contact'} and remove their data from our servers.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction 
+                                      onClick={() => handleDeleteContact(contact.id!)}
+                                      className="bg-destructive text-destructive-foreground"
+                                    >
+                                      {actionInProgress ? (
+                                        <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                                      ) : (
+                                        <Trash2 className="h-4 w-4 mr-2" />
+                                      )}
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </>
                           )}
                         </div>
                       </TableCell>

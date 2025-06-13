@@ -12,7 +12,8 @@ import {
   Plus, 
   Calendar, 
   ArrowUpRight,
-  Activity
+  Activity,
+  Trash2
 } from 'lucide-react'
 import { DashboardHeader } from '@/components/dashboard-header'
 import { Button } from '@/components/ui/button'
@@ -32,6 +33,17 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { CampaignConfig } from '@/lib/types'
 import { startCampaign, pauseCampaign, deleteCampaign, fetchCampaigns } from '@/lib/mongodb-api'
 import { cn } from '@/lib/utils'
@@ -120,7 +132,7 @@ export default function CampaignsPage() {
     loadCampaigns();
   }, []);
 
-  const handleCampaignAction = async (campaignId: string, action: 'start' | 'pause' | 'cancel') => {
+  const handleCampaignAction = async (campaignId: string, action: 'start' | 'pause' | 'cancel' | 'delete') => {
     setActionInProgress(campaignId);
     
     try {
@@ -134,26 +146,34 @@ export default function CampaignsPage() {
           response = await pauseCampaign(campaignId);
           break;
         case 'cancel':
+          response = await pauseCampaign(campaignId); // Cancel is same as pause
+          break;
+        case 'delete':
           response = await deleteCampaign(campaignId);
           break;
       }
       
       if (response && response.success) {
-        // Update the local campaign status
-        setCampaigns(prev => 
-          prev.map(campaign => 
-            campaign.id === campaignId 
-              ? { 
-                  ...campaign, 
-                  status: action === 'start' 
-                    ? 'in-progress' 
-                    : action === 'pause' 
-                      ? 'paused' 
-                      : 'cancelled'
-                } 
-              : campaign
-          )
-        );
+        if (action === 'delete') {
+          // Remove from list if deleted
+          setCampaigns(prev => prev.filter(campaign => campaign.id !== campaignId));
+        } else {
+          // Update the local campaign status
+          setCampaigns(prev => 
+            prev.map(campaign => 
+              campaign.id === campaignId 
+                ? { 
+                    ...campaign, 
+                    status: action === 'start' 
+                      ? 'in-progress' 
+                      : action === 'pause' 
+                        ? 'paused' 
+                        : 'cancelled'
+                  } 
+                : campaign
+            )
+          );
+        }
       } else {
         setError(`Failed to ${action} campaign: ${response?.error || 'Unknown error'}`);
       }
@@ -396,6 +416,38 @@ export default function CampaignsPage() {
                               Resume
                             </Button>
                           ) : null}
+                          
+                          {campaign.status !== 'in-progress' && (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  disabled={!!actionInProgress}
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This action cannot be undone. This will permanently delete
+                                    the campaign "{campaign.name}" and all associated data.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleCampaignAction(campaign.id || '', 'delete')}
+                                    className="bg-destructive text-destructive-foreground"
+                                  >
+                                    Delete Campaign
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
