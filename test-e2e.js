@@ -17,14 +17,10 @@ const testContact = {
 const testCampaign = {
   name: 'E2E Test Campaign',
   description: 'End-to-end test campaign - DELETE AFTER TEST',
-  prompt_template: 'You are a test assistant. This is a test call.',
-  first_message_template: 'Hello {name}, this is a test call for E2E testing.',
-  schedule: {
-    start_date: new Date().toISOString(),
-    end_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-    max_concurrent_calls: 1,
-    call_interval_ms: 60000
-  }
+  prompt: 'You are a test assistant. This is a test call.',
+  firstMessage: 'Hello, this is a test call for E2E testing.',
+  callerId: '+14155551234', // This should be a real Twilio number
+  region: 'us1'
 };
 
 // Keep track of created resources for cleanup
@@ -158,11 +154,14 @@ async function testCampaignOperations(campaignId) {
     // Test starting campaign
     console.log('  📍 Starting campaign...');
     let result = await makeRequest(`/api/db/campaigns/${campaignId}/start`, {
-      method: 'POST'
+      method: 'POST',
+      body: JSON.stringify({})
     });
     
     if (result.success) {
       console.log('  ✅ Campaign started successfully');
+    } else {
+      console.log(`  ❌ Failed to start campaign: ${result.error || 'Unknown error'}`);
     }
     
     // Wait a moment
@@ -171,7 +170,8 @@ async function testCampaignOperations(campaignId) {
     // Test pausing campaign
     console.log('  📍 Pausing campaign...');
     result = await makeRequest(`/api/db/campaigns/${campaignId}/pause`, {
-      method: 'POST'
+      method: 'POST',
+      body: JSON.stringify({})
     });
     
     if (result.success) {
@@ -181,7 +181,8 @@ async function testCampaignOperations(campaignId) {
     // Test canceling campaign
     console.log('  📍 Canceling campaign...');
     result = await makeRequest(`/api/db/campaigns/${campaignId}/cancel`, {
-      method: 'POST'
+      method: 'POST',
+      body: JSON.stringify({})
     });
     
     if (result.success) {
@@ -215,7 +216,7 @@ async function testPhoneValidation() {
         body: JSON.stringify({ phoneNumber: test.number })
       });
       
-      const isValid = result.success && result.isValid;
+      const isValid = result.success && result.data && result.data.isValid;
       if (isValid === test.expected) {
         console.log(`  ✅ "${test.number}" validation: ${isValid} (expected)`);
         passed++;
@@ -286,7 +287,7 @@ async function runTests() {
     { name: 'Create Contact', fn: testCreateContact },
     { name: 'Fetch Contacts', fn: testFetchContacts },
     { name: 'Create Campaign', fn: testCreateCampaign },
-    // { name: 'Phone Validation', fn: testPhoneValidation } // Temporarily disabled - timing out
+    { name: 'Phone Validation', fn: testPhoneValidation }
   ];
   
   // Run tests
