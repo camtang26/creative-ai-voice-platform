@@ -146,10 +146,10 @@ export default function ContactsPage() {
   
   // Handle "select all" checkbox
   const toggleSelectAll = useCallback(() => {
-    if (selectedContacts.length === contacts.length) {
+    if (selectedContacts.length === contacts.filter(c => c.id).length) {
       setSelectedContacts([])
     } else {
-      setSelectedContacts(contacts.map(contact => contact.id!))
+      setSelectedContacts(contacts.filter(c => c.id).map(contact => contact.id!))
     }
   }, [selectedContacts.length, contacts])
   
@@ -527,9 +527,10 @@ export default function ContactsPage() {
                   <TableRow>
                     <TableHead className="w-12">
                       <Checkbox 
-                        checked={selectedContacts.length === contacts.length && contacts.length > 0} 
+                        checked={selectedContacts.length > 0 && selectedContacts.length === contacts.filter(c => c.id).length} 
                         onCheckedChange={toggleSelectAll}
                         aria-label="Select all contacts"
+                        indeterminate={selectedContacts.length > 0 && selectedContacts.length < contacts.filter(c => c.id).length}
                       />
                     </TableHead>
                     <TableHead>Name</TableHead>
@@ -542,22 +543,27 @@ export default function ContactsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {contacts.map((contact) => (
-                    <TableRow key={contact.id}>
+                  {contacts.map((contact, index) => (
+                    <TableRow key={contact.id || `contact-${index}-${contact.phoneNumber}`}>
                       <TableCell>
                         <Checkbox 
-                          checked={selectedContacts.includes(contact.id!)} 
-                          onCheckedChange={() => toggleContactSelection(contact.id!)}
+                          checked={contact.id ? selectedContacts.includes(contact.id) : false} 
+                          onCheckedChange={() => contact.id && toggleContactSelection(contact.id)}
                           aria-label={`Select ${contact.name}`}
+                          disabled={!contact.id}
                         />
                       </TableCell>
                       <TableCell className="font-medium">
-                        <Link 
-                          href={`/contacts/${contact.id}`} 
-                          className="hover:underline"
-                        >
-                          {contact.name || 'Unnamed Contact'}
-                        </Link>
+                        {contact.id ? (
+                          <Link 
+                            href={`/contacts/${contact.id}`} 
+                            className="hover:underline"
+                          >
+                            {contact.name || 'Unnamed Contact'}
+                          </Link>
+                        ) : (
+                          <span>{contact.name || 'Unnamed Contact'}</span>
+                        )}
                         {contact.email && (
                           <div className="text-xs text-muted-foreground">
                             {contact.email}
@@ -596,16 +602,18 @@ export default function ContactsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end space-x-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            asChild
-                          >
-                            <Link href={`/contacts/${contact.id}`}>
-                              <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">View details</span>
-                            </Link>
-                          </Button>
+                          {contact.id && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              asChild
+                            >
+                              <Link href={`/contacts/${contact.id}`}>
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">View details</span>
+                              </Link>
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

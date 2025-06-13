@@ -22,6 +22,7 @@ import {
   ChevronDown,
   ChevronRight
 } from 'lucide-react'
+import { ThemeToggle } from '@/components/theme-toggle'
 
 export function Sidebar() {
   const pathname = usePathname?.() || ""
@@ -110,12 +111,15 @@ export function Sidebar() {
   ]
   
   return (
-    <aside className="w-64 bg-card border-r min-h-screen p-4">
-      <div className="flex items-center gap-2 mb-8 px-2">
-        <PlayCircle className="h-6 w-6 text-primary" />
-        <h1 className="text-xl font-bold">Investor Signals AI Call Centre</h1>
+    <aside className="w-64 bg-card border-r min-h-screen p-4 flex flex-col">
+      <div className="flex items-center justify-between mb-8 px-2">
+        <div className="flex items-center gap-2">
+          <PlayCircle className="h-6 w-6 text-primary" />
+          <h1 className="text-xl font-bold">Investor Signals AI Call Centre</h1>
+        </div>
+        <ThemeToggle />
       </div>
-      <nav className="space-y-1 max-h-[calc(100vh-12rem)] overflow-auto">
+      <nav className="space-y-1 flex-1 overflow-auto">
         {mainNavItems.map((item) => {
           const isActive = pathname === item.href || pathname?.startsWith(item.href + '/')
           const isExpanded = item.isExpandable && expandedItems.includes(item.id || '')
