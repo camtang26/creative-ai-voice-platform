@@ -37,6 +37,19 @@ export async function registerContactApiRoutes(fastify, options = {}) {
       const cachedData = getCacheValue(cacheKey);
       if (cachedData) {
         console.log(`[MongoDB] Using cached contact list data`);
+        // Ensure cached data has id field (for backwards compatibility)
+        if (cachedData.contacts && Array.isArray(cachedData.contacts)) {
+          cachedData.contacts = cachedData.contacts.map(contact => {
+            if (contact._id && !contact.id) {
+              return {
+                ...contact,
+                id: contact._id.toString(),
+                _id: undefined
+              };
+            }
+            return contact;
+          });
+        }
         return {
           success: true,
           data: cachedData,
@@ -102,6 +115,11 @@ export async function registerContactApiRoutes(fastify, options = {}) {
       const cachedData = getCacheValue(cacheKey);
       if (cachedData) {
         console.log(`[MongoDB] Using cached contact data for ${contactId}`);
+        // Ensure cached data has id field (for backwards compatibility)
+        if (cachedData._id && !cachedData.id) {
+          cachedData.id = cachedData._id.toString();
+          delete cachedData._id;
+        }
         return {
           success: true,
           data: cachedData,
@@ -163,6 +181,11 @@ export async function registerContactApiRoutes(fastify, options = {}) {
       const cachedData = getCacheValue(cacheKey);
       if (cachedData) {
         console.log(`[MongoDB] Using cached contact data for phone ${formattedPhoneNumber}`);
+        // Ensure cached data has id field (for backwards compatibility)
+        if (cachedData._id && !cachedData.id) {
+          cachedData.id = cachedData._id.toString();
+          delete cachedData._id;
+        }
         return {
           success: true,
           data: cachedData,
@@ -182,12 +205,19 @@ export async function registerContactApiRoutes(fastify, options = {}) {
         });
       }
       
+      // Transform MongoDB _id to id for frontend compatibility
+      const transformedContact = {
+        ...contact.toObject ? contact.toObject() : contact,
+        id: contact._id.toString(),
+        _id: undefined
+      };
+      
       // Cache the data
-      setCacheValue(cacheKey, contact, CACHE_TTL);
+      setCacheValue(cacheKey, transformedContact, CACHE_TTL);
       
       return {
         success: true,
-        data: contact,
+        data: transformedContact,
         timestamp: new Date().toISOString()
       };
     } catch (error) {
@@ -225,9 +255,16 @@ export async function registerContactApiRoutes(fastify, options = {}) {
       // Save contact
       const savedContact = await saveContact(contactData);
       
+      // Transform MongoDB _id to id for frontend compatibility
+      const transformedContact = {
+        ...savedContact.toObject ? savedContact.toObject() : savedContact,
+        id: savedContact._id.toString(),
+        _id: undefined
+      };
+      
       return {
         success: true,
-        data: savedContact,
+        data: transformedContact,
         timestamp: new Date().toISOString()
       };
     } catch (error) {
@@ -274,9 +311,16 @@ export async function registerContactApiRoutes(fastify, options = {}) {
         });
       }
       
+      // Transform MongoDB _id to id for frontend compatibility
+      const transformedContact = {
+        ...updatedContact.toObject ? updatedContact.toObject() : updatedContact,
+        id: updatedContact._id.toString(),
+        _id: undefined
+      };
+      
       return {
         success: true,
-        data: updatedContact,
+        data: transformedContact,
         timestamp: new Date().toISOString()
       };
     } catch (error) {
