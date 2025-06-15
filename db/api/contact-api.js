@@ -14,7 +14,7 @@ import {
   updateContactCallHistory,
   importContacts
 } from '../repositories/contact.repository.js';
-import { getCacheValue, setCacheValue } from '../utils/cache.js';
+import { getCacheValue, setCacheValue, clearCache, invalidateCacheByPattern, getCacheStats } from '../utils/cache.js';
 
 // Cache TTL in milliseconds (5 minutes)
 const CACHE_TTL = 300000;
@@ -657,6 +657,74 @@ export async function registerContactApiRoutes(fastify, options = {}) {
       return reply.code(500).send({
         success: false,
         error: 'Error importing contacts',
+        details: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+  
+  // Cache management endpoints for debugging
+  fastify.get('/api/cache/stats', async (request, reply) => {
+    try {
+      const stats = getCacheStats();
+      return {
+        success: true,
+        data: stats,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error('[API] Error getting cache stats:', error);
+      return reply.code(500).send({
+        success: false,
+        error: 'Error getting cache stats',
+        details: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+  
+  fastify.post('/api/cache/clear', async (request, reply) => {
+    try {
+      clearCache();
+      return {
+        success: true,
+        message: 'Cache cleared successfully',
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error('[API] Error clearing cache:', error);
+      return reply.code(500).send({
+        success: false,
+        error: 'Error clearing cache',
+        details: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+  
+  fastify.post('/api/cache/invalidate', async (request, reply) => {
+    try {
+      const { pattern } = request.body;
+      if (!pattern) {
+        return reply.code(400).send({
+          success: false,
+          error: 'Pattern is required',
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      const invalidatedKeys = invalidateCacheByPattern(pattern);
+      return {
+        success: true,
+        message: `Invalidated ${invalidatedKeys.length} cache keys`,
+        invalidatedKeys,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error('[API] Error invalidating cache:', error);
+      return reply.code(500).send({
+        success: false,
+        error: 'Error invalidating cache',
         details: error.message,
         timestamp: new Date().toISOString()
       });
