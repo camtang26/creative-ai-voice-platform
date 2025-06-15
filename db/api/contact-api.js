@@ -23,31 +23,38 @@ const CACHE_TTL = 300000;
 function transformContact(contact) {
   if (!contact) return null;
   
-  // Handle Mongoose documents
-  let contactObj;
-  if (contact.toObject && typeof contact.toObject === 'function') {
-    contactObj = contact.toObject();
-  } else if (contact._doc) {
-    // Some Mongoose documents have _doc property
-    contactObj = { ...contact._doc };
-  } else {
-    // Plain object
-    contactObj = { ...contact };
+  try {
+    // Handle Mongoose documents
+    let contactObj;
+    if (contact.toObject && typeof contact.toObject === 'function') {
+      contactObj = contact.toObject();
+    } else if (contact._doc) {
+      // Some Mongoose documents have _doc property
+      contactObj = { ...contact._doc };
+    } else {
+      // Plain object - make a copy to avoid mutating the original
+      contactObj = JSON.parse(JSON.stringify(contact));
+    }
+    
+    // Transform _id to id
+    if (contactObj._id) {
+      contactObj.id = contactObj._id.toString();
+      delete contactObj._id;
+    }
+    
+    // Remove __v if present
+    delete contactObj.__v;
+    
+    // Log transformation details for debugging
+    console.log(`[API Transform] Contact ${contactObj.id || 'unknown'}: _id → id transformation complete`);
+    
+    return contactObj;
+  } catch (error) {
+    console.error('[API Transform] Error transforming contact:', error);
+    console.error('[API Transform] Original contact:', contact);
+    // Return the original contact if transformation fails
+    return contact;
   }
-  
-  // Transform _id to id
-  if (contactObj._id) {
-    contactObj.id = contactObj._id.toString();
-    delete contactObj._id;
-  }
-  
-  // Remove __v if present
-  delete contactObj.__v;
-  
-  console.log('[API Transform] Original:', contact);
-  console.log('[API Transform] Transformed:', contactObj);
-  
-  return contactObj;
 }
 
 /**
@@ -71,14 +78,8 @@ export async function registerContactApiRoutes(fastify, options = {}) {
         // Ensure cached data has id field (for backwards compatibility)
         if (cachedData.contacts && Array.isArray(cachedData.contacts)) {
           cachedData.contacts = cachedData.contacts.map(contact => {
-            if (contact._id && !contact.id) {
-              return {
-                ...contact,
-                id: contact._id.toString(),
-                _id: undefined
-              };
-            }
-            return contact;
+            // Always transform cached contacts to ensure id field exists
+            return transformContact(contact);
           });
         }
         return {
@@ -152,14 +153,11 @@ export async function registerContactApiRoutes(fastify, options = {}) {
       const cachedData = getCacheValue(cacheKey);
       if (cachedData) {
         console.log(`[MongoDB] Using cached contact data for ${contactId}`);
-        // Ensure cached data has id field (for backwards compatibility)
-        if (cachedData._id && !cachedData.id) {
-          cachedData.id = cachedData._id.toString();
-          delete cachedData._id;
-        }
+        // Always transform cached data to ensure proper format
+        const transformedData = transformContact(cachedData);
         return {
           success: true,
-          data: cachedData,
+          data: transformedData,
           cached: true,
           timestamp: new Date().toISOString()
         };
@@ -221,14 +219,11 @@ export async function registerContactApiRoutes(fastify, options = {}) {
       const cachedData = getCacheValue(cacheKey);
       if (cachedData) {
         console.log(`[MongoDB] Using cached contact data for phone ${formattedPhoneNumber}`);
-        // Ensure cached data has id field (for backwards compatibility)
-        if (cachedData._id && !cachedData.id) {
-          cachedData.id = cachedData._id.toString();
-          delete cachedData._id;
-        }
+        // Always transform cached data to ensure proper format
+        const transformedData = transformContact(cachedData);
         return {
           success: true,
-          data: cachedData,
+          data: transformedData,
           cached: true,
           timestamp: new Date().toISOString()
         };
