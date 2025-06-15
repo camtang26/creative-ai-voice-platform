@@ -5,7 +5,7 @@
 import fs from 'fs';
 import path from 'path';
 import { promises as fsPromises } from 'fs';
-import fetch from 'node-fetch';
+// Removed node-fetch import - using native fetch
 import os from 'os';
 
 // Define cache directory - use tmp folder for platforms that clear tmp on restart (like Render)

@@ -2,8 +2,7 @@ import 'dotenv/config';
 import { google } from 'googleapis';
 import fs from 'fs/promises';
 import path from 'path';
-import fetch from 'node-fetch';
-
+// Removed node-fetch import - using native fetch
 // Default values
 const DEFAULT_PROMPT = "You are a helpful assistant making a phone call. Be friendly and professional.";
 const DEFAULT_FIRST_MESSAGE = "Hello, this is Investor Signals AI assistant in training. May I please speak with {name}?";

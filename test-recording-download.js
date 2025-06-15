@@ -2,7 +2,7 @@
  * Test script for recording download routes
  * Tests all three route patterns to ensure they work correctly
  */
-import fetch from 'node-fetch';
+// Removed node-fetch import - using native fetch
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';

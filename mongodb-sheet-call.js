@@ -6,7 +6,7 @@ import 'dotenv/config';
 import { google } from 'googleapis';
 import fs from 'fs/promises';
 import path from 'path';
-import fetch from 'node-fetch';
+// Removed node-fetch import - using native fetch
 import mongoose from 'mongoose';
 import { v4 as uuidv4 } from 'uuid';
 

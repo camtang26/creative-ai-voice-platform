@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import fetch from 'node-fetch';
+// Removed node-fetch import - using native fetch
 import Twilio from 'twilio';
 import { sendCallToCRM } from '../integrations/crm-webhook.js';
 import {

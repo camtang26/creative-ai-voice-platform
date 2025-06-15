@@ -4,7 +4,7 @@
  * Minimal test of CSV upload with just the required fields
  */
 
-import fetch from 'node-fetch';
+// Removed node-fetch import - using native fetch
 import FormData from 'form-data';
 import fs from 'fs';
 

@@ -1,5 +1,4 @@
-import fetch from 'node-fetch';
-
+// Removed node-fetch import - using native fetch
 async function getNgrokUrl() {
   try {
     // Fetch the tunnels information from the ngrok API

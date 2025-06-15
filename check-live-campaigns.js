@@ -1,5 +1,4 @@
-import fetch from 'node-fetch';
-
+// Removed node-fetch import - using native fetch
 async function checkLiveCampaigns() {
   try {
     console.log('Fetching campaigns from live backend...\n');

@@ -5,7 +5,7 @@
  * It sends a simulated transcript to the server's webhook endpoint.
  */
 import 'dotenv/config';
-import fetch from 'node-fetch';
+// Removed node-fetch import - using native fetch
 import crypto from 'crypto';
 
 // Default values

@@ -4,7 +4,7 @@
  */
 
 import 'dotenv/config';
-import fetch from 'node-fetch';
+// Removed node-fetch import - using native fetch
 import fs from 'fs';
 import path from 'path';
 import os from 'os';

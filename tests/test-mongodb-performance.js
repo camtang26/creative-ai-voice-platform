@@ -3,7 +3,7 @@
  * Tests the performance of the MongoDB API with caching
  */
 import 'dotenv/config';
-import fetch from 'node-fetch';
+// Removed node-fetch import - using native fetch
 import { performance } from 'perf_hooks';
 
 // Server URL

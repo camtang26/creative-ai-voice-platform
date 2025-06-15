@@ -3,7 +3,7 @@
  * Performs a detailed analysis of the dashboard overview endpoint
  */
 import 'dotenv/config';
-import fetch from 'node-fetch';
+// Removed node-fetch import - using native fetch
 import { performance } from 'perf_hooks';
 import fs from 'fs/promises';
 

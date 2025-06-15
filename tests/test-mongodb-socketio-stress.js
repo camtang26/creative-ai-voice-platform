@@ -5,7 +5,7 @@
 import 'dotenv/config';
 import { io } from 'socket.io-client';
 import { performance } from 'perf_hooks';
-import fetch from 'node-fetch';
+// Removed node-fetch import - using native fetch
 import os from 'os';
 
 // Server URL

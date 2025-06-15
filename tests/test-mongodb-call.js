@@ -4,8 +4,7 @@
  */
 import 'dotenv/config';
 import Twilio from 'twilio';
-import fetch from 'node-fetch';
-
+// Removed node-fetch import - using native fetch
 // Command line arguments
 const args = process.argv.slice(2);
 const phoneNumber = args[0] || process.env.VERIFIED_NUMBERS?.split(',')[0];

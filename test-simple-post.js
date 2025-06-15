@@ -4,8 +4,7 @@
  * Test if a simple POST to the CSV endpoint returns something other than 404
  */
 
-import fetch from 'node-fetch';
-
+// Removed node-fetch import - using native fetch
 async function testSimplePost() {
   console.log('🧪 Testing simple POST to CSV endpoint...');
   

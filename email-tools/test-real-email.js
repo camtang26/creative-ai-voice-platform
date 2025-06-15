@@ -1,6 +1,5 @@
 import 'dotenv/config';
-import fetch from 'node-fetch';
-
+// Removed node-fetch import - using native fetch
 /**
  * This script sends a real test email to verify the email integration works properly.
  */

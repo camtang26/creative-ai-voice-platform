@@ -5,8 +5,7 @@
  * It makes requests to the API endpoints and logs the responses.
  */
 
-import fetch from 'node-fetch';
-
+// Removed node-fetch import - using native fetch
 // Base URL for API requests
 const API_BASE_URL = 'http://localhost:8000/api/db';
 

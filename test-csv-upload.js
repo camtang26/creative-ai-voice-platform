@@ -1,4 +1,4 @@
-import fetch from 'node-fetch';
+// Removed node-fetch import - using native fetch
 import FormData from 'form-data';
 import fs from 'fs';
 import path from 'path';

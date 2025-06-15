@@ -1,6 +1,6 @@
 import WebSocket from "ws";
 import Twilio from "twilio";
-import fetch from 'node-fetch';
+// Removed node-fetch import - using native fetch
 import { createTimer, recordAudioLatency, trackCallStart } from './latency-monitor.js';
 
 // Map to store active call information

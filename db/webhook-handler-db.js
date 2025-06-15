@@ -3,7 +3,7 @@
  * Processes webhooks from ElevenLabs and stores data in MongoDB
  */
 import crypto from 'crypto';
-import fetch from 'node-fetch';
+// Removed node-fetch import - using native fetch
 import getRawBody from 'raw-body'; // Import raw-body
 import Twilio from 'twilio';
 import { saveCall, updateCallStatus, getCallBySid } from './repositories/call.repository.js';

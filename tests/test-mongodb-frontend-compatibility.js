@@ -3,7 +3,7 @@
  * Verifies the API endpoints provide the correct data for frontend integration
  */
 import 'dotenv/config';
-import fetch from 'node-fetch';
+// Removed node-fetch import - using native fetch
 import { performance } from 'perf_hooks';
 import fs from 'fs/promises';
 import { io } from 'socket.io-client';

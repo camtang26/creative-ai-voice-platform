@@ -1,7 +1,7 @@
 /**
  * API Routes for proxying requests to the ElevenLabs API
  */
-import fetch from 'node-fetch';
+// Removed node-fetch import - using native fetch
 import { 
   asyncHandler, 
   createSuccessResponse, 

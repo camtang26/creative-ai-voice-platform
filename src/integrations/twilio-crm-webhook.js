@@ -4,7 +4,7 @@
  * This module handles sending call data to the CRM after Twilio call completion.
  * Attempts to fetch AI summaries from ElevenLabs API, with fallback to simple summaries.
  */
-import fetch from 'node-fetch';
+// Removed node-fetch import - using native fetch
 import { getCallBySid } from '../../db/repositories/call.repository.js';
 import { getCampaignById } from '../../db/repositories/campaign.repository.js';
 import { logEvent } from '../../db/repositories/callEvent.repository.js';

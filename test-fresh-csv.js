@@ -4,7 +4,7 @@
  * Test CSV upload with fresh phone numbers to verify the complete workflow
  */
 
-import fetch from 'node-fetch';
+// Removed node-fetch import - using native fetch
 import FormData from 'form-data';
 import fs from 'fs';
 

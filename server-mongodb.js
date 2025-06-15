@@ -20,7 +20,7 @@ import fastifyFormBody from '@fastify/formbody';
 import fastifyMultipart from '@fastify/multipart'; // Import multipart plugin
 import fastifyCors from '@fastify/cors'; // Added for CORS
 import fastifyHelmet from '@fastify/helmet'; // Added for security headers
-import fetch from 'node-fetch';
+// Removed node-fetch import - using native fetch
 import crypto from 'crypto';
 import getRawBody from 'raw-body'; // Import raw-body library
 import Twilio from 'twilio';

@@ -8,7 +8,7 @@
  */
 
 import 'dotenv/config';
-import fetch from 'node-fetch';
+// Removed node-fetch import - using native fetch
 import Twilio from 'twilio';
 
 // Default test server URL

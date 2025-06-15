@@ -5,7 +5,7 @@
  * It can be used to verify that calls, recordings, and transcripts are being properly stored.
  */
 import 'dotenv/config';
-import fetch from 'node-fetch';
+// Removed node-fetch import - using native fetch
 import fs from 'fs';
 
 // Default values

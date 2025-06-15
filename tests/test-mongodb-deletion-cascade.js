@@ -3,7 +3,7 @@
  * Tests the call deletion method and verifies that all associated data is properly deleted
  */
 import 'dotenv/config';
-import fetch from 'node-fetch';
+// Removed node-fetch import - using native fetch
 import { performance } from 'perf_hooks';
 import mongoose from 'mongoose';
 

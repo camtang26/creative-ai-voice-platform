@@ -1,6 +1,5 @@
 import 'dotenv/config';
-import fetch from 'node-fetch';
-
+// Removed node-fetch import - using native fetch
 /**
  * This script simulates how the ElevenLabs AI agent would interact with the email functionality.
  * It demonstrates the tool call pattern that would be used by the conversational AI.

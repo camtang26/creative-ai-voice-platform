@@ -14,7 +14,7 @@ import 'dotenv/config';
 import fastify from 'fastify';
 import fastifyWebsocket from '@fastify/websocket';
 import fastifyFormBody from '@fastify/formbody';
-import fetch from 'node-fetch';
+// Removed node-fetch import - using native fetch
 import crypto from 'crypto';
 import Twilio from 'twilio';
 import { registerOutboundRoutes, activeCalls } from './outbound.js';

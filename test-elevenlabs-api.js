@@ -2,7 +2,7 @@
  * Test script to verify ElevenLabs API access
  * Usage: node test-elevenlabs-api.js <conversationId>
  */
-import fetch from 'node-fetch';
+// Removed node-fetch import - using native fetch
 import 'dotenv/config';
 
 async function testElevenLabsAPI(conversationId) {

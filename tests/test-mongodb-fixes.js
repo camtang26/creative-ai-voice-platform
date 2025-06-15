@@ -3,7 +3,7 @@
  * Tests the fixes for the MongoDB integration issues
  */
 import 'dotenv/config';
-import fetch from 'node-fetch';
+// Removed node-fetch import - using native fetch
 import { io } from 'socket.io-client';
 
 // Server URL

@@ -2,8 +2,7 @@
  * Test script for phone validation endpoint
  */
 
-import fetch from 'node-fetch';
-
+// Removed node-fetch import - using native fetch
 async function testPhoneValidation() {
   const testCases = [
     { phoneNumber: '+14155552671' }, // Valid US E.164

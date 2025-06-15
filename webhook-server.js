@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
-import fetch from 'node-fetch';
+// Removed node-fetch import - using native fetch
 import crypto from 'crypto';
 
 // Create a standalone Express server for handling webhooks

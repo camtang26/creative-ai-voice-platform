@@ -4,7 +4,7 @@
  */
 import WebSocket from "ws";
 import Twilio from "twilio";
-import fetch from 'node-fetch';
+// Removed node-fetch import - using native fetch
 import { createTimer, recordAudioLatency, trackCallStart } from './latency-monitor.js';
 import { saveCall, updateCallStatus, getCallBySid } from './db/repositories/call.repository.js';
 import { logEvent } from './db/repositories/callEvent.repository.js';

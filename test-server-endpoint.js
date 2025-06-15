@@ -4,8 +4,7 @@
  * Test if the server is responding and which routes are available
  */
 
-import fetch from 'node-fetch';
-
+// Removed node-fetch import - using native fetch
 async function testServerEndpoints() {
   console.log('🔍 Testing server endpoints...');
   
