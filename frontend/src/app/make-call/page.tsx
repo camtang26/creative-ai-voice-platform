@@ -1,6 +1,7 @@
 "use client"; // Add "use client" directive
 
-import { useState } from 'react' // Import useState
+import { useState, useEffect } from 'react' // Import useState and useEffect
+import { useSearchParams } from 'next/navigation' // Import useSearchParams
 import { DashboardHeader } from '@/components/dashboard-header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -21,6 +22,10 @@ interface CampaignStartResponse {
 }
 
 export default function MakeCallPage() {
+  const searchParams = useSearchParams();
+  const phoneNumber = searchParams.get('number') || '';
+  const contactName = searchParams.get('name') || '';
+  
   const [csvCampaignName, setCsvCampaignName] = useState('');
   const [csvAgentPrompt, setCsvAgentPrompt] = useState('');
   const [csvFirstMessage, setCsvFirstMessage] = useState('');
@@ -153,7 +158,7 @@ export default function MakeCallPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <MakeCallForm />
+              <MakeCallForm initialPhoneNumber={phoneNumber} initialName={contactName} />
             </CardContent>
           </Card>
         </TabsContent>

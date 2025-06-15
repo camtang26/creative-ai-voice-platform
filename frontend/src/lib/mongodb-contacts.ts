@@ -157,17 +157,25 @@ export async function deleteContact(contactId: string): Promise<{
   try {
     // Use getApiUrl with the correct full path
     const apiUrl = getApiUrl(`/api/db/contacts/${contactId}`);
+    console.log('[API] Deleting contact:', contactId, 'URL:', apiUrl);
+    
     const response = await fetch(apiUrl, {
       method: 'DELETE'
     });
 
+    console.log('[API] Delete response status:', response.status, response.statusText);
+    
     if (!response.ok) {
+      const errorBody = await response.text();
+      console.error('[API] Delete error response:', errorBody);
       throw new Error(`Error deleting contact: ${response.statusText} for URL: ${apiUrl}`);
     }
 
     const result = await response.json();
+    console.log('[API] Delete result:', result);
     return result;
   } catch (error) {
+    console.error('[API] Delete contact error:', error);
     return handleApiError(error, `Failed to delete contact ${contactId}`);
   }
 }

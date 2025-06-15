@@ -164,10 +164,12 @@ export default function ContactsPage() {
   
   // Handle contact deletion
   const handleDeleteContact = async (contactId: string) => {
+    console.log('[Contacts] Attempting to delete contact:', contactId)
     setActionInProgress(contactId)
     
     try {
       const response = await deleteContact(contactId)
+      console.log('[Contacts] Delete response:', response)
       
       if (response.success) {
         // Remove the contact from the list
@@ -185,6 +187,7 @@ export default function ContactsPage() {
           setCurrentPage(currentPage - 1)
         }
       } else {
+        console.error('[Contacts] Delete failed:', response.error)
         toast({
           title: "Error",
           description: response.error || "Failed to delete contact",
@@ -192,7 +195,7 @@ export default function ContactsPage() {
         })
       }
     } catch (err) {
-      console.error('Error deleting contact:', err)
+      console.error('[Contacts] Error deleting contact:', err)
       toast({
         title: "Error",
         description: "An unexpected error occurred",

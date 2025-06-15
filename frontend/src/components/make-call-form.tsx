@@ -8,7 +8,12 @@ import { retryApiCall } from '@/lib/retry-utils'
 import { ErrorState, getErrorType } from '@/components/error-state'
 import { AlertCircle } from 'lucide-react'
 
-export function MakeCallForm() {
+interface MakeCallFormProps {
+  initialPhoneNumber?: string;
+  initialName?: string;
+}
+
+export function MakeCallForm({ initialPhoneNumber, initialName }: MakeCallFormProps = {}) {
   const [isLoading, setIsLoading] = useState(false)
   const [callStatus, setCallStatus] = useState<{
     success?: boolean;
@@ -121,6 +126,7 @@ export function MakeCallForm() {
           type="tel"
           required
           placeholder="+61412345678"
+          defaultValue={initialPhoneNumber}
           className={`flex h-10 w-full rounded-md border ${
             validationErrors.phoneNumber ? 'border-red-500' : 'border-input'
           } bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50`}
@@ -172,6 +178,7 @@ export function MakeCallForm() {
           type="text"
           required
           placeholder="John Doe"
+          defaultValue={initialName}
           className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
         />
         <p className="text-xs text-muted-foreground">

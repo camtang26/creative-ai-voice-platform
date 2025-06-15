@@ -144,6 +144,7 @@ export default function CallLogsPage() {
             <table className="w-full caption-bottom text-sm">
               <thead className="[&_tr]:border-b">
                 <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
+                  <th className="h-12 px-4 text-left align-middle font-medium">Name</th>
                   <th className="h-12 px-4 text-left align-middle font-medium">Call SID</th>
                   <th className="h-12 px-4 text-left align-middle font-medium">To</th>
                   <th className="h-12 px-4 text-left align-middle font-medium">From</th>
@@ -166,6 +167,7 @@ export default function CallLogsPage() {
                         key={call.callSid || `call-${Math.random().toString(36).substring(2, 9)}`} // Use callSid as key if available
                         className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted"
                       >
+                        <td className="p-4 align-middle font-medium">{call.contactName || 'Unknown'}</td>
                         <td className="p-4 align-middle">{call.callSid}</td>
                         <td className="p-4 align-middle">{formatPhoneNumber(call.to)}</td>
                         <td className="p-4 align-middle">{formatPhoneNumber(call.from)}</td>
@@ -198,7 +200,7 @@ export default function CallLogsPage() {
                               </Link>
                             )}
                             <Link
-                              href={call.to ? `/make-call?number=${call.to.replace('+', '')}` : '#'}
+                              href={call.to ? `/make-call?number=${call.to.replace('+', '')}&name=${encodeURIComponent(call.contactName || '')}` : '#'}
                               className={buttonVariants({ variant: "outline", size: "sm" })}
                               aria-disabled={!call.to}
                             >
@@ -211,7 +213,7 @@ export default function CallLogsPage() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={7} className="p-4 text-center text-muted-foreground">
+                    <td colSpan={8} className="p-4 text-center text-muted-foreground">
                       No call logs found
                     </td>
                   </tr>

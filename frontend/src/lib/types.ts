@@ -12,6 +12,7 @@ export interface CallInfo {
   conversationId?: string; // Renamed from conversation_id for consistency
   qualityMetrics?: any;
   transcriptId?: string; // Added link to transcript document
+  contactName?: string; // Added from backend model
 }
 
 export type CallStatus =
