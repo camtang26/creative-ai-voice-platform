@@ -48,6 +48,21 @@ export async function fetchContacts(
     }
 
     const result = await response.json();
+    
+    // Transform contacts on client side if backend transformation hasn't been applied
+    if (result.data?.contacts && Array.isArray(result.data.contacts)) {
+      result.data.contacts = result.data.contacts.map((contact: any) => {
+        if (contact._id && !contact.id) {
+          return {
+            ...contact,
+            id: contact._id,
+            _id: undefined
+          };
+        }
+        return contact;
+      });
+    }
+    
     return result;
   } catch (error) {
     return handleApiError(error, 'Failed to fetch contacts');
@@ -74,6 +89,16 @@ export async function fetchContactById(contactId: string): Promise<{
     }
 
     const result = await response.json();
+    
+    // Transform contact on client side if backend transformation hasn't been applied
+    if (result.data && result.data._id && !result.data.id) {
+      result.data = {
+        ...result.data,
+        id: result.data._id,
+        _id: undefined
+      };
+    }
+    
     return result;
   } catch (error) {
     return handleApiError(error, `Failed to fetch contact ${contactId}`);
