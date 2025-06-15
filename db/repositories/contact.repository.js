@@ -147,6 +147,9 @@ export async function getContacts(filters = {}, pagination = {}) {
     const total = await Contact.countDocuments(query);
     
     console.log(`[MongoDB] Retrieved ${contacts.length} contacts (page ${page}, total: ${total})`);
+    console.log('[MongoDB] First contact raw:', contacts[0]);
+    console.log('[MongoDB] First contact _id:', contacts[0]?._id);
+    console.log('[MongoDB] First contact id:', contacts[0]?.id);
     
     return {
       contacts,

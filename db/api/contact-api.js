@@ -19,6 +19,37 @@ import { getCacheValue, setCacheValue } from '../utils/cache.js';
 // Cache TTL in milliseconds (5 minutes)
 const CACHE_TTL = 300000;
 
+// Helper function to transform MongoDB document to frontend-compatible format
+function transformContact(contact) {
+  if (!contact) return null;
+  
+  // Handle Mongoose documents
+  let contactObj;
+  if (contact.toObject && typeof contact.toObject === 'function') {
+    contactObj = contact.toObject();
+  } else if (contact._doc) {
+    // Some Mongoose documents have _doc property
+    contactObj = { ...contact._doc };
+  } else {
+    // Plain object
+    contactObj = { ...contact };
+  }
+  
+  // Transform _id to id
+  if (contactObj._id) {
+    contactObj.id = contactObj._id.toString();
+    delete contactObj._id;
+  }
+  
+  // Remove __v if present
+  delete contactObj.__v;
+  
+  console.log('[API Transform] Original:', contact);
+  console.log('[API Transform] Transformed:', contactObj);
+  
+  return contactObj;
+}
+
 /**
  * Register contact API routes with Fastify
  * @param {Object} fastify - Fastify instance
@@ -76,12 +107,18 @@ export async function registerContactApiRoutes(fastify, options = {}) {
       // Get contacts
       const result = await getContacts(filters, pagination);
       
-      // Cache the data
-      setCacheValue(cacheKey, result, CACHE_TTL);
+      // Transform MongoDB _id to id for frontend compatibility
+      const transformedResult = {
+        ...result,
+        contacts: result.contacts.map(contact => transformContact(contact))
+      };
+      
+      // Cache the transformed data
+      setCacheValue(cacheKey, transformedResult, CACHE_TTL);
       
       return {
         success: true,
-        data: result,
+        data: transformedResult,
         timestamp: new Date().toISOString()
       };
     } catch (error) {
@@ -139,12 +176,15 @@ export async function registerContactApiRoutes(fastify, options = {}) {
         });
       }
       
-      // Cache the data
-      setCacheValue(cacheKey, contact, CACHE_TTL);
+      // Transform MongoDB _id to id for frontend compatibility
+      const transformedContact = transformContact(contact);
+      
+      // Cache the transformed data
+      setCacheValue(cacheKey, transformedContact, CACHE_TTL);
       
       return {
         success: true,
-        data: contact,
+        data: transformedContact,
         timestamp: new Date().toISOString()
       };
     } catch (error) {
@@ -206,11 +246,7 @@ export async function registerContactApiRoutes(fastify, options = {}) {
       }
       
       // Transform MongoDB _id to id for frontend compatibility
-      const transformedContact = {
-        ...contact.toObject ? contact.toObject() : contact,
-        id: contact._id.toString(),
-        _id: undefined
-      };
+      const transformedContact = transformContact(contact);
       
       // Cache the data
       setCacheValue(cacheKey, transformedContact, CACHE_TTL);
@@ -256,11 +292,7 @@ export async function registerContactApiRoutes(fastify, options = {}) {
       const savedContact = await saveContact(contactData);
       
       // Transform MongoDB _id to id for frontend compatibility
-      const transformedContact = {
-        ...savedContact.toObject ? savedContact.toObject() : savedContact,
-        id: savedContact._id.toString(),
-        _id: undefined
-      };
+      const transformedContact = transformContact(savedContact);
       
       return {
         success: true,
@@ -312,11 +344,7 @@ export async function registerContactApiRoutes(fastify, options = {}) {
       }
       
       // Transform MongoDB _id to id for frontend compatibility
-      const transformedContact = {
-        ...updatedContact.toObject ? updatedContact.toObject() : updatedContact,
-        id: updatedContact._id.toString(),
-        _id: undefined
-      };
+      const transformedContact = transformContact(updatedContact);
       
       return {
         success: true,
