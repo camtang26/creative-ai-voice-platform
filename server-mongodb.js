@@ -188,14 +188,26 @@ server.register(fastifyCors, {
       if (origin && origin.includes('.onrender.com')) {
         allowedOrigins.push(origin);
       }
+      // Allow any GitHub Pages deployment
+      if (origin && origin.includes('.github.io')) {
+        allowedOrigins.push(origin);
+      }
+      // Allow any custom domain that might be using our API
+      if (origin && (origin.includes('investorsignals') || origin.includes('conversational-agent'))) {
+        allowedOrigins.push(origin);
+      }
     }
     
     console.log(`[CORS] Checking origin: ${origin}, allowed: ${allowedOrigins.includes(origin)}`);
+    console.log(`[CORS] Allowed origins list:`, allowedOrigins);
     
     if (!origin || allowedOrigins.includes(origin)) {
       cb(null, true);
       return;
     }
+    
+    // For debugging, log the rejected origin
+    console.error(`[CORS] Rejected origin: ${origin}`);
     cb(new Error('Not allowed by CORS'), false);
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Ensure OPTIONS is included

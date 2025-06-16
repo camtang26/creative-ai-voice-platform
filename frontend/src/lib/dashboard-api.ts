@@ -64,8 +64,8 @@ export interface CallActivityData {
  */
 export async function fetchDashboardOverview(days: number = 7): Promise<DashboardOverview> {
   try {
-    // Pass the CORRECT path starting with /api/
-    const apiUrl = getApiUrl(`/api/db/dashboard/overview?days=${days}`);
+    // Use the correct backend endpoint path
+    const apiUrl = getApiUrl(`/api/db/analytics/dashboard?days=${days}`);
     const response = await fetch(apiUrl);
     
     if (!response.ok) {
