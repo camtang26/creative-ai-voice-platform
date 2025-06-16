@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { 
   BarChart, 
   Phone, 
@@ -111,78 +112,141 @@ export function Sidebar() {
   ]
   
   return (
-    <aside className="w-64 bg-card border-r min-h-screen p-4 flex flex-col">
-      <div className="flex items-center justify-between mb-8 px-2">
+    <motion.aside 
+      initial={{ x: -300, opacity: 0 }}
+      animate={{ x: 0, opacity: 1 }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
+      className="w-64 glass-panel border-r border-white/10 min-h-screen p-4 flex flex-col backdrop-blur-xl"
+    >
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 0.2 }}
+        className="flex items-center justify-between mb-8 px-2"
+      >
         <div className="flex items-center gap-2">
-          <PlayCircle className="h-6 w-6 text-primary" />
-          <h1 className="text-xl font-bold">Investor Signals AI Call Centre</h1>
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+          >
+            <PlayCircle className="h-6 w-6 text-blue-400 drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+          </motion.div>
+          <h1 className="text-lg font-bold bg-gradient-to-r from-white to-blue-200 bg-clip-text text-transparent">
+            AI Call Centre
+          </h1>
         </div>
         <ThemeToggle />
-      </div>
-      <nav className="space-y-1 flex-1 overflow-auto">
-        {mainNavItems.map((item) => {
+      </motion.div>
+      <nav className="space-y-2 flex-1 overflow-auto">
+        {mainNavItems.map((item, index) => {
           const isActive = pathname === item.href || pathname?.startsWith(item.href + '/')
           const isExpanded = item.isExpandable && expandedItems.includes(item.id || '')
           
           return (
-            <div key={item.href} className="flex flex-col">
+            <motion.div 
+              key={item.href} 
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.4, delay: index * 0.05 + 0.3 }}
+              className="flex flex-col"
+            >
               {item.isExpandable ? (
-                <button
+                <motion.button
                   onClick={() => toggleExpand(item.id || '')}
-                  className={`flex items-center justify-between gap-3 px-3 py-2 rounded-md text-sm transition-colors w-full ${
+                  whileHover={{ scale: 1.02, x: 4 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`flex items-center justify-between gap-3 px-4 py-3 rounded-xl text-sm transition-all duration-300 w-full relative overflow-hidden group ${
                     isActive 
-                      ? 'bg-primary/10 text-primary' 
-                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                      ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-white border border-blue-400/30 shadow-lg shadow-blue-500/20' 
+                      : 'text-white/70 hover:text-white hover:bg-white/10 border border-transparent'
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <item.icon className="h-5 w-5" />
+                  <div className="flex items-center gap-3 relative z-10">
+                    <item.icon className={`h-5 w-5 ${isActive ? 'text-blue-400' : ''}`} />
                     {item.name}
                   </div>
-                  {isExpanded ? 
-                    <ChevronDown className="h-4 w-4" /> : 
-                    <ChevronRight className="h-4 w-4" />
-                  }
-                </button>
+                  <motion.div
+                    animate={{ rotate: isExpanded ? 180 : 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </motion.div>
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeTab"
+                      className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-xl"
+                      transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                    />
+                  )}
+                </motion.button>
               ) : (
-                <Link
-                  href={item.href}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
-                    isActive 
-                      ? 'bg-primary text-primary-foreground' 
-                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
-                  }`}
+                <motion.div
+                  whileHover={{ scale: 1.02, x: 4 }}
+                  whileTap={{ scale: 0.98 }}
                 >
-                  <item.icon className="h-5 w-5" />
-                  {item.name}
-                </Link>
+                  <Link
+                    href={item.href}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-all duration-300 relative overflow-hidden group ${
+                      isActive 
+                        ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-white border border-blue-400/30 shadow-lg shadow-blue-500/20' 
+                        : 'text-white/70 hover:text-white hover:bg-white/10 border border-transparent'
+                    }`}
+                  >
+                    <item.icon className={`h-5 w-5 ${isActive ? 'text-blue-400' : ''}`} />
+                    {item.name}
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeTab"
+                        className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-xl"
+                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                      />
+                    )}
+                  </Link>
+                </motion.div>
               )}
               
               {/* Sub-items */}
-              {item.isExpandable && isExpanded && item.subItems && (
-                <div className="pl-8 space-y-1 mt-1">
-                  {item.subItems.map((subItem) => {
-                    const isSubActive = pathname === subItem.href
-                    return (
-                      <Link
-                        key={subItem.href}
-                        href={subItem.href}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${
-                          isSubActive 
-                            ? 'bg-primary text-primary-foreground' 
-                            : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
-                        }`}
-                      >
-                        {subItem.name}
-                      </Link>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
+              <AnimatePresence>
+                {item.isExpandable && isExpanded && item.subItems && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="pl-8 space-y-1 mt-2 overflow-hidden"
+                  >
+                    {item.subItems.map((subItem, subIndex) => {
+                      const isSubActive = pathname === subItem.href
+                      return (
+                        <motion.div
+                          key={subItem.href}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ duration: 0.2, delay: subIndex * 0.05 }}
+                          whileHover={{ scale: 1.02, x: 4 }}
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          <Link
+                            href={subItem.href}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-300 relative ${
+                              isSubActive 
+                                ? 'bg-gradient-to-r from-blue-500/15 to-purple-500/15 text-white border-l-2 border-blue-400' 
+                                : 'text-white/60 hover:text-white hover:bg-white/5'
+                            }`}
+                          >
+                            <div className="w-1 h-1 bg-current rounded-full opacity-60" />
+                            {subItem.name}
+                          </Link>
+                        </motion.div>
+                      )
+                    })}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
           )
         })}
       </nav>
-    </aside>
+    </motion.aside>
   )
 }

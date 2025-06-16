@@ -1,10 +1,10 @@
 "use client";
 
 import { DashboardHeader } from '@/components/dashboard-header'
-import { EnhancedStatsCardsV2 } from '@/components/enhanced-stats-cards-v2'
+import { ModernStatsDashboard } from '@/components/modern-stats-dashboard'
+import { ModernRealTimeDashboard } from '@/components/modern-realtime-dashboard'
 import { EnhancedCallsChart } from '@/components/enhanced-calls-chart'
 import { EnhancedRecentCalls } from '@/components/enhanced-recent-calls'
-import { RealTimeDashboardCombinedV2 } from '@/components/real-time-dashboard-combined-v2'
 
 export default function Home() {
   return (
@@ -14,11 +14,11 @@ export default function Home() {
         description="Real-time overview of your calling system"
       />
       
-      {/* Enhanced Stats Cards - MongoDB Integrated */}
-      <EnhancedStatsCardsV2 />
+      {/* Modern Stats Dashboard with Glassmorphism and Animations */}
+      <ModernStatsDashboard />
       
-      {/* Real-time Activity Monitor */}
-      <RealTimeDashboardCombinedV2 />
+      {/* Modern Real-time Activity Monitor */}
+      <ModernRealTimeDashboard />
       
       {/* Call Activity and Recent Calls */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
