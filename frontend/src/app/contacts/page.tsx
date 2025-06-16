@@ -118,7 +118,7 @@ export default function ContactsPage() {
         console.log('[DEBUG] Contacts array:', response.data.contacts)
         console.log('[DEBUG] First contact:', response.data.contacts[0])
         console.log('[DEBUG] First contact has id?', response.data.contacts[0]?.id)
-        console.log('[DEBUG] First contact has _id?', response.data.contacts[0]?._id)
+        console.log('[DEBUG] First contact has _id?', (response.data.contacts[0] as any)?._id)
         setContacts(response.data.contacts)
         setTotalPages(response.data.pagination.pages)
         setTotalContacts(response.data.pagination.total)
@@ -561,7 +561,7 @@ export default function ContactsPage() {
                   {contacts.map((contact, index) => {
                     console.log('[DEBUG] Rendering contact:', contact)
                     console.log('[DEBUG] Contact id:', contact.id)
-                    console.log('[DEBUG] Contact _id:', contact._id)
+                    console.log('[DEBUG] Contact _id:', (contact as any)?._id)
                     console.log('[DEBUG] Contact has id?', !!contact.id)
                     console.log('[DEBUG] Checkbox will be disabled?', !contact.id)
                     return (

@@ -75,8 +75,19 @@ interface CampaignPageProps {
   }
 }
 
+// Extended campaign type to include backend properties
+interface ExtendedCampaign extends CampaignConfig {
+  contactCount?: number;
+  callsCompleted?: number;
+  callsSuccessful?: number;
+  callsFailed?: number;
+  callsInProgress?: number;
+  callsQueued?: number;
+  averageCallDuration?: number;
+}
+
 export default function CampaignPageEnhanced({ params }: CampaignPageProps) {
-  const [campaign, setCampaign] = useState<CampaignConfig | null>(null)
+  const [campaign, setCampaign] = useState<ExtendedCampaign | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [actionInProgress, setActionInProgress] = useState<string | null>(null)
@@ -95,7 +106,7 @@ export default function CampaignPageEnhanced({ params }: CampaignPageProps) {
       const response = await fetchCampaign(params.id)
       
       if (response.success && response.campaign) {
-        setCampaign(response.campaign)
+        setCampaign(response.campaign as ExtendedCampaign)
       } else {
         setError(response.error || 'Failed to load campaign')
       }

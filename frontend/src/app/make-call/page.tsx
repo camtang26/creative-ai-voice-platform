@@ -1,6 +1,6 @@
 "use client"; // Add "use client" directive
 
-import { useState, useEffect } from 'react' // Import useState and useEffect
+import { useState, useEffect, Suspense } from 'react' // Import useState, useEffect, and Suspense
 import { useSearchParams } from 'next/navigation' // Import useSearchParams
 import { DashboardHeader } from '@/components/dashboard-header'
 import { Button } from '@/components/ui/button'
@@ -21,7 +21,7 @@ interface CampaignStartResponse {
   campaignId?: string;
 }
 
-export default function MakeCallPage() {
+function MakeCallPageContent() {
   const searchParams = useSearchParams();
   const phoneNumber = searchParams.get('number') || '';
   const contactName = searchParams.get('name') || '';
@@ -354,5 +354,13 @@ export default function MakeCallPage() {
         </TabsContent>
       </Tabs>
     </div>
+  )
+}
+
+export default function MakeCallPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <MakeCallPageContent />
+    </Suspense>
   )
 }

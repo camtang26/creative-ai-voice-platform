@@ -76,7 +76,7 @@ interface CampaignPerformanceData {
  */
 export async function fetchDashboardSummary(days = 30): Promise<ApiResponse<DashboardSummary>> {
   try {
-    const apiUrl = getApiUrl(`/api/db/dashboard/overview?days=${days}`);
+    const apiUrl = getApiUrl(`/api/db/analytics/dashboard?days=${days}`);
     const response = await fetch(apiUrl);
     
     if (!response.ok) {

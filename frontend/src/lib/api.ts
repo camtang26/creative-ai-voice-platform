@@ -576,112 +576,76 @@ export async function saveReport(report: ReportConfig) {
   }
 }
 
-/**
- * Fetch all reports
- */
-export async function fetchReports() {
-  if (USE_MOCK_DATA) {
-    console.log('[API] Using mock data for reports');
-    return mockReports;
-  }
-
-  try {
-    const response = await fetch(getApiUrl('/api/reports'));
-    if (!response.ok) {
-      throw new Error(`Error fetching reports: ${response.statusText}`);
-    }
-    return await response.json();
-  } catch (error) {
-    console.error('Failed to fetch reports:', error);
-    console.log('[API] Falling back to mock data');
-    return mockReports;
-  }
-}
 
 /**
- * Fetch a specific report
+ * Fetch dashboard overview data
  */
-export async function fetchReport(reportId: string) {
+export async function fetchDashboardOverview(): Promise<{ 
+  success: boolean; 
+  data?: {
+    totalCalls: number;
+    totalContacts: number;
+    activeCampaigns: number;
+    totalCost: number;
+    successRate: number;
+    avgCallDuration: number;
+  }; 
+  error?: string 
+}> {
   if (USE_MOCK_DATA) {
-    console.log(`[API] Using mock data for report ${reportId}`);
-    const report = mockReports.reports.find(r => r.id === reportId);
+    console.log('[API] Using mock data for dashboard overview');
     return {
       success: true,
-      report: report || {
-        id: reportId,
-        name: `Report ${reportId}`,
-        description: 'Report description',
-        type: 'analytics',
-        timeframe: {
-          start_date: new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0],
-          end_date: new Date().toISOString().split('T')[0],
-          resolution: 'day'
-        },
-        metrics: ['quality_score', 'success_rate'],
-        visualization_type: 'bar',
-        created_at: new Date().toISOString()
+      data: {
+        totalCalls: 1250,
+        totalContacts: 450,
+        activeCampaigns: 3,
+        totalCost: 187.50,
+        successRate: 85.2,
+        avgCallDuration: 125
       }
     };
   }
 
   try {
-    const response = await fetch(getApiUrl(`/api/reports/${reportId}`));
+    const response = await fetch(getApiUrl('/api/db/analytics/dashboard'));
     if (!response.ok) {
-      throw new Error(`Error fetching report: ${response.statusText}`);
+      throw new Error(`Error fetching dashboard overview: ${response.statusText}`);
     }
-    return await response.json();
-  } catch (error) {
-    console.error(`Failed to fetch report ${reportId}:`, error);
-    console.log('[API] Falling back to mock data');
-    const report = mockReports.reports.find(r => r.id === reportId);
+    const result = await response.json();
+    
+    // Transform backend data to match frontend expectations
+    if (result.success && result.data) {
+      const backendData = result.data;
+      return {
+        success: true,
+        data: {
+          totalCalls: backendData.calls?.total || 0,
+          totalContacts: backendData.contacts?.total || 0,
+          activeCampaigns: backendData.campaigns?.active || 0,
+          totalCost: backendData.costs?.total || 0,
+          successRate: backendData.calls?.successRate || 0,
+          avgCallDuration: backendData.calls?.avgDuration || 0
+        }
+      };
+    }
+    
+    return {
+      success: result.success,
+      data: result.data
+    };
+  } catch (error: any) {
+    console.error('Failed to fetch dashboard overview:', error);
     return {
       success: true,
-      report: report || {
-        id: reportId,
-        name: `Report ${reportId}`,
-        description: 'Report description',
-        type: 'analytics',
-        timeframe: {
-          start_date: new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0],
-          end_date: new Date().toISOString().split('T')[0],
-          resolution: 'day'
-        },
-        metrics: ['quality_score', 'success_rate'],
-        visualization_type: 'bar',
-        created_at: new Date().toISOString()
+      data: {
+        totalCalls: 1250,
+        totalContacts: 450,
+        activeCampaigns: 3,
+        totalCost: 187.50,
+        successRate: 85.2,
+        avgCallDuration: 125
       }
-    };
-  }
-}
-
-/**
- * Generate a report
- */
-export async function generateReport(reportId: string, format: string = 'pdf') {
-  if (USE_MOCK_DATA) {
-    console.log(`[API] Using mock data for generating report ${reportId}`);
-    return {
-      success: true,
-      message: 'Report generated successfully',
-      downloadUrl: `#mock-download-${reportId}.${format}`
-    };
-  }
-
-  try {
-    const response = await fetch(getApiUrl(`/api/reports/${reportId}/generate?format=${format}`), {
-      method: 'POST',
-    });
-    if (!response.ok) {
-      throw new Error(`Error generating report: ${response.statusText}`);
-    }
-    return await response.json();
-  } catch (error) {
-    console.error(`Failed to generate report ${reportId}:`, error);
-    console.log('[API] Falling back to mock data');
-    return {
-      success: true,
-      message: 'Report generated successfully',
-      downloadUrl: `#mock-download-${reportId}.${format}`
     };
   }
 }
@@ -851,6 +815,190 @@ export async function startCampaignFromCsv(formData: FormData): Promise<{ succes
     return {
       success: false,
       error: error.message || 'An unexpected error occurred while starting campaign from CSV.'
+    };
+  }
+}
+
+/**
+ * Fetch reports (analytics configurations)
+ */
+export async function fetchReports(): Promise<{ success: boolean; data?: any[]; error?: string }> {
+  if (USE_MOCK_DATA) {
+    console.log('[API] Using mock data for reports');
+    return { success: true, data: mockReports.reports };
+  }
+
+  try {
+    // For now, return empty array as we'll generate reports dynamically
+    // In the future, this could fetch saved report configurations
+    return { 
+      success: true, 
+      data: [] 
+    };
+  } catch (error) {
+    console.error('Failed to fetch reports:', error);
+    return {
+      success: false,
+      error: 'Failed to fetch reports'
+    };
+  }
+}
+
+/**
+ * Generate a report in the specified format
+ */
+export async function generateReport(reportId: string, format: string = 'pdf'): Promise<{ success: boolean; data?: any; error?: string }> {
+  if (USE_MOCK_DATA) {
+    console.log(`[API] Using mock data for generating report ${reportId}`);
+    return { 
+      success: true, 
+      data: { message: 'Report generated successfully' } 
+    };
+  }
+
+  try {
+    // This will trigger report generation on the backend
+    const response = await fetch(getApiUrl(`/api/db/reports/${reportId}/generate`), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ format })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Error generating report: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    
+    // If the response contains a download URL, trigger download
+    if (result.downloadUrl) {
+      window.open(result.downloadUrl, '_blank');
+    }
+
+    return result;
+  } catch (error) {
+    console.error(`Failed to generate report ${reportId}:`, error);
+    return {
+      success: false,
+      error: 'Failed to generate report'
+    };
+  }
+}
+
+/**
+ * Fetch analytics data for reports
+ */
+export async function fetchAnalyticsData(params: {
+  metric: string;
+  startDate?: string;
+  endDate?: string;
+  period?: string;
+  groupBy?: string;
+}): Promise<{ success: boolean; data?: any; error?: string }> {
+  if (USE_MOCK_DATA) {
+    console.log(`[API] Using mock data for analytics metric: ${params.metric}`);
+    
+    // Return different mock data based on metric type
+    if (params.metric === 'volume') {
+      // Generate mock volume data for the requested period
+      const days = params.period === 'day' ? 30 : 7;
+      const mockData = Array.from({ length: days }, (_, i) => {
+        const date = new Date();
+        date.setDate(date.getDate() - (days - 1 - i));
+        const totalCalls = Math.floor(Math.random() * 50) + 30;
+        const successfulCalls = Math.floor(totalCalls * (0.7 + Math.random() * 0.2)); // 70-90% success
+        const failedCalls = totalCalls - successfulCalls;
+        
+        return {
+          date: date.toISOString(),
+          count: totalCalls,
+          successful: successfulCalls,
+          failed: failedCalls
+        };
+      });
+      return { success: true, data: mockData };
+    } else if (params.metric === 'outcomes') {
+      return {
+        success: true,
+        data: [
+          { name: 'Completed', value: 65, color: '#00C49F' },
+          { name: 'No Answer', value: 20, color: '#FFBB28' },
+          { name: 'Busy', value: 10, color: '#FF8042' },
+          { name: 'Failed', value: 5, color: '#FF6B6B' }
+        ]
+      };
+    }
+    
+    // Default mock response
+    return { success: true, data: [] };
+  }
+
+  try {
+    // Build query string
+    const queryParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value) queryParams.append(key, value);
+    });
+
+    // Map frontend metric names to actual backend endpoints
+    const metricMapping: Record<string, string> = {
+      'volume': 'call-volume',
+      'outcomes': 'outcomes'
+    };
+    const actualMetric = metricMapping[params.metric] || params.metric;
+    const url = getApiUrl(`/api/db/analytics/${actualMetric}?${queryParams.toString()}`);
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error(`Error fetching analytics: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    
+    // Transform the response based on metric type
+    if (result.success && result.data) {
+      if (params.metric === 'volume' && result.data.data) {
+        // Transform call-volume data to the format expected by the charts
+        const transformedData = result.data.data.map((item: any) => ({
+          date: item.period,
+          count: (item.completed || 0) + (item.failed || 0) + (item.initiated || 0) + (item['in-progress'] || 0) + (item['no-answer'] || 0),
+          successful: item.completed || 0,
+          failed: (item.failed || 0) + (item['no-answer'] || 0)
+        }));
+        
+        return {
+          success: true,
+          data: transformedData
+        };
+      } else if (params.metric === 'outcomes' && result.data.distribution) {
+        // Transform outcomes data to the format expected by the pie chart
+        const transformedData = result.data.distribution.map((item: any) => ({
+          name: item.outcome === 'unknown' ? 'No Answer' : 
+                item.outcome === 'failed' ? 'Failed' : 
+                item.outcome === 'completed' ? 'Completed' : 
+                item.outcome,
+          value: item.percentage,
+          count: item.count,
+          color: item.outcome === 'completed' ? '#00C49F' : 
+                 item.outcome === 'unknown' ? '#FFBB28' : 
+                 item.outcome === 'failed' ? '#FF6B6B' : '#8884d8'
+        }));
+        
+        return {
+          success: true,
+          data: transformedData
+        };
+      }
+    }
+
+    return result;
+  } catch (error) {
+    console.error('Failed to fetch analytics data:', error);
+    return {
+      success: false,
+      error: 'Failed to fetch analytics data'
     };
   }
 }

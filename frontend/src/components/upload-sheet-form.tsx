@@ -110,8 +110,8 @@ export function UploadSheetForm({ campaignName, agentPrompt, firstMessage }: Upl
           submittedCampaignName: campaignName, // Keep these for context on error
           submittedAgentPrompt: agentPrompt,
           submittedFirstMessage: firstMessage,
-          invalidNumbers: response.invalidNumbers || 0,
-          invalidNumbersList: response.invalidNumbersList || []
+          invalidNumbers: (response as any).invalidNumbers || 0,
+          invalidNumbersList: (response as any).invalidNumbersList || []
         });
       }
 
@@ -226,7 +226,7 @@ export function UploadSheetForm({ campaignName, agentPrompt, firstMessage }: Upl
             <div className="mt-2 text-sm">
               <p>Campaign ID: {uploadStatus.sheetId}</p>
               <p>Valid Contacts: {uploadStatus.rowCount}</p>
-              {uploadStatus.invalidNumbers > 0 && (
+              {uploadStatus.invalidNumbers && uploadStatus.invalidNumbers > 0 && (
                 <p>Invalid Numbers Filtered: {uploadStatus.invalidNumbers}</p>
               )}
               {uploadStatus.submittedCampaignName && (
