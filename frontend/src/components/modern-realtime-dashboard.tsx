@@ -80,7 +80,7 @@ export function ModernRealTimeDashboard({
 
   const connectionStatus = isConnected ? 'connected' : 'disconnected'
   const connectionColor = isConnected ? 'text-green-400' : 'text-red-400'
-  const connectionIcon = isConnected ? Wifi : WifiOff
+  const ConnectionIcon = isConnected ? Wifi : WifiOff
 
   return (
     <motion.div
@@ -103,7 +103,7 @@ export function ModernRealTimeDashboard({
                 rotate: { duration: 0.5, repeat: Infinity }
               }}
             >
-              {connectionIcon({ className: `h-5 w-5 ${connectionColor}` })}
+              <ConnectionIcon className={`h-5 w-5 ${connectionColor}`} />
             </motion.div>
             <div>
               <h3 className="text-lg font-semibold text-white">Real-Time Monitor</h3>
