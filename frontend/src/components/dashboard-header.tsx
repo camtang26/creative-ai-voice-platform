@@ -16,8 +16,10 @@ export function DashboardHeader({
   actions
 }: DashboardHeaderProps) {
   const [currentTime, setCurrentTime] = useState(new Date())
+  const [isClient, setIsClient] = useState(false)
 
   useEffect(() => {
+    setIsClient(true)
     const timer = setInterval(() => {
       setCurrentTime(new Date())
     }, 1000)
@@ -62,7 +64,7 @@ export function DashboardHeader({
               <span>System Online</span>
             </div>
             <div className="hidden sm:block">
-              {currentTime.toLocaleString()}
+              {isClient ? currentTime.toLocaleString() : '--:--:--'}
             </div>
           </motion.div>
         </div>
