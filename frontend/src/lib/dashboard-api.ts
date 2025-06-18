@@ -81,7 +81,45 @@ export async function fetchDashboardOverview(days: number = 7): Promise<Dashboar
       throw new Error('Invalid dashboard data format');
     }
     
-    return result.data;
+    // Transform backend data to match frontend expectations
+    const backendData = result.data;
+    
+    // Calculate derived values
+    const totalCalls = backendData.calls?.total || 0;
+    const completedCalls = backendData.calls?.byStatus?.find((s: any) => s.status === 'completed')?.count || 0;
+    const failedCalls = backendData.calls?.byStatus?.find((s: any) => s.status === 'failed')?.count || 0;
+    const activeCalls = backendData.calls?.byStatus?.find((s: any) => s.status === 'in-progress')?.count || 0;
+    
+    const transformedData: DashboardOverview = {
+      summary: {
+        totalCalls: totalCalls,
+        activeCalls: activeCalls,
+        completedCalls: completedCalls,
+        failedCalls: failedCalls,
+        totalDuration: backendData.calls?.totalDuration || 0,
+        averageDuration: backendData.calls?.avgDuration || 0,
+        successRate: backendData.calls?.successRate || 0,
+        trend: {
+          calls: backendData.calls?.trend?.calls || 0,
+          duration: backendData.calls?.trend?.duration || 0,
+          success: backendData.calls?.trend?.success || 0
+        }
+      },
+      callVolume: [], // TODO: Add when backend provides this data
+      callDuration: [], // TODO: Add when backend provides this data
+      callOutcomes: backendData.calls?.byStatus?.map((status: any) => ({
+        status: status.status,
+        count: status.count,
+        percentage: totalCalls > 0 ? (status.count / totalCalls) * 100 : 0
+      })) || [],
+      sentimentAnalysis: backendData.sentiment ? {
+        positive: backendData.sentiment.find((s: any) => s.sentiment === 'positive')?.count || 0,
+        neutral: backendData.sentiment.find((s: any) => s.sentiment === 'neutral')?.count || 0,
+        negative: backendData.sentiment.find((s: any) => s.sentiment === 'negative')?.count || 0
+      } : undefined
+    };
+    
+    return transformedData;
   } catch (error) {
     console.error('Error loading dashboard data:', error);
     throw error;
