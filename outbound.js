@@ -10,7 +10,7 @@ import { saveCall, updateCallStatus, getCallBySid } from './db/repositories/call
 import { logEvent } from './db/repositories/callEvent.repository.js';
 import { updateContactCallHistory } from './db/repositories/contact.repository.js';
 import { handleCallStatusUpdate } from './db/campaign-engine.js';
-import { emitActiveCallsList } from './socket-server.js';
+import { emitActiveCallsList, emitCallUpdate, handleCallStatusChange } from './socket-server.js';
 
 // Map to store active call information (keeping for backward compatibility)
 export const activeCalls = new Map();
@@ -281,7 +281,18 @@ export async function makeOutboundCall(params) { // Added export
       contactId: contactId,
       name: name
     });
+    
+    // Emit Socket.IO events for real-time updates
     emitActiveCallsList();
+    emitCallUpdate(call.sid, 'new_call', {
+      sid: call.sid,
+      status: 'initiated',
+      to: to,
+      from: from,
+      startTime: new Date(),
+      name: name,
+      campaignId: campaignId
+    });
 
     // Save initial call information to MongoDB
     const callData = {

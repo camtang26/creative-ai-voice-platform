@@ -501,6 +501,10 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       console.log('[Socket] Connected');
       setIsConnected(true);
       setConnectionStatus('connected');
+      
+      // Automatically subscribe to call updates
+      console.log('[Socket] Auto-subscribing to call updates');
+      socketInstance.emit('subscribe_to_calls');
     });
 
     socketInstance.on('disconnect', () => {

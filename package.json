@@ -26,7 +26,9 @@
     "test-mongodb-schema": "node test-mongodb-schema-validation.js",
     "test-mongodb-frontend": "node test-mongodb-frontend-compatibility.js",
     "test-mongodb-all": "node run-mongodb-tests.js",
-    "install-mongodb": "npm install mongoose@7.5.0"
+    "install-mongodb": "npm install mongoose@7.5.0",
+    "test-socket-updates": "node test-socket-updates.js",
+    "test-socket-client": "node test-socket-client.js"
   },
   "keywords": [
     "elevenlabs",
