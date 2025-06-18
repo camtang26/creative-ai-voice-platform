@@ -1387,6 +1387,14 @@ wss.on('connection', (ws, request) => {
       elevenLabsWs.on("open", () => {
         server.log.info('[WS Manual] Connected to ElevenLabs. Waiting for metadata...');
         updateActivity();
+        
+        // Emit Socket.IO event for ElevenLabs connection
+        if (callSid) {
+          emitCallUpdate(callSid, 'elevenlabs_connected', {
+            status: 'elevenlabs_connected',
+            timestamp: new Date().toISOString()
+          });
+        }
       });
 
       elevenLabsWs.on("message", (data) => {
@@ -1459,11 +1467,25 @@ wss.on('connection', (ws, request) => {
             callRepository.updateCallStatus(callSid, null, { conversationId: conversationId })
               .catch(err => server.log.error(`[WS Manual][DB] Error updating call ${callSid} with conversationId ${conversationId}:`, err));
           }
+          // Emit Socket.IO event for conversation start
+          if (callSid) {
+            emitCallUpdate(callSid, 'conversation_started', {
+              conversationId: conversationId,
+              timestamp: new Date().toISOString()
+            });
+          }
         }
 
         if (message) {
           if (isConversationComplete(message)) {
             server.log.info(`[WS Manual] Conversation complete detected, terminating call ${callSid}`);
+            // Emit Socket.IO event for conversation completion
+            if (callSid) {
+              emitCallUpdate(callSid, 'conversation_completed', {
+                conversationId: conversationId,
+                timestamp: new Date().toISOString()
+              });
+            }
             if (callSid && twilioClient) { terminateCall(twilioClient, callSid); }
             return;
           }
@@ -1515,8 +1537,23 @@ wss.on('connection', (ws, request) => {
               const transcriptMsg = message.transcript_update;
               if (transcriptMsg && transcriptMsg.message) {
                 server.log.debug(`[WS Manual] Transcript: ${transcriptMsg.role}: ${transcriptMsg.message.substring(0, 50)}...`);
-                if (callSid && callEventRepository) { callEventRepository.logEvent(callSid, 'transcript_segment', { role: transcriptMsg.role, text: transcriptMsg.message, timestamp: new Date().toISOString() }, { source: 'elevenlabs_stream' }).catch(err => server.log.error(`[WS Manual][DB] Error logging transcript segment for ${callSid}:`, err)); }
-                if (callSid && typeof emitTranscriptMessage === 'function') { emitTranscriptMessage(callSid, transcriptMsg.role, transcriptMsg.message); }
+                if (callSid && callEventRepository) { 
+                  callEventRepository.logEvent(callSid, 'transcript_segment', { 
+                    role: transcriptMsg.role, 
+                    text: transcriptMsg.message, 
+                    timestamp: new Date().toISOString() 
+                  }, { source: 'elevenlabs_stream' }).catch(err => 
+                    server.log.error(`[WS Manual][DB] Error logging transcript segment for ${callSid}:`, err)
+                  ); 
+                }
+                // Emit transcript message via Socket.IO with correct format
+                if (callSid && typeof emitTranscriptMessage === 'function') { 
+                  emitTranscriptMessage(callSid, {
+                    role: transcriptMsg.role,
+                    message: transcriptMsg.message,
+                    timestamp: new Date().toISOString()
+                  });
+                }
               } break;
             default:
               server.log.debug(`[WS Manual] Received ElevenLabs message type: ${message.type}`);
@@ -1536,7 +1573,17 @@ wss.on('connection', (ws, request) => {
       const msg = JSON.parse(message);
       switch (msg.event) {
         case "start":
-          streamSid = msg.start.streamSid; callSid = msg.start.callSid; customParameters = msg.start.customParameters || {};
+          streamSid = msg.start.streamSid; 
+          callSid = msg.start.callSid; 
+          customParameters = msg.start.customParameters || {};
+          
+          // Emit Socket.IO event for stream start
+          if (callSid) {
+            emitCallUpdate(callSid, 'stream_started', {
+              streamSid: streamSid,
+              timestamp: new Date().toISOString()
+            });
+          }
           server.log.info(`[WS Manual] Received TwiML Parameters:`, customParameters); server.log.info(`[WS Manual] Twilio Stream started`, { streamSid, callSid });
           if (activeCalls.has(callSid)) { const callInfo = activeCalls.get(callSid); callInfo.streamSid = streamSid; activeCalls.set(callSid, callInfo); }
           scheduleInactivityTermination(); // Start the inactivity timer now that callSid is known

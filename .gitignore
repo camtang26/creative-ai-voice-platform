@@ -45,4 +45,4 @@ credentials.json
 *.key
 *.crt
 *.p12
-.npmrc 
+.npmrc Frontend Screenshots/*.png

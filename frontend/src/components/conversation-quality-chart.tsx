@@ -39,10 +39,14 @@ export function ConversationQualityChart({ filters }: ConversationQualityChartPr
           setData(chartData)
         } else {
           setError(response.error || 'Failed to load conversation quality data')
+          // Use sample data
+          setData(getSampleData())
         }
       } catch (err) {
         setError('An error occurred while loading data')
         console.error(err)
+        // Use sample data
+        setData(getSampleData())
       } finally {
         setLoading(false)
       }
@@ -53,7 +57,11 @@ export function ConversationQualityChart({ filters }: ConversationQualityChartPr
 
   // Process the API response data for the chart
   function processDataForChart(apiData: ConversationAnalytics[]) {
-    // Group data by date
+    if (!apiData || apiData.length === 0) {
+      return getSampleData()
+    }
+    
+    // Group data by date and calculate averages
     const groupedByDate = apiData.reduce((acc, item) => {
       const date = item.date.split('T')[0]
       if (!acc[date]) {
@@ -75,7 +83,7 @@ export function ConversationQualityChart({ filters }: ConversationQualityChartPr
     }, {} as Record<string, any>)
     
     // Convert to array and calculate averages
-    return Object.values(groupedByDate)
+    const chartData = Object.values(groupedByDate)
       .map(group => ({
         date: group.date,
         qualityScore: Math.round((group.totalQualityScore / group.conversations) * 100) / 100,
@@ -83,6 +91,22 @@ export function ConversationQualityChart({ filters }: ConversationQualityChartPr
         completionRate: Math.round((group.totalCompletionRate / group.conversations) * 1000) / 10
       }))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    
+    return chartData.length > 0 ? chartData : getSampleData()
+  }
+  
+  function getSampleData() {
+    const today = new Date()
+    return Array.from({ length: 14 }, (_, i) => {
+      const date = new Date()
+      date.setDate(today.getDate() - 13 + i)
+      return {
+        date: date.toISOString().split('T')[0],
+        qualityScore: 82 + Math.random() * 8,
+        successRate: 68 + Math.random() * 10,
+        completionRate: 75 + Math.random() * 10
+      }
+    })
   }
 
   if (loading) {
@@ -105,25 +129,7 @@ export function ConversationQualityChart({ filters }: ConversationQualityChartPr
     )
   }
 
-  // Use sample data if needed
-  const sampleData = [
-    { date: '2025-03-01', qualityScore: 82.5, successRate: 68.3, completionRate: 75.2 },
-    { date: '2025-03-02', qualityScore: 83.1, successRate: 69.7, completionRate: 76.3 },
-    { date: '2025-03-03', qualityScore: 84.2, successRate: 70.1, completionRate: 77.5 },
-    { date: '2025-03-04', qualityScore: 85.0, successRate: 71.2, completionRate: 78.1 },
-    { date: '2025-03-05', qualityScore: 84.7, successRate: 70.8, completionRate: 77.9 },
-    { date: '2025-03-06', qualityScore: 86.2, successRate: 72.5, completionRate: 79.4 },
-    { date: '2025-03-07', qualityScore: 87.1, successRate: 73.6, completionRate: 80.2 },
-    { date: '2025-03-08', qualityScore: 86.9, successRate: 73.2, completionRate: 79.8 },
-    { date: '2025-03-09', qualityScore: 87.5, successRate: 74.1, completionRate: 81.0 },
-    { date: '2025-03-10', qualityScore: 88.2, successRate: 75.0, completionRate: 82.1 },
-    { date: '2025-03-11', qualityScore: 87.8, successRate: 74.5, completionRate: 81.7 },
-    { date: '2025-03-12', qualityScore: 88.5, successRate: 75.3, completionRate: 82.4 },
-    { date: '2025-03-13', qualityScore: 89.1, successRate: 76.2, completionRate: 83.0 },
-    { date: '2025-03-14', qualityScore: 89.7, successRate: 76.8, completionRate: 83.5 },
-  ]
-
-  const displayData = data.length > 0 ? data : sampleData
+  const displayData = data
 
   return (
     <ResponsiveContainer width="100%" height="100%">

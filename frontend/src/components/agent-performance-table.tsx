@@ -28,7 +28,8 @@ export function AgentPerformanceTable({ filters }: AgentPerformanceTableProps) {
 
   useEffect(() => {
     loadData()
-  }, [filters])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.timeframe?.start_date, filters.timeframe?.end_date])
   
   async function loadData() {
     setLoading(true)
@@ -37,8 +38,15 @@ export function AgentPerformanceTable({ filters }: AgentPerformanceTableProps) {
     try {
       const response = await fetchAgentPerformance(filters)
       
-      if (response.success) {
-        setData(response.data || []) // Provide fallback for undefined data
+      if (response.success && response.data) {
+        // Ensure data is always an array
+        const responseData = response.data;
+        if (Array.isArray(responseData)) {
+          setData(responseData);
+        } else {
+          console.warn('Agent performance API returned non-array data:', responseData);
+          setData(generateSampleAgentData());
+        }
       } else {
         setError(response.error || 'Failed to load agent performance data')
         // Fallback to sample data
