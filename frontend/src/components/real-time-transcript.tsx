@@ -100,17 +100,73 @@ export function RealTimeTranscript({ callSid, initialTranscript }: RealTimeTrans
   
   // Custom event handler for call transcript messages
   useEffect(() => {
-    // Assuming 'call_transcript_message' event sends data with a nested 'data' property containing the TranscriptMessage
+    // Interface for transcript_update events (new format)
+    interface TranscriptUpdateData {
+      callSid: string;
+      type: 'message' | 'typing_indicator' | 'full_transcript';
+      data?: {
+        text: string;
+        role: string;
+        timestamp?: string;
+        speaker?: string;
+        isPartial?: boolean;
+      };
+    }
+    
+    // Interface for call_transcript_message events (old format)
     interface CallTranscriptEventData {
       callSid: string;
-      message?: TranscriptMessage; // If message is directly on event data
-      data?: TranscriptMessage;    // If message is nested under 'data' property
-      // Add other potential fields from this specific event
+      message?: TranscriptMessage;
+      data?: TranscriptMessage;
     }
+    
+    // Handler for new format transcript_update events
+    const handleTranscriptUpdate = (eventData: TranscriptUpdateData) => {
+      console.log(`[Socket] Received transcript update for call ${callSid}:`, eventData)
+      
+      if (eventData.callSid === callSid && eventData.type === 'message' && eventData.data) {
+        const newMessage: TranscriptMessage = {
+          text: eventData.data.text,
+          role: eventData.data.role,
+          timestamp: eventData.data.timestamp,
+          speaker: eventData.data.speaker
+        };
+
+        setMessages(prev => {
+          // For typewriter effect: update last message if partial
+          if (eventData.data?.isPartial && prev.length > 0) {
+            const lastMessage = prev[prev.length - 1];
+            if (lastMessage.role === newMessage.role && eventData.data.text.startsWith(lastMessage.text)) {
+              // Update the last message
+              const updated = [...prev];
+              updated[updated.length - 1] = { ...lastMessage, text: eventData.data.text };
+              return updated;
+            }
+          }
+          
+          // Check if the message is already in the transcript
+          const isDuplicate = prev.some(
+            (m: TranscriptMessage) => m.text === newMessage.text && m.role === newMessage.role
+          );
+          
+          if (isDuplicate) {
+            return prev;
+          }
+          
+          // Add the new message
+          return [...prev, newMessage];
+        });
+        
+        setIsNewMessage(true);
+        setTimeout(() => setIsNewMessage(false), 2000);
+      }
+    };
+    
+    // Handler for old format call_transcript_message events
     const handleCallTranscriptMessage = (eventData: CallTranscriptEventData) => {
       console.log(`[Socket] Received transcript message for call ${callSid}:`, eventData)
       
-      const messagePayload = eventData.data || eventData.message; // Prefer eventData.data if it exists
+      const messagePayload = eventData.data || eventData.message;
 
       if (eventData.callSid === callSid && messagePayload &&
           typeof messagePayload.text === 'string' && typeof messagePayload.role === 'string') {
@@ -138,11 +194,13 @@ export function RealTimeTranscript({ callSid, initialTranscript }: RealTimeTrans
     
     if (socket) {
       socket.on('call_transcript_message', handleCallTranscriptMessage)
+      socket.on('transcript_update', handleTranscriptUpdate)
     }
     
     return () => {
       if (socket) {
         socket.off('call_transcript_message', handleCallTranscriptMessage)
+        socket.off('transcript_update', handleTranscriptUpdate)
       }
     }
   }, [socket, callSid])
