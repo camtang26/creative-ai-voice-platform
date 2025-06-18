@@ -83,7 +83,12 @@ export function EnhancedRealTimeTranscript({ callSid, initialTranscript, classNa
   useEffect(() => {
     if (socket && isConnected && callSid && !isSubscribed) {
       console.log(`[Transcript] Subscribing to call ${callSid}`)
-      subscribeToCall(callSid)
+      subscribeToCall(callSid, { withTranscript: true })
+      
+      // Also explicitly subscribe to transcript updates
+      socket.emit('subscribe_to_transcripts')
+      socket.emit('subscribe_to_call_transcript', callSid)
+      
       setIsSubscribed(true)
       setLastActivity(new Date())
     }
@@ -128,24 +133,46 @@ export function EnhancedRealTimeTranscript({ callSid, initialTranscript, classNa
         
         // Handle different update types
         if (data.type === 'message' && data.data && typeof data.data.text === 'string' && typeof data.data.role === 'string') {
-          // Add a new message
+          // Add or update message
           setTranscript((prev: TranscriptData | null) => {
             const prevMessages = prev?.messages || [];
-            // If the message already exists, don't add it again
+            
+            // For typewriter effect: if this is a partial message, update the last message
+            if (data.data.isPartial && prevMessages.length > 0) {
+              const lastMessage = prevMessages[prevMessages.length - 1];
+              
+              // Only update if it's the same speaker and we're extending the message
+              if (lastMessage.role === data.data.role && data.data.text.startsWith(lastMessage.text)) {
+                const updatedMessages = [...prevMessages];
+                updatedMessages[updatedMessages.length - 1] = {
+                  ...lastMessage,
+                  text: data.data.text,
+                  timestamp: data.data.timestamp || lastMessage.timestamp
+                };
+                
+                return {
+                  ...(prev || { messages: [] }),
+                  callSid: prev?.callSid || callSid,
+                  messages: updatedMessages
+                } as TranscriptData;
+              }
+            }
+            
+            // If not partial or no existing message, check if this exact message already exists
             const messageExists = prevMessages.some((msg: TranscriptMessage) =>
               msg.text === data.data.text && msg.role === data.data.role
             )
             
             if (messageExists) return prev;
             
+            // Add as new message
             const newMessage: TranscriptMessage = {
               text: data.data.text,
               role: data.data.role,
               timestamp: data.data.timestamp || new Date().toISOString(),
               speaker: data.data.speaker
             };
-            // Redundant prevMessages declaration removed.
-            // prevMessages from line 133 will be used.
+            
             const updatedMessages = [
               ...prevMessages,
               newMessage

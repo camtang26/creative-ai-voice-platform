@@ -49,7 +49,8 @@ import {
   emitActiveCallsList,
   handleCallStatusChange,
   setActiveCallsReference,
-  emitTranscriptMessage 
+  emitTranscriptMessage,
+  emitTranscriptTypewriter 
 } from './socket-server.js';
 
 // Import MongoDB integration
@@ -1546,13 +1547,23 @@ wss.on('connection', (ws, request) => {
                     server.log.error(`[WS Manual][DB] Error logging transcript segment for ${callSid}:`, err)
                   ); 
                 }
-                // Emit transcript message via Socket.IO with correct format
-                if (callSid && typeof emitTranscriptMessage === 'function') { 
-                  emitTranscriptMessage(callSid, {
-                    role: transcriptMsg.role,
-                    message: transcriptMsg.message,
-                    timestamp: new Date().toISOString()
-                  });
+                // Emit transcript message via Socket.IO with typewriter effect
+                if (callSid) { 
+                  // Import the typewriter function if available
+                  if (typeof emitTranscriptTypewriter === 'function') {
+                    emitTranscriptTypewriter(callSid, {
+                      role: transcriptMsg.role,
+                      message: transcriptMsg.message,
+                      timestamp: new Date().toISOString()
+                    }, 4); // 4 words per second for natural feel
+                  } else if (typeof emitTranscriptMessage === 'function') {
+                    // Fallback to regular emission
+                    emitTranscriptMessage(callSid, {
+                      role: transcriptMsg.role,
+                      message: transcriptMsg.message,
+                      timestamp: new Date().toISOString()
+                    });
+                  }
                 }
               } break;
             default:

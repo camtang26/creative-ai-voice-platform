@@ -301,6 +301,61 @@ export function emitTranscriptUpdate(callSid, transcript) {
 }
 
 /**
+ * Emit transcript with typewriter effect (word by word)
+ * @param {string} callSid - Call SID
+ * @param {Object} message - Transcript message
+ * @param {number} wordsPerSecond - Speed of typewriter effect (default: 3)
+ */
+export function emitTranscriptTypewriter(callSid, message, wordsPerSecond = 3) {
+  if (!io || !message || !message.message) return;
+
+  const words = message.message.split(' ');
+  const delayMs = 1000 / wordsPerSecond;
+  
+  // First, emit typing indicator
+  const typingData = {
+    callSid,
+    type: 'typing_indicator',
+    data: {
+      role: message.role,
+      speaker: message.role === 'user' ? 'Customer' : 'Agent'
+    }
+  };
+  
+  io.to('transcript-updates').emit('transcript_update', typingData);
+  io.to(`transcript-${callSid}`).emit('transcript_update', typingData);
+
+  // Then emit words progressively
+  let accumulatedText = '';
+  words.forEach((word, index) => {
+    setTimeout(() => {
+      accumulatedText = index === 0 ? word : `${accumulatedText} ${word}`;
+      
+      const updateData = {
+        callSid,
+        type: 'message',
+        data: {
+          text: accumulatedText,
+          role: message.role,
+          timestamp: message.timestamp || new Date().toISOString(),
+          speaker: message.role === 'user' ? 'Customer' : 'Agent',
+          isPartial: index < words.length - 1 // Indicate if more words are coming
+        }
+      };
+
+      // Emit the progressive update
+      io.to('transcript-updates').emit('transcript_update', updateData);
+      io.to(`transcript-${callSid}`).emit('transcript_update', updateData);
+      
+      // Log only on completion
+      if (index === words.length - 1) {
+        console.log(`[Socket.IO] Completed typewriter transcript for call ${callSid}`);
+      }
+    }, index * delayMs);
+  });
+}
+
+/**
  * Emit a transcript message update event
  * @param {string} callSid - Call SID
  * @param {Object} message - New transcript message
@@ -308,6 +363,23 @@ export function emitTranscriptUpdate(callSid, transcript) {
 export function emitTranscriptMessage(callSid, message) {
   if (!io || !message) return;
 
+  // Format for frontend compatibility
+  const updateData = {
+    callSid,
+    type: 'message',
+    data: {
+      text: message.message,
+      role: message.role,
+      timestamp: message.timestamp || new Date().toISOString(),
+      speaker: message.role === 'user' ? 'Customer' : 'Agent'
+    }
+  };
+
+  // Emit as transcript_update (what frontend expects)
+  io.to('transcript-updates').emit('transcript_update', updateData);
+  io.to(`transcript-${callSid}`).emit('transcript_update', updateData);
+
+  // Also emit the old format for backward compatibility
   const messageData = {
     callSid,
     message: {
@@ -317,11 +389,7 @@ export function emitTranscriptMessage(callSid, message) {
     },
     timestamp: new Date().toISOString()
   };
-
-  // Emit to all clients in the transcript-updates room
   io.to('transcript-updates').emit('transcript_message', messageData);
-
-  // Also emit to clients subscribed to this specific call's transcript
   io.to(`transcript-${callSid}`).emit('call_transcript_message', messageData);
 
   console.log(`[Socket.IO] Emitted transcript message for call ${callSid}`);
@@ -472,6 +540,7 @@ export default {
   handleCallStatusChange,
   emitTranscriptUpdate,
   emitTranscriptMessage,
+  emitTranscriptTypewriter,
   setCampaignData,
   getActiveCampaignsData,
   emitCampaignUpdate,
