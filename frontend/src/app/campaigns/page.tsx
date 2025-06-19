@@ -365,6 +365,7 @@ export default function CampaignsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex space-x-2 justify-end">
+                          {/* Always show monitor button for active campaigns */}
                           {campaign.status === 'in-progress' && (
                             <Button 
                               size="sm" 
@@ -378,52 +379,64 @@ export default function CampaignsPage() {
                             </Button>
                           )}
                         
-                          {campaign.status === 'draft' || campaign.status === 'scheduled' ? (
-                            <Button 
-                              size="sm" 
-                              variant="secondary"
-                              onClick={() => handleCampaignAction(campaign.id || '', 'start')}
-                              disabled={!!actionInProgress}
-                            >
-                              <Play className="h-4 w-4 mr-1" />
-                              Start
-                            </Button>
-                          ) : null}
+                          {/* Start/Resume button - always visible */}
+                          <Button 
+                            size="sm" 
+                            variant="secondary"
+                            onClick={() => handleCampaignAction(campaign.id || '', 'start')}
+                            disabled={
+                              !!actionInProgress || 
+                              campaign.status === 'in-progress' || 
+                              campaign.status === 'completed'
+                            }
+                            title={
+                              campaign.status === 'paused' ? 'Resume campaign' :
+                              campaign.status === 'in-progress' ? 'Campaign is running' :
+                              campaign.status === 'completed' ? 'Campaign completed' :
+                              'Start campaign'
+                            }
+                          >
+                            <Play className="h-4 w-4 mr-1" />
+                            {campaign.status === 'paused' ? 'Resume' : 'Start'}
+                          </Button>
                           
-                          {campaign.status === 'in-progress' ? (
-                            <>
-                              <Button 
-                                size="sm" 
-                                variant="outline"
-                                onClick={() => handleCampaignAction(campaign.id || '', 'pause')}
-                                disabled={!!actionInProgress}
-                              >
-                                <Pause className="h-4 w-4 mr-1" />
-                                Pause
-                              </Button>
-                              <Button 
-                                size="sm" 
-                                variant="destructive"
-                                onClick={() => handleCampaignAction(campaign.id || '', 'cancel')}
-                                disabled={!!actionInProgress}
-                              >
-                                <StopCircle className="h-4 w-4 mr-1" />
-                                Stop
-                              </Button>
-                            </>
-                          ) : null}
+                          {/* Pause button - always visible */}
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleCampaignAction(campaign.id || '', 'pause')}
+                            disabled={
+                              !!actionInProgress || 
+                              campaign.status !== 'in-progress'
+                            }
+                            title={
+                              campaign.status === 'in-progress' ? 'Pause campaign' :
+                              'Campaign must be running to pause'
+                            }
+                          >
+                            <Pause className="h-4 w-4 mr-1" />
+                            Pause
+                          </Button>
                           
-                          {campaign.status === 'paused' ? (
-                            <Button 
-                              size="sm" 
-                              variant="secondary"
-                              onClick={() => handleCampaignAction(campaign.id || '', 'start')}
-                              disabled={!!actionInProgress}
-                            >
-                              <Play className="h-4 w-4 mr-1" />
-                              Resume
-                            </Button>
-                          ) : null}
+                          {/* Stop button - always visible */}
+                          <Button 
+                            size="sm" 
+                            variant="destructive"
+                            onClick={() => handleCampaignAction(campaign.id || '', 'cancel')}
+                            disabled={
+                              !!actionInProgress || 
+                              campaign.status === 'completed' ||
+                              campaign.status === 'cancelled'
+                            }
+                            title={
+                              campaign.status === 'completed' ? 'Campaign already completed' :
+                              campaign.status === 'cancelled' ? 'Campaign already cancelled' :
+                              'Stop campaign'
+                            }
+                          >
+                            <StopCircle className="h-4 w-4 mr-1" />
+                            Stop
+                          </Button>
                           
                           {campaign.status !== 'in-progress' && (
                             <AlertDialog>

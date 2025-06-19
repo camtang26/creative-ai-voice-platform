@@ -69,7 +69,11 @@ import {
 // Import specific repository function needed for the temporary route
 import { getRecordingBySid } from './db/repositories/recording.repository.js';
 import { verifyWebhookSignature } from './db/webhook-handler-db.js';
-import { initializeCampaignEngine, handleCallStatusUpdate as handleCampaignCallStatus } from './db/campaign-engine.js';
+import { 
+  initializeCampaignEngine, 
+  handleCallStatusUpdate as handleCampaignCallStatus,
+  startCampaign as startCampaignEngine
+} from './db/campaign-engine.js';
 import { google } from 'googleapis';
 import fs from 'fs/promises';
 import path from 'path';
@@ -968,74 +972,25 @@ server.post('/api/db/campaigns/start-from-csv', async (request, reply) => {
       totalContacts: totalValidContacts
     });
 
-    // Activate campaign
-    await campaignRepository.updateCampaignStatus(campaign._id, 'active');
-
-    // Start calling process
-    server.log.info(`[CSV Upload] Starting to call ${validContacts.length} contacts with ${callInterval/1000}s intervals`);
+    // Initialize campaign engine if not already initialized
+    await initializeCampaignEngine();
     
-    let callsInitiated = 0;
-    let callsFailed = 0;
-
-    // Process calls asynchronously to not block the response
-    setImmediate(async () => {
-      for (let i = 0; i < validContacts.length; i++) {
-        const contact = validContacts[i];
-        try {
-          // Personalize first message if provided
-          const personalizedFirstMessage = actualFirstMessage 
-            ? actualFirstMessage.replace('{name}', contact.name || 'there')
-            : undefined;
-          
-          server.log.info(`[CSV Upload] Initiating call ${i + 1}/${validContacts.length} to ${contact.name} (${contact.phoneNumber})`);
-          
-          const callResponse = await fetch(`${request.protocol}://${request.hostname}/api/outbound-call`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              number: contact.phoneNumber,
-              prompt: agentPrompt || undefined, // Pass undefined to use ElevenLabs default
-              first_message: personalizedFirstMessage,
-              name: contact.name,
-              campaignId: campaign._id
-            })
-          });
-
-          const callResult = await callResponse.json();
-          
-          if (callResponse.ok && callResult.success) {
-            callsInitiated++;
-            server.log.info(`[CSV Upload] Call initiated successfully: ${callResult.callSid}`);
-          } else {
-            callsFailed++;
-            server.log.error(`[CSV Upload] Failed to initiate call to ${contact.phoneNumber}: ${callResult.error}`);
-          }
-
-          // Update campaign stats
-          await campaignRepository.updateCampaignStats(campaign._id, {
-            callsPlaced: callsInitiated,
-            callsFailed: callsFailed
-          });
-
-          // Wait before next call (except for the last one)
-          if (i < validContacts.length - 1) {
-            server.log.info(`[CSV Upload] Waiting ${callInterval/1000} seconds before next call...`);
-            await new Promise(resolve => setTimeout(resolve, callInterval));
-          }
-        } catch (error) {
-          callsFailed++;
-          server.log.error(`[CSV Upload] Error calling ${contact.phoneNumber}:`, error);
-        }
-      }
-
-      // Update final campaign status
-      if (callsInitiated === validContacts.length) {
-        await campaignRepository.updateCampaignStatus(campaign._id, 'completed');
-        server.log.info(`[CSV Upload] Campaign completed successfully. All ${callsInitiated} calls initiated.`);
+    // Start campaign using the campaign engine
+    server.log.info(`[CSV Upload] Starting campaign using campaign engine with ${validContacts.length} contacts`);
+    
+    try {
+      const engineStarted = await startCampaignEngine(campaign._id.toString());
+      
+      if (engineStarted) {
+        server.log.info(`[CSV Upload] Campaign started successfully in campaign engine`);
       } else {
-        server.log.warn(`[CSV Upload] Campaign finished with issues. Calls initiated: ${callsInitiated}/${validContacts.length}`);
+        throw new Error('Failed to start campaign in engine');
       }
-    });
+    } catch (error) {
+      server.log.error(`[CSV Upload] Error starting campaign in engine:`, error);
+      // Fallback to set campaign as active
+      await campaignRepository.updateCampaignStatus(campaign._id, 'active');
+    }
 
     // Return immediate response
     return reply.code(200).send({
