@@ -7,8 +7,21 @@ export function validatePhoneNumber(phone: string): { isValid: boolean; error?: 
   }
 
   try {
-    // Try to parse the phone number
-    const phoneNumber = parsePhoneNumberFromString(phone, 'US')
+    let phoneNumber;
+    
+    // Check if number already has a country code (starts with +)
+    if (phone.startsWith('+')) {
+      // Try to parse as-is (already has country code)
+      phoneNumber = parsePhoneNumberFromString(phone)
+    } else {
+      // No country code, default to Australian
+      phoneNumber = parsePhoneNumberFromString(phone, 'AU')
+      
+      // If parsing failed but the number might be valid without leading 0
+      if (!phoneNumber && phone.startsWith('0')) {
+        phoneNumber = parsePhoneNumberFromString(phone.substring(1), 'AU')
+      }
+    }
     
     if (!phoneNumber) {
       return { isValid: false, error: 'Invalid phone number format' }
@@ -20,7 +33,7 @@ export function validatePhoneNumber(phone: string): { isValid: boolean; error?: 
     
     return { 
       isValid: true, 
-      formatted: phoneNumber.format('E.164') // Returns +1234567890 format
+      formatted: phoneNumber.format('E.164') // Returns +61234567890 format
     }
   } catch (error) {
     return { isValid: false, error: 'Invalid phone number format' }

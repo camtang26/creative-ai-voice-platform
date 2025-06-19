@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'; // Import useRouter
 import { DashboardHeader } from '@/components/dashboard-header'
 import { Button, buttonVariants } from '@/components/ui/button' // Import buttonVariants
 import Link from 'next/link'
-import { formatDate, formatPhoneNumber, formatDuration } from '@/lib/utils'
+import { formatDate, formatPhoneNumber, formatDuration, cn } from '@/lib/utils'
 // Removed duplicate import line below
 import { Headphones, Download, PhoneCall, Eye, RefreshCw } from 'lucide-react'
 import { fetchCalls } from '@/lib/mongodb-api';
@@ -66,25 +66,25 @@ export default function CallLogsPage() {
     }
   }
 
-  // Function to get appropriate status styles for the badge
+  // Function to get appropriate status styles for the badge (dark theme)
   function getStatusStyles(status: CallStatus) {
     switch (status) {
       case 'in-progress':
-        return 'bg-blue-50 text-blue-700 border border-blue-200';
+        return 'bg-blue-900/50 text-blue-200 border border-blue-700/50';
       case 'completed':
-        return 'bg-green-50 text-green-700 border border-green-200';
+        return 'bg-green-900/50 text-green-200 border border-green-700/50';
       case 'failed':
       case 'busy':
       case 'no-answer':
-        return 'bg-red-50 text-red-700 border border-red-200';
+        return 'bg-red-900/50 text-red-200 border border-red-700/50';
       case 'canceled':
-        return 'bg-orange-50 text-orange-700 border border-orange-200';
+        return 'bg-orange-900/50 text-orange-200 border border-orange-700/50';
       case 'ringing':
-        return 'bg-purple-50 text-purple-700 border border-purple-200';
+        return 'bg-purple-900/50 text-purple-200 border border-purple-700/50';
       case 'initiated':
       case 'queued':
       default:
-        return 'bg-gray-50 text-gray-700 border border-gray-200';
+        return 'bg-gray-800/50 text-gray-300 border border-gray-600/50';
     }
   }
 
@@ -119,12 +119,12 @@ export default function CallLogsPage() {
       />
 
       {error && (
-        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
+        <div className="bg-red-900/50 border-l-4 border-red-700/50 p-4 rounded backdrop-blur-sm">
           <div className="flex">
             <div>
-              <p className="text-red-700">{error}</p>
+              <p className="text-red-200">{error}</p>
               <button
-                className="mt-2 text-sm text-red-700 hover:text-red-500"
+                className="mt-2 text-sm text-red-300 hover:text-red-100"
                 onClick={() => loadCallData()}
               >
                 Try Again
@@ -136,22 +136,22 @@ export default function CallLogsPage() {
 
       {isLoading ? (
         <div className="flex justify-center items-center h-64">
-          <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full"></div>
+          <div className="animate-spin h-8 w-8 border-2 border-gray-400 border-t-transparent rounded-full"></div>
         </div>
       ) : (
-        <div className="rounded-md border">
+        <div className="rounded-md border border-gray-700/50 bg-gray-900/50 backdrop-blur-sm">
           <div className="relative w-full overflow-auto">
             <table className="w-full caption-bottom text-sm">
-              <thead className="[&_tr]:border-b">
-                <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                  <th className="h-12 px-4 text-left align-middle font-medium">Name</th>
-                  <th className="h-12 px-4 text-left align-middle font-medium">Call SID</th>
-                  <th className="h-12 px-4 text-left align-middle font-medium">To</th>
-                  <th className="h-12 px-4 text-left align-middle font-medium">From</th>
-                  <th className="h-12 px-4 text-left align-middle font-medium">Status</th>
-                  <th className="h-12 px-4 text-left align-middle font-medium">Duration</th>
-                  <th className="h-12 px-4 text-left align-middle font-medium">Date & Time</th>
-                  <th className="h-12 px-4 text-left align-middle font-medium">Actions</th>
+              <thead className="[&_tr]:border-b border-gray-700/50">
+                <tr className="border-b border-gray-700/50 transition-colors hover:bg-gray-800/50">
+                  <th className="h-12 px-4 text-left align-middle font-medium text-gray-200">Name</th>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-gray-200">Call SID</th>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-gray-200">To</th>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-gray-200">From</th>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-gray-200">Status</th>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-gray-200">Duration</th>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-gray-200">Date & Time</th>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-gray-200">Actions</th>
                 </tr>
               </thead>
               <tbody className="[&_tr:last-child]:border-0">
@@ -165,26 +165,26 @@ export default function CallLogsPage() {
                     return (
                       <tr
                         key={call.callSid || `call-${Math.random().toString(36).substring(2, 9)}`} // Use callSid as key if available
-                        className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted"
+                        className="border-b border-gray-700/50 transition-colors hover:bg-gray-800/50"
                       >
-                        <td className="p-4 align-middle font-medium">{call.contactName || 'Unknown'}</td>
-                        <td className="p-4 align-middle">{call.callSid}</td>
-                        <td className="p-4 align-middle">{formatPhoneNumber(call.to)}</td>
-                        <td className="p-4 align-middle">{formatPhoneNumber(call.from)}</td>
+                        <td className="p-4 align-middle font-medium text-gray-100">{call.contactName || 'Unknown'}</td>
+                        <td className="p-4 align-middle text-gray-300">{call.callSid}</td>
+                        <td className="p-4 align-middle text-gray-300">{formatPhoneNumber(call.to)}</td>
+                        <td className="p-4 align-middle text-gray-300">{formatPhoneNumber(call.from)}</td>
                         <td className="p-4 align-middle">
                           <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusStyles(call.status)}`}>
                             {call.status}
                           </span>
                         </td>
-                        <td className="p-4 align-middle">{call.duration !== undefined ? formatDuration(call.duration) : 'N/A'}</td>
-                        <td className="p-4 align-middle">{formatDate(call.startTime)}</td>
+                        <td className="p-4 align-middle text-gray-300">{call.duration !== undefined ? formatDuration(call.duration) : 'N/A'}</td>
+                        <td className="p-4 align-middle text-gray-300">{formatDate(call.startTime)}</td>
                         <td className="p-4 align-middle">
                           {/* Restoring original structure, keeping onClick removed */}
                           <div className="flex items-center gap-2">
                             {/* Reverting to Link and using correct property call.callSid */}
                             <Link
                               href={call.callSid ? `/call-details/${call.callSid}` : '#'}
-                              className={buttonVariants({ variant: "outline", size: "sm" })}
+                              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "border-gray-600/50 hover:bg-gray-800/50 text-gray-300")}
                               aria-disabled={!call.callSid}
                             >
                               <Eye className="h-4 w-4" />
@@ -193,7 +193,7 @@ export default function CallLogsPage() {
                             {Array.isArray(call.recordingIds) && call.recordingIds.length > 0 && (
                               <Link
                                 href={call.callSid ? `/recordings/${call.callSid}` : '#'}
-                                className={buttonVariants({ variant: "outline", size: "sm" })}
+                                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "border-gray-600/50 hover:bg-gray-800/50 text-gray-300")}
                                 aria-disabled={!call.callSid}
                               >
                                 <Headphones className="h-4 w-4" />
@@ -201,7 +201,7 @@ export default function CallLogsPage() {
                             )}
                             <Link
                               href={call.to ? `/make-call?number=${call.to.replace('+', '')}&name=${encodeURIComponent(call.contactName || '')}` : '#'}
-                              className={buttonVariants({ variant: "outline", size: "sm" })}
+                              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "border-gray-600/50 hover:bg-gray-800/50 text-gray-300")}
                               aria-disabled={!call.to}
                             >
                               <PhoneCall className="h-4 w-4" />
@@ -213,7 +213,7 @@ export default function CallLogsPage() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={8} className="p-4 text-center text-muted-foreground">
+                    <td colSpan={8} className="p-4 text-center text-gray-400">
                       No call logs found
                     </td>
                   </tr>
@@ -225,7 +225,7 @@ export default function CallLogsPage() {
       )}
 
       <div className="flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">
+        <div className="text-sm text-gray-400">
           Showing {callLogsData.length} of {totalCalls} calls
         </div>
 

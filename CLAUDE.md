@@ -27,7 +27,7 @@ npm run test-mongodb-deletion # Test cascade deletions
 
 # Make test calls
 npm run test-call             # Basic test call
-npm run custom-call -- +1234567890 "Custom message"
+npm run custom-call -- +61412345678 "Custom message"  # Note: Australian numbers default
 npm run sheet-call -- SPREADSHEET_ID  # Google Sheets integration
 ```
 
@@ -72,6 +72,10 @@ ngrok http 8000
    - Socket.io on port 8000 for dashboard updates
 3. **MongoDB Collections**: calls, campaigns, contacts, analytics, recordings
 4. **CORS Configuration**: Dynamic origin validation for production deployments
+5. **Phone Validation**: Defaults to Australian (+61) for numbers without country codes
+   - Numbers with + are preserved as-is
+   - Numbers starting with 0 have it removed before adding +61
+   - See `docs/guides/AUSTRALIAN_PHONE_VALIDATION.md` for details
 
 ## Critical Implementation Details
 
@@ -102,6 +106,7 @@ ngrok http 8000
 3. **WebSocket Connection**: Ensure ngrok URL is updated in `.env` for local development
 4. **MongoDB Connection**: Check `MONGODB_URI` in environment variables
 5. **Call Not Ending**: Verify `ELEVENLABS_WEBHOOK_SECRET` is configured correctly
+6. **Phone Number Format**: System defaults to Australian (+61) for numbers without country codes
 
 ## Testing Strategy
 

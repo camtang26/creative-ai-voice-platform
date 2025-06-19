@@ -198,7 +198,8 @@ export function UploadSheetForm({ campaignName, agentPrompt, firstMessage }: Upl
           </Label>
         </div>
         <p className="text-xs text-muted-foreground">
-          When enabled, invalid phone numbers will be filtered out and reported.
+          When enabled, invalid phone numbers will be filtered out and reported. 
+          Numbers without country codes will default to Australian (+61).
         </p>
       </div>
       

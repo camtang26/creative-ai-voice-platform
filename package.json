@@ -66,6 +66,7 @@
     "mongoose": "^7.5.0",
     "nodemailer": "^6.10.0",
     "open": "^10.1.0",
+    "playwright": "^1.53.1",
     "raw-body": "^3.0.0",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",

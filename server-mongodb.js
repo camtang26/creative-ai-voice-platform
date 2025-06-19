@@ -810,17 +810,38 @@ server.post('/api/db/campaigns/start-from-csv', async (request, reply) => {
       
       if (validatePhoneNumbers === 'true') {
         try {
-          // Try to parse with US as default country
-          const phoneObj = parsePhoneNumber(phoneNumber, 'US');
-          if (phoneObj && phoneObj.isValid()) {
-            formattedPhone = phoneObj.format('E.164');
-            isValid = true;
-          } else {
-            // Try without country code
-            isValid = isValidPhoneNumber(phoneNumber, 'US');
-            if (!isValid) {
+          // First check if the number already has a country code (starts with +)
+          if (phoneNumber.startsWith('+')) {
+            // Try to parse as-is (already has country code)
+            const phoneObj = parsePhoneNumber(phoneNumber);
+            if (phoneObj && phoneObj.isValid()) {
+              formattedPhone = phoneObj.format('E.164');
+              isValid = true;
+            } else {
               invalidNumbers.push({ name: fullName, phone: phoneNumber, reason: 'Invalid phone number format' });
               continue;
+            }
+          } else {
+            // No country code, default to Australian (+61)
+            const phoneObj = parsePhoneNumber(phoneNumber, 'AU');
+            if (phoneObj && phoneObj.isValid()) {
+              formattedPhone = phoneObj.format('E.164');
+              isValid = true;
+            } else {
+              // Try validation with AU country code
+              isValid = isValidPhoneNumber(phoneNumber, 'AU');
+              if (!isValid) {
+                invalidNumbers.push({ name: fullName, phone: phoneNumber, reason: 'Invalid phone number format' });
+                continue;
+              } else {
+                // If valid but couldn't parse, prepend +61 manually
+                // Remove leading 0 if present (common in Australian numbers)
+                let cleanedNumber = phoneNumber.trim();
+                if (cleanedNumber.startsWith('0')) {
+                  cleanedNumber = cleanedNumber.substring(1);
+                }
+                formattedPhone = `+61${cleanedNumber}`;
+              }
             }
           }
         } catch (error) {

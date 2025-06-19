@@ -7,33 +7,33 @@
 
 // Modern Color System with Gradients
 export const modernColors = {
-  // Vibrant gradients for cards and backgrounds
+  // Sleek black gradients for professional look
   gradients: {
-    primary: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    secondary: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-    success: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-    warning: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-    danger: 'linear-gradient(135deg, #f857a6 0%, #ff5858 100%)',
-    info: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-    dark: 'linear-gradient(135deg, #30cfd0 0%, #330867 100%)',
-    mesh: 'radial-gradient(at 40% 20%, hsla(28,100%,74%,1) 0px, transparent 50%), radial-gradient(at 80% 0%, hsla(189,100%,56%,1) 0px, transparent 50%), radial-gradient(at 0% 50%, hsla(355,100%,93%,1) 0px, transparent 50%), radial-gradient(at 80% 50%, hsla(340,100%,76%,1) 0px, transparent 50%), radial-gradient(at 0% 100%, hsla(22,100%,77%,1) 0px, transparent 50%), radial-gradient(at 80% 100%, hsla(242,100%,70%,1) 0px, transparent 50%), radial-gradient(at 0% 0%, hsla(343,100%,76%,1) 0px, transparent 50%)',
+    primary: 'linear-gradient(135deg, #1a1a1a 0%, #000000 100%)',
+    secondary: 'linear-gradient(135deg, #2a2a2a 0%, #0a0a0a 100%)',
+    success: 'linear-gradient(135deg, #0d1117 0%, #0a3d2e 100%)',
+    warning: 'linear-gradient(135deg, #1a1a1a 0%, #3d2e0a 100%)',
+    danger: 'linear-gradient(135deg, #1a1a1a 0%, #3d0a0a 100%)',
+    info: 'linear-gradient(135deg, #0d1117 0%, #0a2d3d 100%)',
+    dark: 'linear-gradient(135deg, #000000 0%, #0a0a0a 100%)',
+    mesh: 'radial-gradient(at 40% 20%, hsla(0,0%,15%,0.8) 0px, transparent 50%), radial-gradient(at 80% 0%, hsla(0,0%,20%,0.8) 0px, transparent 50%), radial-gradient(at 0% 50%, hsla(0,0%,10%,0.8) 0px, transparent 50%), radial-gradient(at 80% 50%, hsla(0,0%,25%,0.8) 0px, transparent 50%), radial-gradient(at 0% 100%, hsla(0,0%,15%,0.8) 0px, transparent 50%), radial-gradient(at 80% 100%, hsla(0,0%,20%,0.8) 0px, transparent 50%), radial-gradient(at 0% 0%, hsla(0,0%,10%,0.8) 0px, transparent 50%)',
   },
   
-  // Glassmorphism effects
+  // Glassmorphism effects with darker tones
   glass: {
-    background: 'rgba(255, 255, 255, 0.1)',
-    backgroundDark: 'rgba(0, 0, 0, 0.2)',
-    border: 'rgba(255, 255, 255, 0.18)',
-    borderDark: 'rgba(255, 255, 255, 0.08)',
+    background: 'rgba(20, 20, 20, 0.6)',
+    backgroundDark: 'rgba(0, 0, 0, 0.7)',
+    border: 'rgba(255, 255, 255, 0.1)',
+    borderDark: 'rgba(255, 255, 255, 0.05)',
     blur: 'blur(10px)',
     heavyBlur: 'blur(20px)',
   },
   
-  // Neon accents for real-time indicators
+  // Subtle accents for real-time indicators
   neon: {
     green: '#00ff88',
     blue: '#00d4ff',
-    purple: '#9945ff',
+    silver: '#c0c0c0',
     pink: '#ff0080',
     yellow: '#ffea00',
     orange: '#ff6600',

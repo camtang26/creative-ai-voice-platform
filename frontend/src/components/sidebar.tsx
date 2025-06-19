@@ -157,8 +157,8 @@ export function Sidebar() {
                   whileTap={{ scale: 0.98 }}
                   className={`flex items-center justify-between gap-3 px-4 py-3 rounded-xl text-sm transition-all duration-300 w-full relative overflow-hidden group ${
                     isActive 
-                      ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-white border border-blue-400/30 shadow-lg shadow-blue-500/20' 
-                      : 'text-white/70 hover:text-white hover:bg-white/10 border border-transparent'
+                      ? 'bg-gradient-to-r from-gray-800/40 to-gray-900/40 text-white border border-gray-600/30 shadow-lg shadow-black/50' 
+                      : 'text-white/70 hover:text-white hover:bg-gray-800/30 border border-transparent'
                   }`}
                 >
                   <div className="flex items-center gap-3 relative z-10">
@@ -174,7 +174,7 @@ export function Sidebar() {
                   {isActive && (
                     <motion.div
                       layoutId="activeTab"
-                      className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-xl"
+                      className="absolute inset-0 bg-gradient-to-r from-gray-700/20 to-gray-800/20 rounded-xl"
                       transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                     />
                   )}
@@ -188,8 +188,8 @@ export function Sidebar() {
                     href={item.href}
                     className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-all duration-300 relative overflow-hidden group ${
                       isActive 
-                        ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-white border border-blue-400/30 shadow-lg shadow-blue-500/20' 
-                        : 'text-white/70 hover:text-white hover:bg-white/10 border border-transparent'
+                        ? 'bg-gradient-to-r from-gray-800/40 to-gray-900/40 text-white border border-gray-600/30 shadow-lg shadow-black/50' 
+                        : 'text-white/70 hover:text-white hover:bg-gray-800/30 border border-transparent'
                     }`}
                   >
                     <item.icon className={`h-5 w-5 ${isActive ? 'text-blue-400' : ''}`} />
@@ -197,7 +197,7 @@ export function Sidebar() {
                     {isActive && (
                       <motion.div
                         layoutId="activeTab"
-                        className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-xl"
+                        className="absolute inset-0 bg-gradient-to-r from-gray-700/20 to-gray-800/20 rounded-xl"
                         transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                       />
                     )}
@@ -230,8 +230,8 @@ export function Sidebar() {
                             href={subItem.href}
                             className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-300 relative ${
                               isSubActive 
-                                ? 'bg-gradient-to-r from-blue-500/15 to-purple-500/15 text-white border-l-2 border-blue-400' 
-                                : 'text-white/60 hover:text-white hover:bg-white/5'
+                                ? 'bg-gradient-to-r from-gray-700/30 to-gray-800/30 text-white border-l-2 border-gray-400' 
+                                : 'text-white/60 hover:text-white hover:bg-gray-800/20'
                             }`}
                           >
                             <div className="w-1 h-1 bg-current rounded-full opacity-60" />

@@ -175,9 +175,9 @@ export const ModernStatCard: React.FC<ModernStatCardProps> = ({
       onClick={onClick}
       className={cn(
         "relative overflow-hidden rounded-2xl p-6",
-        "bg-white/10 dark:bg-black/20",
+        "bg-gray-900/50 dark:bg-black/50",
         "backdrop-blur-xl",
-        "border border-white/20 dark:border-white/10",
+        "border border-gray-700/50 dark:border-gray-800/50",
         "shadow-xl",
         onClick && "cursor-pointer",
         className
@@ -239,8 +239,8 @@ export const ModernStatCard: React.FC<ModernStatCardProps> = ({
       <div className="relative z-10">
         {/* Header */}
         <div className="flex items-start justify-between mb-4">
-          <div>
-            <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">
+          <div className="flex-1 mr-2">
+            <h3 className="text-base font-semibold text-gray-300 dark:text-gray-400">
               {title}
             </h3>
           </div>
@@ -284,7 +284,7 @@ export const ModernStatCard: React.FC<ModernStatCardProps> = ({
           {isLoading ? (
             <div className="h-10 w-32 bg-white/10 rounded-lg animate-pulse" />
           ) : (
-            <div className="text-3xl font-bold text-white">
+            <div className="text-4xl font-bold text-white">
               {typeof value === 'number' ? (
                 <AnimatedNumber value={value} format={(n) => n.toLocaleString()} />
               ) : (
@@ -351,23 +351,7 @@ export const ModernStatCard: React.FC<ModernStatCardProps> = ({
         />
       </motion.div>
       
-      {/* Live indicator */}
-      {!isLoading && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: delay + 0.5 }}
-          className="absolute top-4 left-4"
-        >
-          <div className="flex items-center gap-1">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-            </span>
-            <span className="text-xs text-gray-400">Live</span>
-          </div>
-        </motion.div>
-      )}
+
     </motion.div>
   );
 };
