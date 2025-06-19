@@ -253,7 +253,7 @@ export default function CampaignPageEnhanced({ params }: CampaignPageProps) {
       if (result.success && result.data) {
         // Transform the call data to match our interface
         const transformedCalls = result.data.calls.map((call: any) => ({
-          sid: call.sid,
+          sid: call.callSid || call._id, // Use callSid from backend, fallback to _id
           phone: call.to,
           name: call.contactName || 'Unknown',
           status: call.status,
@@ -707,8 +707,8 @@ export default function CampaignPageEnhanced({ params }: CampaignPageProps) {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {callData.map((call) => (
-                          <TableRow key={call.sid}>
+                        {callData.map((call, index) => (
+                          <TableRow key={`${call.sid}-${index}`}>
                             <TableCell>
                               <div>
                                 <div className="font-medium">{call.name}</div>

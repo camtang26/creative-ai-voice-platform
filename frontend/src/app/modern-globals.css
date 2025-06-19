@@ -5,12 +5,12 @@
 /* Modern CSS Variables */
 @layer base {
   :root {
-    /* Enhanced color palette */
-    --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    --gradient-success: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
-    --gradient-warning: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
-    --gradient-danger: linear-gradient(135deg, #f857a6 0%, #ff5858 100%);
-    --gradient-info: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    /* Enhanced color palette - matching modern-design-system.ts */
+    --gradient-primary: linear-gradient(135deg, #1a1a1a 0%, #000000 100%);
+    --gradient-success: linear-gradient(135deg, #0d1117 0%, #0a3d2e 100%);
+    --gradient-warning: linear-gradient(135deg, #1a1a1a 0%, #3d2e0a 100%);
+    --gradient-danger: linear-gradient(135deg, #1a1a1a 0%, #3d0a0a 100%);
+    --gradient-info: linear-gradient(135deg, #0d1117 0%, #0a2d3d 100%);
     
     /* Neon colors for accents */
     --neon-green: #00ff88;

@@ -106,7 +106,13 @@ export const ModernStatCard: React.FC<ModernStatCardProps> = ({
   delay = 0,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const gradientBg = modernColors.gradients[gradient];
+  
+  // Prevent hydration mismatch by only rendering gradient after mount
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
   
   const TrendIcon = change?.trend === 'up' ? TrendingUp : TrendingDown;
   const trendColor = change?.trend === 'up' ? '#10b981' : '#ef4444';
@@ -183,19 +189,23 @@ export const ModernStatCard: React.FC<ModernStatCardProps> = ({
         className
       )}
       style={{
-        boxShadow: isHovered 
-          ? `0 20px 40px rgba(0, 0, 0, 0.1), 0 0 40px ${modernColors.neon.blue}20`
+        boxShadow: isMounted 
+          ? (isHovered 
+            ? `0 20px 40px rgba(0, 0, 0, 0.1), 0 0 40px ${modernColors.neon.blue}20`
+            : "0 10px 30px rgba(0, 0, 0, 0.1)")
           : "0 10px 30px rgba(0, 0, 0, 0.1)"
       }}
     >
       {/* Gradient background overlay */}
-      <div 
-        className="absolute inset-0 opacity-10"
-        style={{
-          background: gradientBg,
-          filter: 'blur(40px)',
-        }}
-      />
+      {isMounted && (
+        <div 
+          className="absolute inset-0 opacity-10"
+          style={{
+            background: gradientBg,
+            filter: 'blur(40px)',
+          }}
+        />
+      )}
       
       {/* Animated background particles */}
       <AnimatePresence>
@@ -212,7 +222,7 @@ export const ModernStatCard: React.FC<ModernStatCardProps> = ({
                   key={i}
                   className="absolute w-32 h-32 rounded-full"
                   style={{
-                    background: gradientBg,
+                    background: isMounted ? gradientBg : 'transparent',
                     filter: 'blur(60px)',
                     left: `${30 * i}%`,
                     top: `${20 + i * 20}%`,
@@ -254,9 +264,9 @@ export const ModernStatCard: React.FC<ModernStatCardProps> = ({
           >
             <div 
               className="p-3 rounded-xl"
-              style={{
-                background: `linear-gradient(135deg, ${modernColors.neon.blue}20, ${modernColors.neon.purple}20)`,
-              }}
+              style={isMounted ? {
+                background: `linear-gradient(135deg, ${modernColors.neon.blue}20, ${modernColors.neon.pink}20)`,
+              } : undefined}
             >
               <div className="text-white">
                 {icon}
@@ -270,10 +280,10 @@ export const ModernStatCard: React.FC<ModernStatCardProps> = ({
                 initial="initial"
                 animate="animate"
                 className="absolute inset-0 rounded-xl"
-                style={{
+                style={isMounted ? {
                   background: gradientBg,
                   filter: 'blur(20px)',
-                }}
+                } : { filter: 'blur(20px)' }}
               />
             )}
           </motion.div>
@@ -304,11 +314,11 @@ export const ModernStatCard: React.FC<ModernStatCardProps> = ({
           >
             <TrendIcon 
               className="w-4 h-4" 
-              style={{ color: trendColor }}
+              style={isMounted ? { color: trendColor } : undefined}
             />
             <span 
               className="text-sm font-medium"
-              style={{ color: trendColor }}
+              style={isMounted ? { color: trendColor } : undefined}
             >
               {change.value}
             </span>
@@ -328,7 +338,7 @@ export const ModernStatCard: React.FC<ModernStatCardProps> = ({
           >
             <Sparkline 
               data={sparkline} 
-              color={change?.trend === 'up' ? modernColors.neon.green : modernColors.neon.pink}
+              color={isMounted ? (change?.trend === 'up' ? modernColors.neon.green : modernColors.neon.pink) : '#888888'}
             />
           </motion.div>
         )}

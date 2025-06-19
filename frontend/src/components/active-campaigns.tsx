@@ -37,7 +37,7 @@ import {
   stopCampaign as stopCampaignApi
 } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import { useSocket } from '@/hooks/useSocket'
+import { useSocket } from '@/lib/socket-context'
 
 interface ActiveCampaign {
   id: string
@@ -342,7 +342,7 @@ export function ActiveCampaigns() {
               Stop Campaign
             </AlertDialogAction>
           </AlertDialogFooter>
-        </AlertDialog>
+        </AlertDialogContent>
       </AlertDialog>
     </>
   )
