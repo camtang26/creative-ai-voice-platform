@@ -376,6 +376,14 @@ async function makeCallToContact(campaignId, contact) {
       contactId: contact._id
     };
     
+    // Update contact IMMEDIATELY to prevent duplicate calls
+    const contactRepository = getContactRepository();
+    await contactRepository.updateContact(contact._id, {
+      callCount: (contact.callCount || 0) + 1,
+      lastContacted: new Date()
+    });
+    console.log(`[Campaign Engine] Pre-marked contact as called: ${contact.name} (${contact._id})`);
+    
     // Make outbound call
     const callResult = await makeOutboundCall(callParams);
     
@@ -399,10 +407,15 @@ async function makeCallToContact(campaignId, contact) {
         callsPlaced: (campaign.stats?.callsPlaced || 0) + 1
       });
       
-      // Update contact call history
+      // Update contact call history with the actual call ID
       await updateContactCallHistory(contact._id, callResult.callSid);
     } else {
       console.error(`[Campaign Engine] Failed to initiate call: ${callResult.error}`);
+      // Decrement the call count since the call failed
+      await contactRepository.updateContact(contact._id, {
+        callCount: Math.max(0, (contact.callCount || 1) - 1)
+      });
+      console.log(`[Campaign Engine] Reverted call count for failed call to: ${contact.name}`);
     }
   } catch (error) {
     console.error(`[Campaign Engine] Error making call to contact for campaign ${campaignId}:`, error);

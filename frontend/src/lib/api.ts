@@ -591,6 +591,142 @@ export async function stopCampaign(campaignId: string) {
 }
 
 /**
+ * Fetch active campaigns with progress information
+ */
+export async function fetchActiveCampaigns() {
+  if (USE_MOCK_DATA) {
+    console.log('[API] Using mock data for fetching active campaigns');
+    return {
+      success: true,
+      data: {
+        campaigns: [
+          {
+            id: 'campaign-1',
+            name: 'Sales Campaign Q4',
+            status: 'active',
+            totalContacts: 150,
+            validatedContacts: 145,
+            contactsRemaining: 95,
+            progress: {
+              callsPlaced: 50,
+              callsCompleted: 45,
+              callsAnswered: 42,
+              callsFailed: 5,
+              percentComplete: 34
+            },
+            activeCalls: 3,
+            paused: false,
+            settings: {
+              callDelay: 5000,
+              maxConcurrentCalls: 5
+            },
+            createdAt: new Date().toISOString(),
+            lastExecuted: new Date().toISOString()
+          }
+        ]
+      }
+    };
+  }
+
+  try {
+    const response = await fetch(getApiUrl('/api/db/campaigns/active'));
+    if (!response.ok) {
+      throw new Error(`Error fetching active campaigns: ${response.statusText}`);
+    }
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('Failed to fetch active campaigns:', error);
+    console.log('[API] Falling back to mock data');
+    return {
+      success: true,
+      data: {
+        campaigns: []
+      }
+    };
+  }
+}
+
+/**
+ * Resume a paused campaign
+ */
+export async function resumeCampaign(campaignId: string) {
+  if (USE_MOCK_DATA) {
+    console.log(`[API] Using mock data for resuming campaign ${campaignId}`);
+    return { success: true, message: 'Campaign resumed successfully' };
+  }
+
+  try {
+    const response = await fetch(getApiUrl(`/api/db/campaigns/${campaignId}/resume`), {
+      method: 'POST',
+    });
+    if (!response.ok) {
+      throw new Error(`Error resuming campaign: ${response.statusText}`);
+    }
+    const result = await response.json();
+    return {
+      success: result.success,
+      message: result.message || 'Campaign resumed successfully',
+      data: result.data,
+      error: result.error
+    };
+  } catch (error) {
+    console.error(`Failed to resume campaign ${campaignId}:`, error);
+    console.log('[API] Falling back to mock data');
+    return { success: true, message: 'Campaign resumed successfully' };
+  }
+}
+
+/**
+ * Fetch campaign progress details
+ */
+export async function fetchCampaignProgress(campaignId: string) {
+  if (USE_MOCK_DATA) {
+    console.log(`[API] Using mock data for fetching campaign progress ${campaignId}`);
+    return {
+      success: true,
+      data: {
+        progress: {
+          callsPlaced: 50,
+          callsCompleted: 45,
+          callsAnswered: 42,
+          callsFailed: 5,
+          percentComplete: 34
+        },
+        contactsRemaining: 95,
+        activeCalls: 3
+      }
+    };
+  }
+
+  try {
+    const response = await fetch(getApiUrl(`/api/db/campaigns/${campaignId}/progress`));
+    if (!response.ok) {
+      throw new Error(`Error fetching campaign progress: ${response.statusText}`);
+    }
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error(`Failed to fetch campaign progress ${campaignId}:`, error);
+    console.log('[API] Falling back to mock data');
+    return {
+      success: true,
+      data: {
+        progress: {
+          callsPlaced: 0,
+          callsCompleted: 0,
+          callsAnswered: 0,
+          callsFailed: 0,
+          percentComplete: 0
+        },
+        contactsRemaining: 0,
+        activeCalls: 0
+      }
+    };
+  }
+}
+
+/**
  * Fetch active campaigns
  */
 export async function fetchActiveCampaigns() {
