@@ -1592,6 +1592,13 @@ wss.on('connection', (ws, request) => {
               const transcriptMsg = message.transcript_update;
               if (transcriptMsg && transcriptMsg.message) {
                 server.log.debug(`[WS Manual] Transcript: ${transcriptMsg.role}: ${transcriptMsg.message.substring(0, 50)}...`);
+                // Append transcript to call record
+                if (callSid && callRepository) {
+                  callRepository.appendTranscriptSegment(callSid, transcriptMsg.role, transcriptMsg.message)
+                    .catch(err => 
+                      server.log.error(`[WS Manual][DB] Error appending transcript to call ${callSid}:`, err)
+                    );
+                }
                 if (callSid && callEventRepository) { 
                   callEventRepository.logEvent(callSid, 'transcript_segment', { 
                     role: transcriptMsg.role, 

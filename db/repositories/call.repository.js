@@ -357,6 +357,53 @@ export async function deleteCall(callSid) {
   }
 }
 
+/**
+ * Append transcript segment to call
+ * @param {string} callSid - Twilio Call SID
+ * @param {string} role - Role (user/agent)
+ * @param {string} message - Transcript message
+ * @returns {Promise<Object>} Updated call document
+ */
+export async function appendTranscriptSegment(callSid, role, message) {
+  try {
+    if (!callSid) {
+      throw new Error('Call SID is required');
+    }
+    
+    // Get current call
+    const call = await Call.findOne({ callSid });
+    if (!call) {
+      console.log(`[MongoDB] No call found with SID: ${callSid} to append transcript`);
+      return null;
+    }
+    
+    // Build transcript line
+    const transcriptLine = `${role}: ${message}`;
+    
+    // Append to existing transcript or create new
+    const currentTranscript = call.transcript || '';
+    const newTranscript = currentTranscript ? `${currentTranscript}\n${transcriptLine}` : transcriptLine;
+    
+    // Update call with new transcript
+    const updatedCall = await Call.findOneAndUpdate(
+      { callSid },
+      { 
+        $set: { 
+          transcript: newTranscript,
+          transcriptUpdateCount: (call.transcriptUpdateCount || 0) + 1
+        }
+      },
+      { new: true }
+    );
+    
+    console.log(`[MongoDB] Appended transcript segment to call ${callSid} (${role})`);
+    return updatedCall;
+  } catch (error) {
+    console.error(`[MongoDB] Error appending transcript to call ${callSid}:`, error);
+    throw error;
+  }
+}
+
 export default {
   saveCall,
   updateCallStatus,
@@ -365,5 +412,6 @@ export default {
   getCallBySid,
   getActiveCalls,
   getCallHistory,
-  deleteCall
+  deleteCall,
+  appendTranscriptSegment
 };
