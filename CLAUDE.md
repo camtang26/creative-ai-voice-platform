@@ -44,9 +44,13 @@ npm run lint   # Run linting
 # Required: Copy .env.example to .env and fill in credentials
 cp .env.example .env
 
-# For ngrok tunneling (required for local development)
-ngrok http 8000
-# Then update SERVER_URL in .env with the ngrok URL
+# IMPORTANT: Backend is ALWAYS run through production on Render
+# DO NOT run the backend locally - Cameron uses the production backend at:
+# https://twilio-elevenlabs-app.onrender.com
+
+# For frontend development only:
+cd frontend
+npm run dev  # Runs on port 3000
 ```
 
 ## Architecture Overview
@@ -66,10 +70,10 @@ ngrok http 8000
 5. **Real-time Features**: Live call monitoring via Socket.io connection
 
 ### Key Integration Points
-1. **API Base URL**: Backend runs on port 8000, frontend proxies via Next.js config
+1. **API Base URL**: Backend runs on Render.com production server, frontend proxies via Next.js config
 2. **WebSocket Endpoints**: 
    - `/outbound-media-stream` - Twilio audio streaming
-   - Socket.io on port 8000 for dashboard updates
+   - Socket.io connection to production backend for dashboard updates
 3. **MongoDB Collections**: calls, campaigns, contacts, analytics, recordings
 4. **CORS Configuration**: Dynamic origin validation for production deployments
 5. **Phone Validation**: Defaults to Australian (+61) for numbers without country codes
