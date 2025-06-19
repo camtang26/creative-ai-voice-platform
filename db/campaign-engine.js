@@ -313,11 +313,13 @@ async function getNextContactsToCall(campaignId, limit = 1) {
     // Get contact repository
     const contactRepository = getContactRepository();
     
-    // Get contacts for campaign that haven't been called yet or have been called but need a retry
+    // Get contacts for campaign that haven't been called yet
+    // CRITICAL FIX: Only get contacts with callCount = 0 to prevent repeat calling
     const { contacts } = await contactRepository.getContacts(
       {
         campaignId,
-        status: 'active'
+        status: 'active',
+        callCount: 0  // Only get contacts that haven't been called yet
       },
       {
         limit,

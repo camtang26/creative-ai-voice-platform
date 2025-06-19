@@ -14,7 +14,14 @@ import {
   updateCampaignStatus,
   updateCampaignStats
 } from '../repositories/campaign.repository.js';
-import { saveContact, getContactByPhoneNumber } from '../repositories/contact.repository.js'; // Corrected import
+import {
+  startCampaign as startCampaignEngine,
+  pauseCampaign as pauseCampaignEngine,
+  resumeCampaign as resumeCampaignEngine,
+  stopCampaign as stopCampaignEngine,
+  getActiveCampaigns
+} from '../campaign-engine.js';
+import { saveContact, getContactByPhoneNumber, getContacts as getContactsFromRepo } from '../repositories/contact.repository.js'; // Corrected import
 import { getCacheValue, setCacheValue } from '../utils/cache.js';
 import fs from 'node:fs';
 import { pipeline } from 'node:stream/promises';
@@ -444,16 +451,38 @@ export async function registerCampaignApiRoutes(fastify, options = {}) {
         });
       }
       
-      // Update campaign status to active
-      const updatedCampaign = await updateCampaignStatus(campaignId, 'active');
-      
-      if (!updatedCampaign) {
+      // Check if campaign exists and has contacts
+      const campaign = await getCampaignById(campaignId);
+      if (!campaign) {
         return reply.code(404).send({
           success: false,
           error: `Campaign not found with ID: ${campaignId}`,
           timestamp: new Date().toISOString()
         });
       }
+      
+      // Verify campaign has contacts
+      if (!campaign.contactIds || campaign.contactIds.length === 0) {
+        return reply.code(400).send({
+          success: false,
+          error: 'Cannot start campaign without contacts',
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      // Start the campaign engine
+      const engineStarted = await startCampaignEngine(campaignId);
+      
+      if (!engineStarted) {
+        return reply.code(500).send({
+          success: false,
+          error: 'Failed to start campaign engine',
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      // Update campaign status to active (engine already does this, but for consistency)
+      const updatedCampaign = await updateCampaignStatus(campaignId, 'active');
       
       return {
         success: true,
@@ -483,6 +512,13 @@ export async function registerCampaignApiRoutes(fastify, options = {}) {
           error: 'Campaign ID is required',
           timestamp: new Date().toISOString()
         });
+      }
+      
+      // Pause the campaign engine
+      const enginePaused = await pauseCampaignEngine(campaignId);
+      
+      if (!enginePaused) {
+        console.warn(`[API] Campaign engine not active for campaign ${campaignId}, updating status anyway`);
       }
       
       // Update campaign status to paused
@@ -526,7 +562,18 @@ export async function registerCampaignApiRoutes(fastify, options = {}) {
         });
       }
       
-      // Update campaign status to active
+      // Resume the campaign engine
+      const engineResumed = await resumeCampaignEngine(campaignId);
+      
+      if (!engineResumed) {
+        return reply.code(500).send({
+          success: false,
+          error: 'Failed to resume campaign engine',
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      // Update campaign status to active (engine already does this, but for consistency)
       const updatedCampaign = await updateCampaignStatus(campaignId, 'active');
       
       if (!updatedCampaign) {
@@ -565,6 +612,13 @@ export async function registerCampaignApiRoutes(fastify, options = {}) {
           error: 'Campaign ID is required',
           timestamp: new Date().toISOString()
         });
+      }
+      
+      // Stop the campaign engine
+      const engineStopped = await stopCampaignEngine(campaignId);
+      
+      if (!engineStopped) {
+        console.warn(`[API] Campaign engine not active for campaign ${campaignId}, updating status anyway`);
       }
       
       // Update campaign status to completed
@@ -606,6 +660,13 @@ export async function registerCampaignApiRoutes(fastify, options = {}) {
           error: 'Campaign ID is required',
           timestamp: new Date().toISOString()
         });
+      }
+      
+      // Stop the campaign engine
+      const engineStopped = await stopCampaignEngine(campaignId);
+      
+      if (!engineStopped) {
+        console.warn(`[API] Campaign engine not active for campaign ${campaignId}, updating status anyway`);
       }
       
       // Update campaign status to cancelled
@@ -701,6 +762,161 @@ export async function registerCampaignApiRoutes(fastify, options = {}) {
       return reply.code(500).send({
         success: false,
         error: 'Error getting campaign statistics',
+        details: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+  
+  // Get active campaigns with progress
+  fastify.get('/api/db/campaigns/active', async (request, reply) => {
+    try {
+      // Get active campaigns from engine
+      const activeCampaigns = getActiveCampaigns();
+      
+      // Get detailed information for each active campaign
+      const detailedCampaigns = await Promise.all(
+        activeCampaigns.map(async (activeCampaign) => {
+          const campaign = await getCampaignById(activeCampaign.id);
+          if (!campaign) return null;
+          
+          // Get contacts that haven't been called yet
+          const { contacts: uncalledContacts, total: uncalledTotal } = await getContactsFromRepo(
+            {
+              campaignId: campaign._id.toString(),
+              status: 'active',
+              callCount: 0
+            },
+            { limit: 0 } // Get count only
+          );
+          
+          return {
+            id: campaign._id,
+            name: campaign.name,
+            status: campaign.status,
+            totalContacts: campaign.contactIds.length,
+            validatedContacts: campaign.stats?.totalContacts || campaign.contactIds.length,
+            contactsRemaining: uncalledTotal || 0,
+            progress: {
+              callsPlaced: campaign.stats?.callsPlaced || 0,
+              callsCompleted: campaign.stats?.callsCompleted || 0,
+              callsAnswered: campaign.stats?.callsAnswered || 0,
+              callsFailed: campaign.stats?.callsFailed || 0,
+              percentComplete: campaign.contactIds.length > 0 
+                ? Math.round(((campaign.stats?.callsPlaced || 0) / campaign.contactIds.length) * 100)
+                : 0
+            },
+            activeCalls: activeCampaign.activeCalls,
+            paused: activeCampaign.paused,
+            settings: campaign.settings,
+            createdAt: campaign.createdAt,
+            lastExecuted: campaign.lastExecuted
+          };
+        })
+      );
+      
+      // Filter out null results
+      const validCampaigns = detailedCampaigns.filter(c => c !== null);
+      
+      return {
+        success: true,
+        data: {
+          campaigns: validCampaigns,
+          total: validCampaigns.length
+        },
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error(`[API] Error getting active campaigns:`, error);
+      return reply.code(500).send({
+        success: false,
+        error: 'Error getting active campaigns',
+        details: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+  
+  // Get campaign progress details
+  fastify.get('/api/db/campaigns/:campaignId/progress', async (request, reply) => {
+    try {
+      const { campaignId } = request.params;
+      
+      if (!campaignId) {
+        return reply.code(400).send({
+          success: false,
+          error: 'Campaign ID is required',
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      // Get campaign
+      const campaign = await getCampaignById(campaignId);
+      
+      if (!campaign) {
+        return reply.code(404).send({
+          success: false,
+          error: `Campaign not found with ID: ${campaignId}`,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      // Get contacts that haven't been called yet
+      const { contacts: uncalledContacts, total: uncalledTotal } = await getContactsFromRepo(
+        {
+          campaignId: campaignId,
+          status: 'active',
+          callCount: 0
+        },
+        { limit: 0 } // Get count only
+      );
+      
+      // Check if campaign is active in engine
+      const activeCampaigns = getActiveCampaigns();
+      const activeCampaign = activeCampaigns.find(c => c.id === campaignId);
+      
+      const progressData = {
+        campaign: {
+          id: campaign._id,
+          name: campaign.name,
+          status: campaign.status,
+          createdAt: campaign.createdAt,
+          lastExecuted: campaign.lastExecuted
+        },
+        contacts: {
+          total: campaign.contactIds.length,
+          validated: campaign.stats?.totalContacts || campaign.contactIds.length,
+          remaining: uncalledTotal,
+          called: (campaign.stats?.totalContacts || campaign.contactIds.length) - uncalledTotal
+        },
+        progress: {
+          callsPlaced: campaign.stats?.callsPlaced || 0,
+          callsCompleted: campaign.stats?.callsCompleted || 0,
+          callsAnswered: campaign.stats?.callsAnswered || 0,
+          callsFailed: campaign.stats?.callsFailed || 0,
+          averageDuration: campaign.stats?.averageDuration || 0,
+          percentComplete: campaign.contactIds.length > 0 
+            ? Math.round(((campaign.stats?.callsPlaced || 0) / campaign.contactIds.length) * 100)
+            : 0
+        },
+        engine: {
+          isActive: !!activeCampaign,
+          activeCalls: activeCampaign?.activeCalls || 0,
+          paused: activeCampaign?.paused || false
+        },
+        settings: campaign.settings
+      };
+      
+      return {
+        success: true,
+        data: progressData,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error(`[API] Error getting campaign progress:`, error);
+      return reply.code(500).send({
+        success: false,
+        error: 'Error getting campaign progress',
         details: error.message,
         timestamp: new Date().toISOString()
       });

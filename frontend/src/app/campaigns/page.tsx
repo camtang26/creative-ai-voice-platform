@@ -47,6 +47,7 @@ import {
 import { CampaignConfig } from '@/lib/types'
 import { startCampaign, pauseCampaign, deleteCampaign, fetchCampaigns } from '@/lib/mongodb-api'
 import { cn } from '@/lib/utils'
+import { ActiveCampaigns } from '@/components/active-campaigns'
 
 // No fallback data - show real state to user
 
@@ -95,7 +96,7 @@ export default function CampaignsPage() {
           const campaignData = response.data.campaigns;
           setMetrics({
             totalCampaigns: campaignData.length,
-            activeCampaigns: campaignData.filter((c: CampaignConfig) => c.status === 'in-progress').length,
+            activeCampaigns: campaignData.filter((c: CampaignConfig) => c.status === 'active').length,
             scheduledCampaigns: campaignData.filter((c: CampaignConfig) => c.status === 'scheduled').length,
             completedCampaigns: campaignData.filter((c: CampaignConfig) => c.status === 'completed').length
           });
@@ -186,7 +187,7 @@ export default function CampaignsPage() {
   };
 
   // Get active campaigns for the real-time monitoring alert
-  const activeCampaignsCount = campaigns.filter(c => c.status === 'in-progress').length;
+  const activeCampaignsCount = campaigns.filter(c => c.status === 'active').length;
 
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
@@ -272,6 +273,13 @@ export default function CampaignsPage() {
           >
             Dismiss
           </Button>
+        </div>
+      )}
+      
+      {/* Active Campaigns Section */}
+      {metrics.activeCampaigns > 0 && (
+        <div className="mb-6">
+          <ActiveCampaigns />
         </div>
       )}
       

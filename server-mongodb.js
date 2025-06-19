@@ -791,18 +791,51 @@ server.post('/api/db/campaigns/start-from-csv', async (request, reply) => {
     const invalidNumbers = [];
     
     for (const record of records) {
-      // Try to find phone number in various possible column names
-      const phoneNumber = record.Phone || record.phone || record['Phone Number'] || record['phone number'] || record.Mobile || record.mobile;
-      const firstName = record.FirstName || record.firstname || record['First Name'] || record['first name'] || '';
-      const lastName = record.LastName || record.lastname || record['Last Name'] || record['last name'] || '';
-      const email = record.Email || record.email || '';
+      // Helper function to clean quotes from values
+      const cleanValue = (value) => {
+        if (!value) return '';
+        // Remove leading and trailing quotes (both single and double)
+        return String(value).replace(/^["']|["']$/g, '').trim();
+      };
+      
+      // Try to find phone number in various possible column names and clean quotes
+      const phoneNumber = cleanValue(
+        record.Phone || record.phone || record['Phone Number'] || record['phone number'] || 
+        record.Mobile || record.mobile || record.Cell || record.cell
+      );
+      
+      // Clean quotes from name fields
+      const firstName = cleanValue(
+        record.FirstName || record.firstname || record['First Name'] || record['first name'] || 
+        record.First || record.first || ''
+      );
+      const lastName = cleanValue(
+        record.LastName || record.lastname || record['Last Name'] || record['last name'] || 
+        record.Last || record.last || ''
+      );
+      
+      // Also try full name field if first/last not available
+      let fullName = '';
+      if (firstName || lastName) {
+        fullName = `${firstName} ${lastName}`.trim();
+      } else {
+        // Try to get from Name or Full Name column
+        const nameField = cleanValue(
+          record.Name || record.name || record['Full Name'] || record['full name'] || 
+          record.FullName || record.fullname || record['Contact Name'] || record['contact name']
+        );
+        fullName = nameField || 'Unknown';
+      }
+      
+      const email = cleanValue(
+        record.Email || record.email || record['Email Address'] || record['email address'] || 
+        record.EmailAddress || record.emailaddress || ''
+      );
       
       if (!phoneNumber) {
         server.log.warn('[CSV Upload] Skipping record - no phone number found:', record);
         continue;
       }
-
-      const fullName = `${firstName} ${lastName}`.trim() || 'Unknown';
       
       // Validate phone number if requested
       let isValid = true;
