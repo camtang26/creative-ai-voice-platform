@@ -14,7 +14,7 @@
 import 'dotenv/config';
 import fastify from 'fastify';
 import fastifySocketIO from 'fastify-socket.io'; // Import the socket.io plugin
-// REMOVED: fastifyWebsocket import
+import fastifyWebsocket from '@fastify/websocket'; // Added back for WebSocket proxy
 import { WebSocketServer, WebSocket } from 'ws'; // CORRECTED: Import WebSocketServer and WebSocket client
 import fastifyFormBody from '@fastify/formbody';
 import fastifyMultipart from '@fastify/multipart'; // Import multipart plugin
@@ -79,6 +79,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { parse } from 'csv-parse';
 import { parsePhoneNumber, isValidPhoneNumber } from 'libphonenumber-js';
+import { registerWebSocketProxy } from './media-proxy-handler.js';
 
 // Get Twilio credentials from environment
 const {
@@ -147,7 +148,10 @@ server.register(fastifySocketIO, {
   randomizationFactor: 0.5
 });
 
-// REMOVED: @fastify/websocket registration
+// Register WebSocket plugin for media proxy
+server.register(fastifyWebsocket);
+console.log('[Server] Registered @fastify/websocket plugin');
+
 server.register(fastifyFormBody);
 server.register(fastifyMultipart, {
   // attachFieldsToBody: true, // Let's remove this to see if request.parts() works as expected
@@ -268,6 +272,14 @@ server.options('/api/outbound-call', async (request, reply) => {
 console.log('[Server] Registered explicit OPTIONS handler for /api/outbound-call');
 // Register outbound calling routes (will need MEDIA_PROXY_SERVICE_URL env var)
 registerOutboundRoutes(server, { skipCallStatusCallback: true });
+
+// Register WebSocket proxy handler for Twilio-ElevenLabs bridge
+if (twilioClient) {
+  registerWebSocketProxy(server, { twilioClient });
+  console.log('[Server] Registered WebSocket proxy handler for transcript streaming');
+} else {
+  console.warn('[Server] Skipping WebSocket proxy registration - Twilio client not available');
+}
 
 // Register additional API routes
 registerApiRoutes(server, twilioClient, activeCalls); // This now includes the ElevenLabs route
