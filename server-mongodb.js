@@ -283,67 +283,7 @@ server.get('/healthz', async (request, reply) => {
 });
 console.log('[Server] Registered /healthz endpoint');
 
-// Debug endpoint to test Socket.IO transcript emission
-server.post('/api/test-transcript-emit', async (request, reply) => {
-  const { callSid, message } = request.body;
-  
-  if (!callSid || !message) {
-    return reply.code(400).send({ 
-      success: false, 
-      error: 'Missing callSid or message in request body' 
-    });
-  }
-  
-  console.log(`[API Test] Testing transcript emit for call ${callSid}`);
-  
-  // Check if Socket.IO functions are available
-  const functionsAvailable = {
-    emitTranscriptTypewriter: typeof emitTranscriptTypewriter === 'function',
-    emitTranscriptMessage: typeof emitTranscriptMessage === 'function',
-    emitTranscriptUpdate: typeof emitTranscriptUpdate === 'function'
-  };
-  
-  console.log('[API Test] Socket.IO functions available:', functionsAvailable);
-  
-  // Try to emit using all methods
-  try {
-    // Method 1: Direct typewriter emit
-    if (typeof emitTranscriptTypewriter === 'function') {
-      emitTranscriptTypewriter(callSid, {
-        role: 'agent',
-        message: message,
-        timestamp: new Date().toISOString()
-      }, 4);
-      console.log('[API Test] Emitted via emitTranscriptTypewriter');
-    }
-    
-    // Method 2: Direct message emit
-    if (typeof emitTranscriptMessage === 'function') {
-      emitTranscriptMessage(callSid, {
-        role: 'agent',
-        message: message,
-        timestamp: new Date().toISOString()
-      });
-      console.log('[API Test] Emitted via emitTranscriptMessage');
-    }
-    
-    return reply.send({
-      success: true,
-      message: 'Test transcript emit completed',
-      functionsAvailable,
-      callSid,
-      testMessage: message
-    });
-  } catch (error) {
-    console.error('[API Test] Error emitting transcript:', error);
-    return reply.code(500).send({ 
-      success: false, 
-      error: error.message,
-      functionsAvailable
-    });
-  }
-});
-console.log('[Server] Registered /api/test-transcript-emit endpoint');
+// Removed duplicate test endpoint code
 
 // Removed test route - CSV endpoint working properly
 
