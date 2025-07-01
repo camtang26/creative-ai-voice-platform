@@ -3,6 +3,7 @@
  * Provides data access methods for the transcripts collection, aligned with ElevenLabs API structure.
  */
 import Transcript from '../models/transcript.model.js';
+import { emitTranscriptMessage, emitTranscriptTypewriter } from '../../socket-server.js';
 import { setTranscriptForCall } from './call.repository.js'; // Assuming this function still exists and works
 import mongoose from 'mongoose';
 
@@ -145,9 +146,78 @@ export async function getTranscriptByConversationId(conversationId) {
   }
 }
 
+/**
+ * Append a real-time transcript message
+ * @param {string} callSid - Call SID
+ * @param {string} conversationId - ElevenLabs conversation ID (optional)
+ * @param {string} role - Message role (user/agent)
+ * @param {string} message - Message text
+ * @param {number} timeInCall - Time in call (seconds)
+ * @returns {Promise<Object>} Updated transcript document
+ */
+export async function appendRealtimeTranscriptMessage(callSid, conversationId, role, message, timeInCall = 0) {
+  try {
+    if (!callSid) {
+      throw new Error('Call SID is required');
+    }
+
+    console.log(`[Transcript] Appending real-time message for call ${callSid}, role: ${role}`);
+    
+    // Find or create transcript document
+    let transcript = await Transcript.findOne({ callSid });
+    
+    if (!transcript) {
+      // Create new transcript if it doesn't exist
+      transcript = new Transcript({
+        callSid,
+        conversationId: conversationId || 'pending',
+        agent_id: 'unknown', // Will be updated when full data is available
+        status: 'processing',
+        transcript: [],
+        metadata: {}
+      });
+    }
+
+    // Add the new message to the transcript array
+    const transcriptItem = {
+      role,
+      message,
+      time_in_call_secs: timeInCall
+    };
+    
+    transcript.transcript.push(transcriptItem);
+    
+    // Save the updated transcript
+    await transcript.save();
+    
+    console.log(`[Transcript] Successfully appended message to transcript for call ${callSid}`);
+    
+    // Emit the transcript message via Socket.IO for real-time updates
+    try {
+      // Use typewriter effect for better UX
+      emitTranscriptTypewriter(callSid, {
+        role,
+        message,
+        timestamp: new Date().toISOString()
+      }, 4); // 4 words per second
+      
+      console.log(`[Transcript] Emitted real-time transcript message for call ${callSid}`);
+    } catch (emitError) {
+      console.error(`[Transcript] Error emitting transcript message:`, emitError);
+      // Don't throw - saving to DB is more important than real-time emit
+    }
+    
+    return transcript;
+  } catch (error) {
+    console.error(`[Transcript] Error appending real-time message for call ${callSid}:`, error);
+    throw error;
+  }
+}
+
 // Export the relevant functions
 export default {
   createOrUpdateTranscriptFromElevenLabs,
   getTranscriptByCallSid,
-  getTranscriptByConversationId
+  getTranscriptByConversationId,
+  appendRealtimeTranscriptMessage
 };

@@ -283,6 +283,68 @@ server.get('/healthz', async (request, reply) => {
 });
 console.log('[Server] Registered /healthz endpoint');
 
+// Debug endpoint to test Socket.IO transcript emission
+server.post('/api/test-transcript-emit', async (request, reply) => {
+  const { callSid, message } = request.body;
+  
+  if (!callSid || !message) {
+    return reply.code(400).send({ 
+      success: false, 
+      error: 'Missing callSid or message in request body' 
+    });
+  }
+  
+  console.log(`[API Test] Testing transcript emit for call ${callSid}`);
+  
+  // Check if Socket.IO functions are available
+  const functionsAvailable = {
+    emitTranscriptTypewriter: typeof emitTranscriptTypewriter === 'function',
+    emitTranscriptMessage: typeof emitTranscriptMessage === 'function',
+    emitTranscriptUpdate: typeof emitTranscriptUpdate === 'function'
+  };
+  
+  console.log('[API Test] Socket.IO functions available:', functionsAvailable);
+  
+  // Try to emit using all methods
+  try {
+    // Method 1: Direct typewriter emit
+    if (typeof emitTranscriptTypewriter === 'function') {
+      emitTranscriptTypewriter(callSid, {
+        role: 'agent',
+        message: message,
+        timestamp: new Date().toISOString()
+      }, 4);
+      console.log('[API Test] Emitted via emitTranscriptTypewriter');
+    }
+    
+    // Method 2: Direct message emit
+    if (typeof emitTranscriptMessage === 'function') {
+      emitTranscriptMessage(callSid, {
+        role: 'agent',
+        message: message,
+        timestamp: new Date().toISOString()
+      });
+      console.log('[API Test] Emitted via emitTranscriptMessage');
+    }
+    
+    return reply.send({
+      success: true,
+      message: 'Test transcript emit completed',
+      functionsAvailable,
+      callSid,
+      testMessage: message
+    });
+  } catch (error) {
+    console.error('[API Test] Error emitting transcript:', error);
+    return reply.code(500).send({ 
+      success: false, 
+      error: error.message,
+      functionsAvailable
+    });
+  }
+});
+console.log('[Server] Registered /api/test-transcript-emit endpoint');
+
 // Removed test route - CSV endpoint working properly
 
 // Removed simple test route
@@ -1299,6 +1361,109 @@ server.post('/api/email/send', async (request, reply) => {
   }
 });
 
+// Test endpoint for transcript repository and emission
+server.post('/api/test-transcript-repo', async (request, reply) => {
+  try {
+    const { callSid, conversationId, role, message } = request.body;
+    
+    if (!callSid || !role || !message) {
+      return reply.code(400).send({ 
+        success: false, 
+        error: 'Missing required fields: callSid, role, message' 
+      });
+    }
+    
+    server.log.info(`[Test Transcript Repo] Testing transcript save and emit for call ${callSid}`);
+    
+    const transcriptRepository = getTranscriptRepository();
+    
+    if (!transcriptRepository || !transcriptRepository.appendRealtimeTranscriptMessage) {
+      return reply.code(500).send({ 
+        success: false, 
+        error: 'Transcript repository or appendRealtimeTranscriptMessage not available' 
+      });
+    }
+    
+    // Test the full flow through the repository (which includes Socket.IO emission)
+    const result = await transcriptRepository.appendRealtimeTranscriptMessage(
+      callSid,
+      conversationId || 'test-conversation',
+      role,
+      message,
+      0 // timeInCall
+    );
+    
+    return reply.send({ 
+      success: true, 
+      message: 'Transcript saved and emitted successfully',
+      transcriptId: result._id
+    });
+  } catch (error) {
+    server.log.error(`[Test Transcript Repo] Error:`, error);
+    return reply.code(500).send({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Test endpoint for transcript emission debugging
+server.post('/api/test-transcript-emit', async (request, reply) => {
+  try {
+    const { callSid, role, message } = request.body;
+    
+    if (!callSid || !role || !message) {
+      return reply.code(400).send({ 
+        success: false, 
+        error: 'Missing required fields: callSid, role, message' 
+      });
+    }
+    
+    server.log.info(`[Test Transcript] Testing transcript emission for call ${callSid}`);
+    
+    // Test direct Socket.IO emission
+    if (typeof emitTranscriptTypewriter === 'function') {
+      server.log.info(`[Test Transcript] emitTranscriptTypewriter is available`);
+      emitTranscriptTypewriter(callSid, {
+        role,
+        message,
+        timestamp: new Date().toISOString()
+      }, 4);
+      
+      return reply.send({ 
+        success: true, 
+        message: 'Transcript emitted via Socket.IO typewriter',
+        method: 'emitTranscriptTypewriter'
+      });
+    } else if (typeof emitTranscriptMessage === 'function') {
+      server.log.info(`[Test Transcript] emitTranscriptMessage is available`);
+      emitTranscriptMessage(callSid, {
+        role,
+        message,
+        timestamp: new Date().toISOString()
+      });
+      
+      return reply.send({ 
+        success: true, 
+        message: 'Transcript emitted via Socket.IO',
+        method: 'emitTranscriptMessage'
+      });
+    } else {
+      server.log.error(`[Test Transcript] No transcript emission functions available`);
+      return reply.code(500).send({ 
+        success: false, 
+        error: 'Socket.IO transcript emission functions not available'
+      });
+    }
+  } catch (error) {
+    server.log.error(`[Test Transcript] Error:`, error);
+    return reply.code(500).send({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
 // REMOVED: Old WebSocket Proxy Handler
 
 // --- ADDED: Manual WebSocket Server for Media Stream ---
@@ -1328,6 +1493,7 @@ wss.on('connection', (ws, request) => {
 
   const callRepository = getCallRepository();
   const callEventRepository = getCallEventRepository();
+  const transcriptRepository = getTranscriptRepository();
 
   let streamSid = null;
   let callSid = null;
@@ -1553,11 +1719,25 @@ wss.on('connection', (ws, request) => {
               const transcriptMsg = message.transcript_update;
               if (transcriptMsg && transcriptMsg.message) {
                 server.log.debug(`[WS Manual] Transcript: ${transcriptMsg.role}: ${transcriptMsg.message.substring(0, 50)}...`);
-                // Append transcript to call record
-                if (callSid && callRepository) {
-                  callRepository.appendTranscriptSegment(callSid, transcriptMsg.role, transcriptMsg.message)
+                // Append transcript to proper Transcript model and emit via Socket.IO
+                if (callSid && transcriptRepository) {
+                  // Calculate time in call (in seconds)
+                  const callData = activeCalls.get(callSid);
+                  const timeInCall = callData && callData.startTime ? 
+                    Math.floor((Date.now() - new Date(callData.startTime).getTime()) / 1000) : 0;
+                  
+                  transcriptRepository.appendRealtimeTranscriptMessage(
+                    callSid, 
+                    conversationId, 
+                    transcriptMsg.role, 
+                    transcriptMsg.message,
+                    timeInCall
+                  )
+                    .then(() => {
+                      server.log.info(`[WS Manual][DB] Successfully saved transcript message for call ${callSid}`);
+                    })
                     .catch(err => 
-                      server.log.error(`[WS Manual][DB] Error appending transcript to call ${callSid}:`, err)
+                      server.log.error(`[WS Manual][DB] Error appending transcript message for call ${callSid}:`, err)
                     );
                 }
                 if (callSid && callEventRepository) { 
@@ -1569,24 +1749,8 @@ wss.on('connection', (ws, request) => {
                     server.log.error(`[WS Manual][DB] Error logging transcript segment for ${callSid}:`, err)
                   ); 
                 }
-                // Emit transcript message via Socket.IO with typewriter effect
-                if (callSid) { 
-                  // Import the typewriter function if available
-                  if (typeof emitTranscriptTypewriter === 'function') {
-                    emitTranscriptTypewriter(callSid, {
-                      role: transcriptMsg.role,
-                      message: transcriptMsg.message,
-                      timestamp: new Date().toISOString()
-                    }, 4); // 4 words per second for natural feel
-                  } else if (typeof emitTranscriptMessage === 'function') {
-                    // Fallback to regular emission
-                    emitTranscriptMessage(callSid, {
-                      role: transcriptMsg.role,
-                      message: transcriptMsg.message,
-                      timestamp: new Date().toISOString()
-                    });
-                  }
-                }
+                // Socket.IO emission is now handled inside appendRealtimeTranscriptMessage
+                // No need for duplicate emission here
               } break;
             default:
               server.log.debug(`[WS Manual] Received ElevenLabs message type: ${message.type}`);

@@ -37,7 +37,9 @@ export function initializeSocketServer(server, activeCallsMap) {
   }
   
   io = server.io; // Use the instance from the plugin
-  console.log('[Socket.IO] Using Socket.IO instance from fastify-socket.io plugin.');
+  console.log('[Socket.IO] Socket.IO instance initialized successfully from fastify-socket.io plugin.');
+  console.log(`[Socket.IO] io variable is now: ${typeof io}, has emit function: ${typeof io?.emit === 'function'}`);
+  console.log(`[Socket.IO] io.to function exists: ${typeof io?.to === 'function'}`);
 
   // Connection event handler (attach directly to the plugin's io instance)
   io.on('connection', (socket) => {
@@ -307,7 +309,17 @@ export function emitTranscriptUpdate(callSid, transcript) {
  * @param {number} wordsPerSecond - Speed of typewriter effect (default: 3)
  */
 export function emitTranscriptTypewriter(callSid, message, wordsPerSecond = 3) {
-  if (!io || !message || !message.message) return;
+  if (!io) {
+    console.error('[Socket.IO] Cannot emit transcript typewriter - Socket.IO not initialized');
+    return;
+  }
+  
+  if (!message || !message.message) {
+    console.error('[Socket.IO] Cannot emit transcript typewriter - message or message.message is null');
+    return;
+  }
+
+  console.log(`[Socket.IO] emitTranscriptTypewriter called for ${callSid}, io exists: ${!!io}, role: ${message.role}`);
 
   const words = message.message.split(' ');
   const delayMs = 1000 / wordsPerSecond;
@@ -322,6 +334,7 @@ export function emitTranscriptTypewriter(callSid, message, wordsPerSecond = 3) {
     }
   };
   
+  console.log(`[Socket.IO] Emitting typing indicator for ${callSid}`);
   io.to('transcript-updates').emit('transcript_update', typingData);
   io.to(`transcript-${callSid}`).emit('transcript_update', typingData);
 
@@ -361,7 +374,17 @@ export function emitTranscriptTypewriter(callSid, message, wordsPerSecond = 3) {
  * @param {Object} message - New transcript message
  */
 export function emitTranscriptMessage(callSid, message) {
-  if (!io || !message) return;
+  if (!io) {
+    console.error('[Socket.IO] Cannot emit transcript message - Socket.IO not initialized');
+    return;
+  }
+  
+  if (!message) {
+    console.error('[Socket.IO] Cannot emit transcript message - message is null');
+    return;
+  }
+
+  console.log(`[Socket.IO] emitTranscriptMessage called for ${callSid}, io exists: ${!!io}`);
 
   // Format for frontend compatibility
   const updateData = {
@@ -376,6 +399,7 @@ export function emitTranscriptMessage(callSid, message) {
   };
 
   // Emit as transcript_update (what frontend expects)
+  console.log(`[Socket.IO] Emitting to rooms: transcript-updates and transcript-${callSid}`);
   io.to('transcript-updates').emit('transcript_update', updateData);
   io.to(`transcript-${callSid}`).emit('transcript_update', updateData);
 
@@ -392,7 +416,7 @@ export function emitTranscriptMessage(callSid, message) {
   io.to('transcript-updates').emit('transcript_message', messageData);
   io.to(`transcript-${callSid}`).emit('call_transcript_message', messageData);
 
-  console.log(`[Socket.IO] Emitted transcript message for call ${callSid}`);
+  console.log(`[Socket.IO] Successfully emitted transcript message for call ${callSid}, role: ${message.role}, text: ${message.message.substring(0, 50)}...`);
 }
 
 /**
