@@ -203,10 +203,16 @@ server.register(fastifyCors, {
       }
     }
     
+    // Allow requests without origin (server-to-server, health checks, etc.)
+    if (!origin) {
+      cb(null, true);
+      return;
+    }
+    
     console.log(`[CORS] Checking origin: ${origin}, allowed: ${allowedOrigins.includes(origin)}`);
     console.log(`[CORS] Allowed origins list:`, allowedOrigins);
     
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (allowedOrigins.includes(origin)) {
       cb(null, true);
       return;
     }
