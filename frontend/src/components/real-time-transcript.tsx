@@ -52,7 +52,7 @@ export function RealTimeTranscript({ callSid, initialTranscript }: RealTimeTrans
   useEffect(() => {
     if (callSid) {
       console.log(`[Socket] Subscribing to call transcript: ${callSid}`)
-      subscribeToCall(callSid)
+      subscribeToCall(callSid, { withTranscript: true })
       socket?.emit('subscribe_to_call_transcript', callSid)
     }
     
