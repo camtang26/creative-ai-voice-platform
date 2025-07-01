@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Campaign Pause API</title>
+</head>
+<body>
+    <h1>Test Campaign Pause API</h1>
+    
+    <div>
+        <label for="campaignId">Campaign ID:</label>
+        <input type="text" id="campaignId" placeholder="Enter campaign ID">
+        <button onclick="testPause()">Test Pause</button>
+    </div>
+    
+    <div id="results" style="margin-top: 20px; padding: 10px; border: 1px solid #ccc;">
+        <h3>Results will appear here...</h3>
+    </div>
+
+    <script>
+        async function testPause() {
+            const campaignId = document.getElementById('campaignId').value;
+            const resultsDiv = document.getElementById('results');
+            
+            if (!campaignId) {
+                resultsDiv.innerHTML = '<p style="color: red;">Please enter a campaign ID</p>';
+                return;
+            }
+            
+            resultsDiv.innerHTML = '<p>Testing pause endpoint...</p>';
+            
+            try {
+                const apiUrl = `https://twilio-elevenlabs-app.onrender.com/api/db/campaigns/${campaignId}/pause`;
+                console.log('Making request to:', apiUrl);
+                
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const responseText = await response.text();
+                console.log('Response status:', response.status);
+                console.log('Response text:', responseText);
+                
+                let result;
+                try {
+                    result = JSON.parse(responseText);
+                } catch (e) {
+                    result = { error: 'Failed to parse response', raw: responseText };
+                }
+                
+                resultsDiv.innerHTML = `
+                    <h3>Response:</h3>
+                    <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                    <p><strong>Success:</strong> ${result.success || false}</p>
+                    <p><strong>Message:</strong> ${result.message || 'No message'}</p>
+                    <p><strong>Error:</strong> ${result.error || 'No error'}</p>
+                    <h4>Full Response:</h4>
+                    <pre>${JSON.stringify(result, null, 2)}</pre>
+                `;
+                
+                if (response.ok && result.success) {
+                    resultsDiv.style.backgroundColor = '#d4edda';
+                } else {
+                    resultsDiv.style.backgroundColor = '#f8d7da';
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                resultsDiv.innerHTML = `
+                    <h3 style="color: red;">Error:</h3>
+                    <p>${error.message}</p>
+                    <p>Check browser console for more details.</p>
+                `;
+                resultsDiv.style.backgroundColor = '#f8d7da';
+            }
+        }
+    </script>
+</body>
+</html>

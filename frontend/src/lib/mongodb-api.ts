@@ -749,6 +749,8 @@ export async function startCampaign(campaignId: string) {
  * @returns {Promise<{success: boolean, data: CampaignConfig, message: string}>}
  */
 export async function pauseCampaign(campaignId: string) {
+  console.log(`[pauseCampaign] Called with campaignId: ${campaignId}`);
+  
   try {
     if (!campaignId) {
       throw new Error('Campaign ID is required');
@@ -756,16 +758,25 @@ export async function pauseCampaign(campaignId: string) {
     
     // Use getApiUrl with the correct full path
     const apiUrl = getApiUrl(`/api/db/campaigns/${campaignId}/pause`);
+    console.log(`[pauseCampaign] Making POST request to: ${apiUrl}`);
+    
     const response = await fetch(apiUrl, {
       method: 'POST'
     });
     
+    console.log(`[pauseCampaign] Response status: ${response.status} ${response.statusText}`);
+    
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[pauseCampaign] Error response body:`, errorText);
       throw new Error(`Error pausing campaign: ${response.statusText} for URL: ${apiUrl}`);
     }
     
-    return await response.json();
+    const result = await response.json();
+    console.log(`[pauseCampaign] Success response:`, result);
+    return result;
   } catch (error) {
+    console.error(`[pauseCampaign] Caught error:`, error);
     return handleApiError(error, `Failed to pause campaign ${campaignId}:`) as any;
   }
 }

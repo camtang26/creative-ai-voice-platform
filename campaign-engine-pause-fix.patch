@@ -1,0 +1,110 @@
+// CAMPAIGN ENGINE PAUSE BUG FIX
+// 
+// Problem: pauseCampaign() keeps campaign in activeCampaigns Map with paused=true flag
+// but executeCampaignCycle() can still run if there's a race condition
+//
+// Solution: Remove campaign from activeCampaigns entirely when paused
+//
+// Apply this fix to db/campaign-engine.js
+
+// ORIGINAL pauseCampaign function (lines ~109-140):
+/*
+export async function pauseCampaign(campaignId) {
+  try {
+    console.log(`[Campaign Engine] Pausing campaign: ${campaignId}`);
+    
+    // Get campaign repository
+    const campaignRepository = getCampaignRepository();
+    
+    // Check if campaign is active
+    if (!activeCampaigns.has(campaignId)) {
+      console.log(`[Campaign Engine] Campaign not active: ${campaignId}`);
+      return false;
+    }
+    
+    // Clear execution interval
+    const interval = campaignIntervals.get(campaignId);
+    if (interval) {
+      clearInterval(interval);
+      campaignIntervals.delete(campaignId);
+    }
+    
+    // Update campaign status to paused
+    await campaignRepository.updateCampaignStatus(campaignId, 'paused');
+    
+    // Keep campaign in active campaigns map but mark as paused
+    const campaignData = activeCampaigns.get(campaignId);
+    campaignData.paused = true;
+    activeCampaigns.set(campaignId, campaignData);
+    
+    console.log(`[Campaign Engine] Campaign paused: ${campaignId}`);
+    
+    return true;
+  } catch (error) {
+    console.error(`[Campaign Engine] Error pausing campaign ${campaignId}:`, error);
+    return false;
+  }
+}
+*/
+
+// FIXED pauseCampaign function:
+export async function pauseCampaign(campaignId) {
+  try {
+    console.log(`[Campaign Engine] Pausing campaign: ${campaignId}`);
+    
+    // Get campaign repository
+    const campaignRepository = getCampaignRepository();
+    
+    // Check if campaign is active
+    if (!activeCampaigns.has(campaignId)) {
+      console.log(`[Campaign Engine] Campaign not active: ${campaignId}`);
+      return false;
+    }
+    
+    // Clear execution interval FIRST to prevent any more cycles
+    const interval = campaignIntervals.get(campaignId);
+    if (interval) {
+      clearInterval(interval);
+      campaignIntervals.delete(campaignId);
+      console.log(`[Campaign Engine] Interval cleared for campaign: ${campaignId}`);
+    }
+    
+    // Update campaign status to paused in database
+    await campaignRepository.updateCampaignStatus(campaignId, 'paused');
+    
+    // CRITICAL FIX: Remove campaign from active campaigns entirely
+    // This prevents any possibility of executeCampaignCycle running
+    activeCampaigns.delete(campaignId);
+    
+    console.log(`[Campaign Engine] Campaign paused and removed from active campaigns: ${campaignId}`);
+    
+    return true;
+  } catch (error) {
+    console.error(`[Campaign Engine] Error pausing campaign ${campaignId}:`, error);
+    return false;
+  }
+}
+
+// ALSO UPDATE resumeCampaign to handle the fact that paused campaigns 
+// are no longer in activeCampaigns:
+
+// In resumeCampaign function (around line 151), remove this check:
+/*
+    // Check if campaign is in active campaigns map
+    if (activeCampaigns.has(campaignId)) {
+      // Remove paused flag
+      const campaignData = activeCampaigns.get(campaignId);
+      delete campaignData.paused;
+      activeCampaigns.set(campaignId, campaignData);
+    } else {
+*/
+
+// And replace with just:
+    // Add campaign to active campaigns map (it was removed when paused)
+    activeCampaigns.set(campaignId, {
+      id: campaignId,
+      name: campaign.name,
+      activeCalls: new Map(),
+      settings: campaign.settings || {},
+      stats: campaign.stats || {}
+    });

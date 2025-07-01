@@ -134,6 +134,7 @@ export default function CampaignsPage() {
   }, []);
 
   const handleCampaignAction = async (campaignId: string, action: 'start' | 'pause' | 'cancel' | 'delete') => {
+    console.log(`[Campaign Action] Starting ${action} for campaign ${campaignId}`);
     setActionInProgress(campaignId);
     
     try {
@@ -141,18 +142,25 @@ export default function CampaignsPage() {
       
       switch (action) {
         case 'start':
+          console.log(`[Campaign Action] Calling startCampaign for ${campaignId}`);
           response = await startCampaign(campaignId);
           break;
         case 'pause':
+          console.log(`[Campaign Action] Calling pauseCampaign for ${campaignId}`);
           response = await pauseCampaign(campaignId);
+          console.log(`[Campaign Action] pauseCampaign response:`, response);
           break;
         case 'cancel':
+          console.log(`[Campaign Action] Calling pauseCampaign (cancel) for ${campaignId}`);
           response = await pauseCampaign(campaignId); // Cancel is same as pause
           break;
         case 'delete':
+          console.log(`[Campaign Action] Calling deleteCampaign for ${campaignId}`);
           response = await deleteCampaign(campaignId);
           break;
       }
+      
+      console.log(`[Campaign Action] Response for ${action}:`, response);
       
       if (response && response.success) {
         if (action === 'delete') {

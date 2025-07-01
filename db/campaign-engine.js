@@ -119,22 +119,22 @@ export async function pauseCampaign(campaignId) {
       return false;
     }
     
-    // Clear execution interval
+    // Clear execution interval FIRST to prevent any more cycles
     const interval = campaignIntervals.get(campaignId);
     if (interval) {
       clearInterval(interval);
       campaignIntervals.delete(campaignId);
+      console.log(`[Campaign Engine] Interval cleared for campaign: ${campaignId}`);
     }
     
-    // Update campaign status to paused
+    // Update campaign status to paused in database
     await campaignRepository.updateCampaignStatus(campaignId, 'paused');
     
-    // Keep campaign in active campaigns map but mark as paused
-    const campaignData = activeCampaigns.get(campaignId);
-    campaignData.paused = true;
-    activeCampaigns.set(campaignId, campaignData);
+    // CRITICAL FIX: Remove campaign from active campaigns entirely
+    // This prevents any possibility of executeCampaignCycle running
+    activeCampaigns.delete(campaignId);
     
-    console.log(`[Campaign Engine] Campaign paused: ${campaignId}`);
+    console.log(`[Campaign Engine] Campaign paused and removed from active campaigns: ${campaignId}`);
     
     return true;
   } catch (error) {
@@ -163,22 +163,15 @@ export async function resumeCampaign(campaignId) {
       return false;
     }
     
-    // Check if campaign is in active campaigns map
-    if (activeCampaigns.has(campaignId)) {
-      // Remove paused flag
-      const campaignData = activeCampaigns.get(campaignId);
-      delete campaignData.paused;
-      activeCampaigns.set(campaignId, campaignData);
-    } else {
-      // Add campaign to active campaigns map
-      activeCampaigns.set(campaignId, {
-        id: campaignId,
-        name: campaign.name,
-        activeCalls: new Map(),
-        settings: campaign.settings || {},
-        stats: campaign.stats || {}
-      });
-    }
+    // Add campaign to active campaigns map 
+    // (it was removed when paused, so we always need to re-add it)
+    activeCampaigns.set(campaignId, {
+      id: campaignId,
+      name: campaign.name,
+      activeCalls: new Map(),
+      settings: campaign.settings || {},
+      stats: campaign.stats || {}
+    });
     
     // Update campaign status to active
     await campaignRepository.updateCampaignStatus(campaignId, 'active');
