@@ -1359,6 +1359,34 @@ server.post('/api/test-transcript-repo', async (request, reply) => {
   }
 });
 
+// Test endpoint to verify WebSocket proxy is registered
+server.get('/api/test-websocket-proxy', async (request, reply) => {
+  try {
+    const hasWebSocketPlugin = server.hasDecorator('websocket');
+    const routes = [];
+    
+    // Check if the outbound-media-stream route exists
+    server.printRoutes().split('\n').forEach(line => {
+      if (line.includes('outbound-media-stream')) {
+        routes.push(line.trim());
+      }
+    });
+    
+    return reply.send({
+      success: true,
+      websocketPluginRegistered: hasWebSocketPlugin,
+      mediaStreamRoutes: routes,
+      transcriptRepositoryAvailable: !!getTranscriptRepository,
+      socketIOAvailable: !!server.io
+    });
+  } catch (error) {
+    return reply.code(500).send({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Test endpoint for transcript emission debugging
 server.post('/api/test-transcript-emit', async (request, reply) => {
   try {
