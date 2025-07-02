@@ -370,6 +370,49 @@ export async function updateContactCallHistory(contactId, callId) {
 }
 
 /**
+ * Atomically claim a contact for calling
+ * @param {string} campaignId - Campaign ID
+ * @returns {Promise<Object|null>} Claimed contact or null if none available
+ * @throws {Error} If operation fails
+ */
+export async function claimNextContactForCalling(campaignId) {
+  try {
+    if (!campaignId) {
+      throw new Error('Campaign ID is required');
+    }
+    
+    // Atomically find and update a contact with pending status and no calls
+    const contact = await Contact.findOneAndUpdate(
+      {
+        campaignIds: campaignId,
+        status: 'pending',
+        callCount: 0
+      },
+      {
+        $inc: { callCount: 1 },
+        $set: { 
+          lastContacted: new Date(),
+          status: 'calling'  // Mark as calling to prevent any other process from selecting it
+        }
+      },
+      {
+        new: true,  // Return the updated document
+        sort: { createdAt: 1 }  // Process contacts in order they were added
+      }
+    );
+    
+    if (contact) {
+      console.log(`[MongoDB] Atomically claimed contact for calling: ${contact.name || contact.phoneNumber} (${contact._id})`);
+    }
+    
+    return contact;
+  } catch (error) {
+    console.error(`[MongoDB] Error claiming contact for campaign ${campaignId}:`, error);
+    throw error;
+  }
+}
+
+/**
  * Import contacts from array
  * @param {Array<Object>} contacts - Array of contact objects
  * @param {string} campaignId - Optional campaign ID to associate contacts with
@@ -467,5 +510,6 @@ export default {
   addTagsToContact,
   removeTagsFromContact,
   updateContactCallHistory,
-  importContacts
+  importContacts,
+  claimNextContactForCalling
 };

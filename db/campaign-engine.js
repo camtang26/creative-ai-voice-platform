@@ -11,11 +11,15 @@ const activeCampaigns = new Map();
 // Campaign execution intervals
 const campaignIntervals = new Map();
 
+// Track if campaign cycle is currently executing to prevent overlaps
+const campaignCycleInProgress = new Map();
+
 // Maximum concurrent calls per campaign
 const MAX_CONCURRENT_CALLS = 5;
 
 // Default call delay in milliseconds
-const DEFAULT_CALL_DELAY = 5000;
+// INCREASED from 5000ms to prevent race conditions
+const DEFAULT_CALL_DELAY = 10000;  // 10 seconds between campaign cycles
 
 /**
  * Initialize campaign engine
@@ -241,6 +245,15 @@ export async function stopCampaign(campaignId) {
  * @returns {Promise<void>}
  */
 async function executeCampaignCycle(campaignId) {
+  // CRITICAL FIX: Prevent concurrent execution cycles
+  if (campaignCycleInProgress.get(campaignId)) {
+    console.log(`[Campaign Engine] Skipping cycle - previous cycle still in progress for campaign: ${campaignId}`);
+    return;
+  }
+  
+  // Mark cycle as in progress
+  campaignCycleInProgress.set(campaignId, true);
+  
   try {
     // Get campaign data
     const campaignData = activeCampaigns.get(campaignId);
@@ -277,21 +290,29 @@ async function executeCampaignCycle(campaignId) {
       return;
     }
     
-    // Get next contact to call
+    // CRITICAL FIX: Use atomic contact claiming to prevent duplicate calls
     const availableSlots = maxConcurrentCalls - activeCalls;
-    const contacts = await getNextContactsToCall(campaignId, availableSlots);
     
-    if (contacts.length === 0) {
-      console.log(`[Campaign Engine] No more contacts to call for campaign: ${campaignId}`);
-      return;
-    }
-    
-    // Make calls to contacts
-    for (const contact of contacts) {
-      makeCallToContact(campaignId, contact);
+    // Claim contacts atomically one by one
+    let claimedContacts = 0;
+    for (let i = 0; i < availableSlots; i++) {
+      const contact = await contactRepository.claimNextContactForCalling(campaignId);
+      if (!contact) {
+        if (claimedContacts === 0) {
+          console.log(`[Campaign Engine] No more contacts to call for campaign: ${campaignId}`);
+        }
+        break;
+      }
+      
+      claimedContacts++;
+      // Make call to the atomically claimed contact
+      await makeCallToContact(campaignId, contact);
     }
   } catch (error) {
     console.error(`[Campaign Engine] Error executing campaign cycle for ${campaignId}:`, error);
+  } finally {
+    // CRITICAL: Always clear the in-progress flag
+    campaignCycleInProgress.delete(campaignId);
   }
 }
 
@@ -369,13 +390,9 @@ async function makeCallToContact(campaignId, contact) {
       contactId: contact._id
     };
     
-    // Update contact IMMEDIATELY to prevent duplicate calls
-    const contactRepository = getContactRepository();
-    await contactRepository.updateContact(contact._id, {
-      callCount: (contact.callCount || 0) + 1,
-      lastContacted: new Date()
-    });
-    console.log(`[Campaign Engine] Pre-marked contact as called: ${contact.name} (${contact._id})`);
+    // Contact is already atomically claimed with incremented callCount
+    // No need to update again here - this prevents the race condition
+    console.log(`[Campaign Engine] Processing atomically claimed contact: ${contact.name} (${contact._id})`);
     
     // Make outbound call
     const callResult = await makeOutboundCall(callParams);
