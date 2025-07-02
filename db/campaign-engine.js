@@ -625,7 +625,7 @@ async function checkAndCompleteCampaign(campaignId) {
     const campaignRepository = getCampaignRepository();
     
     // Check if there are any contacts still pending
-    const { total: pendingContacts } = await contactRepository.getContacts(
+    const pendingResult = await contactRepository.getContacts(
       {
         campaignId,
         status: 'pending'
@@ -635,8 +635,13 @@ async function checkAndCompleteCampaign(campaignId) {
       }
     );
     
+    // Debug log to check structure
+    console.log(`[Campaign Engine] Pending result structure:`, JSON.stringify(pendingResult, null, 2));
+    
+    const pendingContacts = pendingResult?.pagination?.total || 0;
+    
     // Check if there are any contacts in 'calling' status (being processed)
-    const { total: callingContacts } = await contactRepository.getContacts(
+    const callingResult = await contactRepository.getContacts(
       {
         campaignId,
         status: 'calling'
@@ -645,6 +650,11 @@ async function checkAndCompleteCampaign(campaignId) {
         limit: 1
       }
     );
+    
+    // Debug log to check structure
+    console.log(`[Campaign Engine] Calling result structure:`, JSON.stringify(callingResult, null, 2));
+    
+    const callingContacts = callingResult?.pagination?.total || 0;
     
     console.log(`[Campaign Engine] Campaign ${campaignId} completion check: pending=${pendingContacts}, calling=${callingContacts}, activeCalls=${campaignData.activeCalls.size}`);
     
