@@ -979,7 +979,7 @@ server.post('/api/db/campaigns/start-from-csv', async (request, reply) => {
       phoneNumber: contact.phoneNumber,
       name: contact.name,
       email: contact.email,
-      status: 'active',
+      status: 'pending',  // Set to pending so they're ready to be called
       campaignIds: [campaign._id],
       customFields: {
         firstName: contact.firstName,

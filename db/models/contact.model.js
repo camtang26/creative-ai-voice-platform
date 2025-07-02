@@ -89,8 +89,8 @@ const contactSchema = new Schema({
   // Contact status
   status: {
     type: String,
-    enum: ['active', 'inactive', 'do-not-call'],
-    default: 'active',
+    enum: ['active', 'inactive', 'do-not-call', 'completed', 'failed', 'pending'],
+    default: 'pending',
     index: true
   },
   

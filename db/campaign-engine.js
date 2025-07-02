@@ -311,8 +311,8 @@ async function getNextContactsToCall(campaignId, limit = 1) {
     const { contacts } = await contactRepository.getContacts(
       {
         campaignId,
-        status: 'active',
-        callCount: 0  // Only get contacts that haven't been called yet
+        status: 'pending',  // Only get contacts that are pending
+        callCount: 0  // Additional safety check
       },
       {
         limit,
@@ -509,6 +509,18 @@ export async function handleCallStatusUpdate(callSid, status) {
         
         // Update campaign stats in database
         await campaignRepository.updateCampaignStats(campaignId, statsUpdate);
+        
+        // Update contact status based on call outcome
+        if (callData.contactId) {
+          const contactRepository = getContactRepository();
+          const contactStatus = status === 'completed' ? 'completed' : 'failed';
+          await contactRepository.updateContact(callData.contactId, {
+            status: contactStatus,
+            lastCallResult: status,
+            lastCallDate: new Date()
+          });
+          console.log(`[Campaign Engine] Updated contact ${callData.contactId} status to ${contactStatus}`);
+        }
         
         // Remove call from active calls map
         campaignData.activeCalls.delete(callSid);
