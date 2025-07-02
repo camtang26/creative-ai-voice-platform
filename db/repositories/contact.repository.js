@@ -463,6 +463,12 @@ export async function importContacts(contacts, campaignId = null) {
           // Add campaign ID if provided and not already present
           if (campaignId && !existingContact.campaignIds.includes(campaignId)) {
             updateData.campaignIds = [...existingContact.campaignIds, campaignId];
+            // CRITICAL: Reset contact for new campaign
+            updateData.callCount = 0;
+            updateData.status = 'pending';
+            updateData.lastCallResult = null;
+            updateData.lastCallDate = null;
+            console.log(`[MongoDB] Resetting contact ${existingContact.phoneNumber} for new campaign ${campaignId}`);
           }
           
           await Contact.updateOne(

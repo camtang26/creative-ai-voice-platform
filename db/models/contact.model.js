@@ -94,6 +94,23 @@ const contactSchema = new Schema({
     index: true
   },
   
+  // Last call result tracking
+  lastCallResult: {
+    type: String,
+    enum: ['completed', 'failed', 'busy', 'no-answer', 'canceled', 'failed_to_initiate', null],
+    default: null
+  },
+  
+  lastCallDate: {
+    type: Date,
+    default: null
+  },
+  
+  lastCallError: {
+    type: String,
+    default: null
+  },
+  
   // Contact priority (for campaign execution)
   priority: {
     type: Number,
