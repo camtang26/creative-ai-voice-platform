@@ -316,8 +316,8 @@ async function getNextContactsToCall(campaignId, limit = 1) {
       },
       {
         limit,
-        sortBy: 'priority',
-        sortOrder: -1
+        sortBy: 'createdAt',
+        sortOrder: 1  // Sort ascending to process contacts in the order they were added
       }
     );
     

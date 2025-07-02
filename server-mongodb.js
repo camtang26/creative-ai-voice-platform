@@ -810,6 +810,7 @@ server.post('/api/db/campaigns/start-from-csv', async (request, reply) => {
     // Process and validate contacts
     const validContacts = [];
     const invalidNumbers = [];
+    const seenPhoneNumbers = new Map(); // Track phone numbers and their first occurrence
     
     for (const record of records) {
       // Helper function to clean quotes from values
@@ -909,6 +910,20 @@ server.post('/api/db/campaigns/start-from-csv', async (request, reply) => {
           continue;
         }
       }
+      
+      // Check for duplicate phone numbers
+      if (seenPhoneNumbers.has(formattedPhone)) {
+        const firstOccurrence = seenPhoneNumbers.get(formattedPhone);
+        invalidNumbers.push({ 
+          name: fullName, 
+          phone: phoneNumber, 
+          reason: `Duplicate phone number (first seen with ${firstOccurrence})` 
+        });
+        continue;
+      }
+      
+      // Track this phone number
+      seenPhoneNumbers.set(formattedPhone, fullName);
 
       validContacts.push({
         phoneNumber: formattedPhone,
