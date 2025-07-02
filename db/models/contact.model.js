@@ -97,7 +97,7 @@ const contactSchema = new Schema({
   // Last call result tracking
   lastCallResult: {
     type: String,
-    enum: ['completed', 'failed', 'busy', 'no-answer', 'canceled', 'failed_to_initiate', null],
+    enum: ['completed', 'failed', 'busy', 'no-answer', 'canceled', 'failed_to_initiate', 'twilio_balance_error', null],
     default: null
   },
   

@@ -134,11 +134,19 @@ export async function pauseCampaign(campaignId) {
     }
     
     // Update campaign status to paused in database
-    await campaignRepository.updateCampaignStatus(campaignId, 'paused');
+    const updatedCampaign = await campaignRepository.updateCampaignStatus(campaignId, 'paused');
     
     // CRITICAL FIX: Remove campaign from active campaigns entirely
     // This prevents any possibility of executeCampaignCycle running
     activeCampaigns.delete(campaignId);
+    
+    // Also remove from cycle in progress map
+    campaignCycleInProgress.delete(campaignId);
+    
+    // Emit Socket.IO event for immediate UI update
+    if (updatedCampaign) {
+      updateCampaignStatusWithSocket(updatedCampaign, 'paused');
+    }
     
     console.log(`[Campaign Engine] Campaign paused and removed from active campaigns: ${campaignId}`);
     
@@ -479,14 +487,34 @@ async function makeCallToContact(campaignId, contact) {
                                    callResult.details?.includes('insufficient');
       
       if (isTwilioBalanceIssue) {
-        // For balance issues, reset to pending so they can be retried later
-        console.log(`[Campaign Engine] Twilio balance issue detected, resetting contact to pending: ${contact.name}`);
+        // CRITICAL: For balance issues, mark as failed with special error code
+        // DO NOT reset to pending - this causes infinite retry loop!
+        console.log(`[Campaign Engine] Twilio balance issue detected - marking contact as failed with balance error: ${contact.name}`);
         await contactRepository.updateContact(contact._id, {
-          status: 'pending',
-          callCount: Math.max(0, contact.callCount - 1),
-          lastCallError: 'Insufficient Twilio balance',
+          status: 'failed',
+          lastCallResult: 'failed',
+          lastCallError: 'Insufficient Twilio balance - campaign auto-paused',
           lastCallDate: new Date()
         });
+        
+        // Auto-pause the campaign to prevent further attempts
+        console.log(`[Campaign Engine] Auto-pausing campaign ${campaignId} due to Twilio balance issue`);
+        await pauseCampaign(campaignId);
+        
+        // Update campaign with balance error flag
+        await campaignRepository.updateCampaign(campaignId, {
+          'settings.pausedDueToBalance': true,
+          'settings.balanceErrorTime': new Date()
+        });
+        
+        // Emit Socket.IO event for immediate UI update
+        const campaign = await campaignRepository.getCampaignById(campaignId);
+        if (campaign) {
+          updateCampaignStatusWithSocket(campaign, 'paused', {
+            reason: 'Insufficient Twilio balance',
+            autopaused: true
+          });
+        }
       } else {
         // For other errors, mark as failed
         await contactRepository.updateContact(contact._id, {
