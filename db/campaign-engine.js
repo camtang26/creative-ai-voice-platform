@@ -404,11 +404,15 @@ async function makeCallToContact(campaignId, contact) {
       await updateContactCallHistory(contact._id, callResult.callSid);
     } else {
       console.error(`[Campaign Engine] Failed to initiate call: ${callResult.error}`);
-      // Decrement the call count since the call failed
+      // Mark contact as failed instead of decrementing call count
+      // This prevents the system from immediately retrying failed numbers
       await contactRepository.updateContact(contact._id, {
-        callCount: Math.max(0, (contact.callCount || 1) - 1)
+        status: 'failed',
+        lastCallResult: 'failed_to_initiate',
+        lastCallError: callResult.error,
+        lastCallDate: new Date()
       });
-      console.log(`[Campaign Engine] Reverted call count for failed call to: ${contact.name}`);
+      console.log(`[Campaign Engine] Marked contact as failed due to call initiation error: ${contact.name}`);
     }
   } catch (error) {
     console.error(`[Campaign Engine] Error making call to contact for campaign ${campaignId}:`, error);

@@ -869,6 +869,11 @@ server.post('/api/db/campaigns/start-from-csv', async (request, reply) => {
             // Try to parse as-is (already has country code)
             const phoneObj = parsePhoneNumber(phoneNumber);
             if (phoneObj && phoneObj.isValid()) {
+              // Check if it's an Australian number
+              if (phoneObj.country !== 'AU') {
+                invalidNumbers.push({ name: fullName, phone: phoneNumber, reason: 'Only Australian numbers are supported' });
+                continue;
+              }
               formattedPhone = phoneObj.format('E.164');
               isValid = true;
             } else {

@@ -13,6 +13,11 @@ export function validatePhoneNumber(phone: string): { isValid: boolean; error?: 
     if (phone.startsWith('+')) {
       // Try to parse as-is (already has country code)
       phoneNumber = parsePhoneNumberFromString(phone)
+      
+      // Check if it's an Australian number
+      if (phoneNumber && phoneNumber.isValid() && phoneNumber.country !== 'AU') {
+        return { isValid: false, error: 'Only Australian phone numbers are supported' }
+      }
     } else {
       // No country code, default to Australian
       phoneNumber = parsePhoneNumberFromString(phone, 'AU')
