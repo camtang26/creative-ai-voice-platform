@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Download, FileText, BarChart3, Clock, Phone, Users } from 'lucide-react';
 import { format } from 'date-fns';
-import api from '@/lib/api';
+import { fetchCalls, fetchCall } from '@/lib/mongodb-api';
 
 interface Call {
   _id: string;
@@ -50,6 +51,7 @@ interface AnalyticsMetrics {
 }
 
 export default function SelectedCallsAnalytics() {
+  const searchParams = useSearchParams();
   const [calls, setCalls] = useState<Call[]>([]);
   const [selectedCalls, setSelectedCalls] = useState<Set<string>>(new Set());
   const [analytics, setAnalytics] = useState<AnalyticsMetrics | null>(null);
@@ -58,18 +60,76 @@ export default function SelectedCallsAnalytics() {
   const [analyzing, setAnalyzing] = useState(false);
 
   useEffect(() => {
-    fetchRecentCalls();
-  }, []);
+    // Check if we have pre-selected SIDs from URL params
+    const sidsParam = searchParams.get('sids');
+    if (sidsParam) {
+      const sids = sidsParam.split(',').filter(sid => sid);
+      setSelectedCalls(new Set(sids));
+      // Automatically analyze when coming from call logs
+      if (sids.length > 0) {
+        fetchSelectedCallsAndAnalyze(sids);
+      }
+    } else {
+      fetchRecentCalls();
+    }
+  }, [searchParams]);
 
   const fetchRecentCalls = async () => {
     setLoading(true);
     try {
-      const response = await api.getCalls({ limit: 100 });
-      setCalls(response.calls);
+      const response = await fetchCalls({ limit: 100 });
+      if (response.success && response.data) {
+        setCalls(response.data.calls);
+      }
     } catch (error) {
       console.error('Error fetching calls:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSelectedCallsAndAnalyze = async (sids: string[]) => {
+    setLoading(true);
+    setAnalyzing(true);
+    try {
+      // First, fetch the call details for display
+      const callPromises = sids.map(async (sid) => {
+        try {
+          const response = await fetchCall(sid);
+          if (response.success && response.data) {
+            return response.data;
+          }
+          return null;
+        } catch (err) {
+          console.error(`Error fetching call ${sid}:`, err);
+          return null;
+        }
+      });
+      const callResults = await Promise.all(callPromises);
+      const validCalls = callResults.filter(call => call !== null);
+      setCalls(validCalls);
+
+      // Then analyze them
+      const response = await fetch('/api/db/analytics/analyze-calls', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          callSids: sids,
+          reportType: 'detailed'
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setAnalytics(data.data.metrics);
+        setAiAnalysis(data.data.aiAnalysis);
+      }
+    } catch (error) {
+      console.error('Error analyzing calls:', error);
+      alert('Failed to analyze calls');
+    } finally {
+      setLoading(false);
+      setAnalyzing(false);
     }
   };
 
@@ -173,20 +233,21 @@ export default function SelectedCallsAnalytics() {
       <h1 className="text-3xl font-bold mb-6">Call Analytics</h1>
 
       {/* Call Selection */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="flex justify-between items-center">
-            <span>Select Calls to Analyze</span>
-            <div className="space-x-2">
-              <Button size="sm" variant="outline" onClick={selectAll}>
-                Select All
-              </Button>
-              <Button size="sm" variant="outline" onClick={deselectAll}>
-                Deselect All
-              </Button>
-            </div>
-          </CardTitle>
-        </CardHeader>
+      {!searchParams.get('sids') && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex justify-between items-center">
+              <span>Select Calls to Analyze</span>
+              <div className="space-x-2">
+                <Button size="sm" variant="outline" onClick={selectAll}>
+                  Select All
+                </Button>
+                <Button size="sm" variant="outline" onClick={deselectAll}>
+                  Deselect All
+                </Button>
+              </div>
+            </CardTitle>
+          </CardHeader>
         <CardContent>
           <div className="space-y-2 max-h-96 overflow-y-auto">
             {loading ? (
@@ -232,6 +293,36 @@ export default function SelectedCallsAnalytics() {
           </div>
         </CardContent>
       </Card>
+      )}
+
+      {/* Selected Calls Summary when coming from call logs */}
+      {searchParams.get('sids') && calls.length > 0 && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Analyzing {calls.length} Selected Calls</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {calls.map((call) => (
+                <div key={call.callSid} className="p-3 border rounded bg-gray-50">
+                  <div className="font-medium">{call.contactName || 'Unknown'}</div>
+                  <div className="text-sm text-gray-600">{call.to}</div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge variant={call.status === 'completed' ? 'default' : 'secondary'} className="text-xs">
+                      {call.status}
+                    </Badge>
+                    {call.answeredBy && (
+                      <Badge variant={call.answeredBy === 'human' ? 'success' : 'secondary'} className="text-xs">
+                        {call.answeredBy}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Analytics Results */}
       {analytics && (

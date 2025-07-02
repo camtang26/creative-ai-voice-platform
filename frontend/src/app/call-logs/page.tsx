@@ -6,14 +6,16 @@ import { Button, buttonVariants } from '@/components/ui/button' // Import button
 import Link from 'next/link'
 import { formatDate, formatPhoneNumber, formatDuration, cn } from '@/lib/utils'
 // Removed duplicate import line below
-import { Headphones, Download, PhoneCall, Eye, RefreshCw } from 'lucide-react'
+import { Headphones, Download, PhoneCall, Eye, RefreshCw, BarChart3 } from 'lucide-react'
 import { fetchCalls } from '@/lib/mongodb-api';
 import { CallInfo, CallStatus } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 
 export default function CallLogsPage() {
   const router = useRouter(); // Get router instance
   const [callLogsData, setCallLogsData] = useState<CallInfo[]>([]);
+  const [selectedCalls, setSelectedCalls] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [totalCalls, setTotalCalls] = useState(0);
@@ -96,6 +98,35 @@ export default function CallLogsPage() {
     setPage(prev => Math.max(1, prev - 1));
   }
 
+  const toggleCallSelection = (callSid: string) => {
+    const newSelected = new Set(selectedCalls);
+    if (newSelected.has(callSid)) {
+      newSelected.delete(callSid);
+    } else {
+      newSelected.add(callSid);
+    }
+    setSelectedCalls(newSelected);
+  };
+
+  const selectAll = () => {
+    const allSids = callLogsData.map(call => call.callSid).filter(sid => sid);
+    setSelectedCalls(new Set(allSids));
+  };
+
+  const deselectAll = () => {
+    setSelectedCalls(new Set());
+  };
+
+  const analyzeSelected = () => {
+    if (selectedCalls.size === 0) {
+      alert('Please select at least one call to analyze');
+      return;
+    }
+    // Navigate to analytics page with selected call SIDs
+    const sids = Array.from(selectedCalls).join(',');
+    router.push(`/analytics/selected-calls?sids=${encodeURIComponent(sids)}`);
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <DashboardHeader
@@ -103,6 +134,22 @@ export default function CallLogsPage() {
         description="View and manage all your call history"
         actions={
           <div className="flex gap-2">
+            {selectedCalls.size > 0 && (
+              <>
+                <Button variant="default" onClick={analyzeSelected}>
+                  <BarChart3 className="mr-2 h-4 w-4" />
+                  Analyze {selectedCalls.size} Selected
+                </Button>
+                <Button variant="outline" onClick={deselectAll}>
+                  Clear Selection
+                </Button>
+              </>
+            )}
+            {selectedCalls.size === 0 && callLogsData.length > 0 && (
+              <Button variant="outline" onClick={selectAll}>
+                Select All
+              </Button>
+            )}
             <Button variant="outline" onClick={() => loadCallData()} disabled={isLoading}>
               <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
@@ -144,6 +191,12 @@ export default function CallLogsPage() {
             <table className="w-full caption-bottom text-sm">
               <thead className="[&_tr]:border-b border-gray-700/50">
                 <tr className="border-b border-gray-700/50 transition-colors hover:bg-gray-800/50">
+                  <th className="h-12 px-4 text-left align-middle font-medium text-gray-200">
+                    <Checkbox
+                      checked={callLogsData.length > 0 && selectedCalls.size === callLogsData.filter(c => c.callSid).length}
+                      onCheckedChange={(checked) => checked ? selectAll() : deselectAll()}
+                    />
+                  </th>
                   <th className="h-12 px-4 text-left align-middle font-medium text-gray-200">Name</th>
                   <th className="h-12 px-4 text-left align-middle font-medium text-gray-200">Call SID</th>
                   <th className="h-12 px-4 text-left align-middle font-medium text-gray-200">To</th>
@@ -167,6 +220,13 @@ export default function CallLogsPage() {
                         key={call.callSid || `call-${Math.random().toString(36).substring(2, 9)}`} // Use callSid as key if available
                         className="border-b border-gray-700/50 transition-colors hover:bg-gray-800/50"
                       >
+                        <td className="p-4 align-middle">
+                          <Checkbox
+                            checked={call.callSid ? selectedCalls.has(call.callSid) : false}
+                            onCheckedChange={() => call.callSid && toggleCallSelection(call.callSid)}
+                            disabled={!call.callSid}
+                          />
+                        </td>
                         <td className="p-4 align-middle font-medium text-gray-100">{call.contactName || 'Unknown'}</td>
                         <td className="p-4 align-middle text-gray-300">{call.callSid}</td>
                         <td className="p-4 align-middle text-gray-300">{formatPhoneNumber(call.to)}</td>
@@ -213,7 +273,7 @@ export default function CallLogsPage() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={8} className="p-4 text-center text-gray-400">
+                    <td colSpan={9} className="p-4 text-center text-gray-400">
                       No call logs found
                     </td>
                   </tr>
