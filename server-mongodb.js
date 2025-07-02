@@ -169,8 +169,10 @@ server.register(fastifyCors, {
     const allowedOrigins = [
       'http://localhost:3000',
       'http://localhost:3001',
+      'http://localhost:3002',
       'https://localhost:3000',
-      'https://localhost:3001'
+      'https://localhost:3001',
+      'https://localhost:3002'
     ];
     
     // Add frontend URL from environment variable
