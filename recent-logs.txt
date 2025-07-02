@@ -1,0 +1,100 @@
+2025-07-02 06:09:36  [MongoDB] First contact _id: undefined
+2025-07-02 06:09:36  [MongoDB] First contact id: undefined
+2025-07-02 06:09:36  [Campaign Engine] No more contacts to call for campaign: 6864c35a3e887c3a3a7ebaf2
+2025-07-02 06:09:36  [MongoDB] Retrieved 0 contacts (page 1, total: 0)
+2025-07-02 06:09:36  [MongoDB] First contact raw: undefined
+2025-07-02 06:09:36  [MongoDB] First contact _id: undefined
+2025-07-02 06:09:36  [MongoDB] First contact id: undefined
+2025-07-02 06:09:36  [Campaign Engine] No more contacts to call for campaign: 6864c27c3e887c3a3a7eba6b
+2025-07-02 06:09:37  [MongoDB] Retrieved 0 contacts (page 1, total: 0)
+2025-07-02 06:09:37  [MongoDB] First contact raw: undefined
+2025-07-02 06:09:37  [MongoDB] First contact _id: undefined
+2025-07-02 06:09:37  [MongoDB] First contact id: undefined
+2025-07-02 06:09:37  [Campaign Engine] No more contacts to call for campaign: 6864cb7ae9360fd79bc17fb7
+2025-07-02 06:09:37  [MongoDB] Retrieved 0 contacts (page 1, total: 0)
+2025-07-02 06:09:37  [MongoDB] First contact raw: undefined
+2025-07-02 06:09:37  [MongoDB] First contact _id: undefined
+2025-07-02 06:09:37  [MongoDB] First contact id: undefined
+2025-07-02 06:09:37  [MongoDB] Retrieved 0 contacts (page 1, total: 0)
+2025-07-02 06:09:37  [MongoDB] First contact raw: undefined
+2025-07-02 06:09:37  [MongoDB] First contact _id: undefined
+2025-07-02 06:09:37  [MongoDB] First contact id: undefined
+2025-07-02 06:09:37  [MongoDB] Retrieved 0 contacts (page 1, total: 0)
+2025-07-02 06:09:37  [MongoDB] First contact raw: undefined
+2025-07-02 06:09:37  [MongoDB] First contact _id: undefined
+2025-07-02 06:09:37  [MongoDB] First contact id: undefined
+2025-07-02 06:09:37  [MongoDB] Retrieved 0 contacts (page 1, total: 0)
+2025-07-02 06:09:37  [MongoDB] First contact raw: undefined
+2025-07-02 06:09:37  [MongoDB] First contact _id: undefined
+2025-07-02 06:09:37  [MongoDB] First contact id: undefined
+2025-07-02 06:09:38  {"level":30,"time":1751436578258,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-0a89c270caab88c8","req":{"method":"GET","url":"/healthz","hostname":"twilio-elevenlabs-app.onrender.com","remoteAddress":"10.209.17.6","remotePort":43668},"msg":"incoming request"}
+2025-07-02 06:09:38  {"level":30,"time":1751436578259,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-0a89c270caab88c8","res":{"statusCode":200},"responseTime":0.5775120258331299,"msg":"request completed"}
+2025-07-02 06:09:43  {"level":30,"time":1751436583259,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-aa57db9074abbbc1","req":{"method":"GET","url":"/healthz","hostname":"twilio-elevenlabs-app.onrender.com","remoteAddress":"10.209.17.6","remotePort":43672},"msg":"incoming request"}
+2025-07-02 06:09:43  {"level":30,"time":1751436583260,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-aa57db9074abbbc1","res":{"statusCode":200},"responseTime":0.5725729465484619,"msg":"request completed"}
+2025-07-02 06:09:43  {"level":30,"time":1751436583260,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-f445aa6436d5da90","req":{"method":"GET","url":"/healthz","hostname":"twilio-elevenlabs-app.onrender.com","remoteAddress":"10.209.17.6","remotePort":43682},"msg":"incoming request"}
+2025-07-02 06:09:43  {"level":30,"time":1751436583260,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-f445aa6436d5da90","res":{"statusCode":200},"responseTime":0.32338690757751465,"msg":"request completed"}
+2025-07-02 06:09:48  {"level":30,"time":1751436588258,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-9c1505cc97a80a7d","req":{"method":"GET","url":"/healthz","hostname":"twilio-elevenlabs-app.onrender.com","remoteAddress":"10.209.17.6","remotePort":50280},"msg":"incoming request"}
+2025-07-02 06:09:48  {"level":30,"time":1751436588259,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-9c1505cc97a80a7d","res":{"statusCode":200},"responseTime":0.6784851551055908,"msg":"request completed"}
+2025-07-02 06:09:53  {"level":30,"time":1751436593259,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-792170e30be66d03","req":{"method":"GET","url":"/healthz","hostname":"twilio-elevenlabs-app.onrender.com","remoteAddress":"10.209.17.6","remotePort":50286},"msg":"incoming request"}
+2025-07-02 06:09:53  {"level":30,"time":1751436593259,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-792170e30be66d03","res":{"statusCode":200},"responseTime":0.4681999683380127,"msg":"request completed"}
+2025-07-02 06:09:58  {"level":30,"time":1751436598259,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-5efa266b89e721af","req":{"method":"GET","url":"/healthz","hostname":"twilio-elevenlabs-app.onrender.com","remoteAddress":"10.209.17.6","remotePort":52724},"msg":"incoming request"}
+2025-07-02 06:09:58  {"level":30,"time":1751436598259,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-5efa266b89e721af","res":{"statusCode":200},"responseTime":0.5304811000823975,"msg":"request completed"}
+2025-07-02 06:10:03  {"level":30,"time":1751436603259,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-731369f1115fa6d9","req":{"method":"GET","url":"/healthz","hostname":"twilio-elevenlabs-app.onrender.com","remoteAddress":"10.209.17.6","remotePort":52732},"msg":"incoming request"}
+2025-07-02 06:10:03  {"level":30,"time":1751436603260,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-731369f1115fa6d9","res":{"statusCode":200},"responseTime":0.6245739459991455,"msg":"request completed"}
+2025-07-02 06:10:05  [Campaign Engine] No more contacts to call for campaign: 6864c9e851e829170a3c3bac
+2025-07-02 06:10:05  [MongoDB] Retrieved 0 contacts (page 1, total: 0)
+2025-07-02 06:10:05  [MongoDB] First contact raw: undefined
+2025-07-02 06:10:05  [MongoDB] First contact _id: undefined
+2025-07-02 06:10:05  [MongoDB] First contact id: undefined
+2025-07-02 06:10:05  [Campaign Engine] No more contacts to call for campaign: 6864c80c51e829170a3c3a86
+2025-07-02 06:10:06  [MongoDB] Retrieved 0 contacts (page 1, total: 0)
+2025-07-02 06:10:06  [MongoDB] First contact raw: undefined
+2025-07-02 06:10:06  [MongoDB] First contact _id: undefined
+2025-07-02 06:10:06  [MongoDB] First contact id: undefined
+2025-07-02 06:10:06  [MongoDB] Retrieved 0 contacts (page 1, total: 0)
+2025-07-02 06:10:06  [MongoDB] First contact raw: undefined
+2025-07-02 06:10:06  [MongoDB] First contact _id: undefined
+2025-07-02 06:10:06  [MongoDB] First contact id: undefined
+2025-07-02 06:10:06  [Campaign Engine] No more contacts to call for campaign: 6864c7e0f791b903512077cc
+2025-07-02 06:10:06  [MongoDB] Retrieved 0 contacts (page 1, total: 0)
+2025-07-02 06:10:06  [MongoDB] First contact raw: undefined
+2025-07-02 06:10:06  [MongoDB] First contact _id: undefined
+2025-07-02 06:10:06  [MongoDB] First contact id: undefined
+2025-07-02 06:10:06  [MongoDB] Retrieved 0 contacts (page 1, total: 0)
+2025-07-02 06:10:06  [MongoDB] First contact raw: undefined
+2025-07-02 06:10:06  [MongoDB] First contact _id: undefined
+2025-07-02 06:10:06  [MongoDB] First contact id: undefined
+2025-07-02 06:10:06  [Campaign Engine] No more contacts to call for campaign: 6864c35a3e887c3a3a7ebaf2
+2025-07-02 06:10:06  [MongoDB] Retrieved 0 contacts (page 1, total: 0)
+2025-07-02 06:10:06  [MongoDB] First contact raw: undefined
+2025-07-02 06:10:06  [MongoDB] First contact _id: undefined
+2025-07-02 06:10:06  [MongoDB] First contact id: undefined
+2025-07-02 06:10:06  [Campaign Engine] No more contacts to call for campaign: 6864c27c3e887c3a3a7eba6b
+2025-07-02 06:10:06  [MongoDB] Retrieved 0 contacts (page 1, total: 0)
+2025-07-02 06:10:06  [MongoDB] First contact raw: undefined
+2025-07-02 06:10:06  [MongoDB] First contact _id: undefined
+2025-07-02 06:10:06  [MongoDB] First contact id: undefined
+2025-07-02 06:10:06  [MongoDB] Retrieved 0 contacts (page 1, total: 0)
+2025-07-02 06:10:06  [MongoDB] First contact raw: undefined
+2025-07-02 06:10:06  [MongoDB] First contact _id: undefined
+2025-07-02 06:10:06  [MongoDB] First contact id: undefined
+2025-07-02 06:10:06  [MongoDB] Retrieved 0 contacts (page 1, total: 0)
+2025-07-02 06:10:06  [MongoDB] First contact raw: undefined
+2025-07-02 06:10:06  [MongoDB] First contact _id: undefined
+2025-07-02 06:10:06  [MongoDB] First contact id: undefined
+2025-07-02 06:10:06  [MongoDB] Retrieved 0 contacts (page 1, total: 0)
+2025-07-02 06:10:06  [MongoDB] First contact raw: undefined
+2025-07-02 06:10:06  [MongoDB] First contact _id: undefined
+2025-07-02 06:10:06  [MongoDB] First contact id: undefined
+2025-07-02 06:10:08  {"level":30,"time":1751436608259,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-1f99fcb8d9a387f3","req":{"method":"GET","url":"/healthz","hostname":"twilio-elevenlabs-app.onrender.com","remoteAddress":"10.209.17.6","remotePort":37844},"msg":"incoming request"}
+2025-07-02 06:10:08  {"level":30,"time":1751436608260,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-1f99fcb8d9a387f3","res":{"statusCode":200},"responseTime":0.5518920421600342,"msg":"request completed"}
+2025-07-02 06:10:13  {"level":30,"time":1751436613259,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-1026f01a475b6746","req":{"method":"GET","url":"/healthz","hostname":"twilio-elevenlabs-app.onrender.com","remoteAddress":"10.209.17.6","remotePort":37854},"msg":"incoming request"}
+2025-07-02 06:10:13  {"level":30,"time":1751436613259,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-1026f01a475b6746","res":{"statusCode":200},"responseTime":0.4943211078643799,"msg":"request completed"}
+2025-07-02 06:10:13  {"level":30,"time":1751436613260,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-662a61b1bbf7aa02","req":{"method":"GET","url":"/healthz","hostname":"twilio-elevenlabs-app.onrender.com","remoteAddress":"10.209.17.6","remotePort":37860},"msg":"incoming request"}
+2025-07-02 06:10:13  {"level":30,"time":1751436613261,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-662a61b1bbf7aa02","res":{"statusCode":200},"responseTime":0.3073761463165283,"msg":"request completed"}
+2025-07-02 06:10:18  {"level":30,"time":1751436618259,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-37e76597fffb54c2","req":{"method":"GET","url":"/healthz","hostname":"twilio-elevenlabs-app.onrender.com","remoteAddress":"10.209.17.6","remotePort":40448},"msg":"incoming request"}
+2025-07-02 06:10:18  {"level":30,"time":1751436618260,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-37e76597fffb54c2","res":{"statusCode":200},"responseTime":0.5877530574798584,"msg":"request completed"}
+2025-07-02 06:10:23  {"level":30,"time":1751436623258,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-ea1b6c07045fd0ac","req":{"method":"GET","url":"/healthz","hostname":"twilio-elevenlabs-app.onrender.com","remoteAddress":"10.209.17.6","remotePort":40460},"msg":"incoming request"}
+2025-07-02 06:10:23  {"level":30,"time":1751436623259,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-ea1b6c07045fd0ac","res":{"statusCode":200},"responseTime":0.548940896987915,"msg":"request completed"}
+2025-07-02 06:10:28  {"level":30,"time":1751436628259,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-e961e166105d68f4","req":{"method":"GET","url":"/healthz","hostname":"twilio-elevenlabs-app.onrender.com","remoteAddress":"10.209.17.6","remotePort":43506},"msg":"incoming request"}
+2025-07-02 06:10:28  {"level":30,"time":1751436628260,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-e961e166105d68f4","res":{"statusCode":200},"responseTime":0.5640621185302734,"msg":"request completed"}

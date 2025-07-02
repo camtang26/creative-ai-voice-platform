@@ -381,12 +381,13 @@ export async function claimNextContactForCalling(campaignId) {
       throw new Error('Campaign ID is required');
     }
     
-    // Atomically find and update a contact with pending status and no calls
+    // Atomically find and update a contact with pending status
+    // Remove callCount: 0 restriction to allow reset contacts to be called
     const contact = await Contact.findOneAndUpdate(
       {
         campaignIds: campaignId,
-        status: 'pending',
-        callCount: 0
+        status: 'pending'
+        // REMOVED: callCount: 0 - this was preventing reset contacts from being called
       },
       {
         $inc: { callCount: 1 },
@@ -397,7 +398,7 @@ export async function claimNextContactForCalling(campaignId) {
       },
       {
         new: true,  // Return the updated document
-        sort: { createdAt: 1 }  // Process contacts in order they were added
+        sort: { priority: -1, createdAt: 1 }  // Process by priority first, then order added
       }
     );
     

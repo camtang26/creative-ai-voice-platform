@@ -1,0 +1,100 @@
+2025-07-02 06:02:37    createdAt: 2025-06-18T05:41:40.857Z,
+2025-07-02 06:02:37    updatedAt: 2025-07-02T06:02:35.807Z,
+2025-07-02 06:02:37    __v: 0,
+2025-07-02 06:02:37    lastContacted: 2025-07-02T06:02:35.807Z,
+2025-07-02 06:02:37    lastCallDate: null,
+2025-07-02 06:02:37    lastCallResult: null
+2025-07-02 06:02:37  }
+2025-07-02 06:02:37  [MongoDB] First contact _id: new ObjectId("68525194bdd4319485782a3b")
+2025-07-02 06:02:37  [MongoDB] First contact id: 68525194bdd4319485782a3b
+2025-07-02 06:02:37  [MongoDB] Logged status_change event for call CAae509961d9303afe70953915e864eeaf
+2025-07-02 06:02:37  [MongoDB] Logged status_change event for call CAae509961d9303afe70953915e864eeaf
+2025-07-02 06:02:37  [Campaign Engine] Updated campaign status for call CAae509961d9303afe70953915e864eeaf
+2025-07-02 06:02:37  {"level":30,"time":1751436157591,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-849500135ef06971","res":{"statusCode":200},"responseTime":205.303946018219,"msg":"request completed"}
+2025-07-02 06:02:37  [MongoDB] Updated call history for contact: Cameron (68525194bdd4319485782a3b)
+2025-07-02 06:02:37  [Outbound Call] Call initiated successfully. Call SID: CAae509961d9303afe70953915e864eeaf (using AU region)
+2025-07-02 06:02:37  [Campaign Engine] Call initiated successfully: CAae509961d9303afe70953915e864eeaf
+2025-07-02 06:02:37  [MongoDB] Updated campaign stats: cam (6864c9e851e829170a3c3bac)
+2025-07-02 06:02:37  [Socket.IO] Emitted progress_update for campaign 6864c9e851e829170a3c3bac
+2025-07-02 06:02:37  [Socket.IO] Updated campaign 6864c9e851e829170a3c3bac progress to 0%
+2025-07-02 06:02:37  [Campaign Socket] Updated stats for campaign: cam (6864c9e851e829170a3c3bac), progress: 0%
+2025-07-02 06:02:38  [MongoDB] Updated call history for contact: Cameron (68525194bdd4319485782a3b)
+2025-07-02 06:02:38  {"level":30,"time":1751436158259,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-5cbfb4cc58beeb20","req":{"method":"GET","url":"/healthz","hostname":"twilio-elevenlabs-app.onrender.com","remoteAddress":"10.209.17.6","remotePort":51956},"msg":"incoming request"}
+2025-07-02 06:02:38  {"level":30,"time":1751436158260,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-5cbfb4cc58beeb20","res":{"statusCode":200},"responseTime":0.5988030433654785,"msg":"request completed"}
+2025-07-02 06:02:39  {"level":30,"time":1751436159481,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-46cd83dcbf9f99cb","req":{"method":"POST","url":"/call-status-callback","hostname":"twilio-elevenlabs-app.onrender.com","remoteAddress":"34.227.61.73","remotePort":47862},"msg":"incoming request"}
+2025-07-02 06:02:39  [Twilio Callback] Call CAae509961d9303afe70953915e864eeaf status: ringing
+2025-07-02 06:02:39  [MongoDB] Updated call CAae509961d9303afe70953915e864eeaf status to ringing
+2025-07-02 06:02:39  [MongoDB] Updated call CAae509961d9303afe70953915e864eeaf status to ringing
+2025-07-02 06:02:39  [MongoDB] Logged status_change event for call CAae509961d9303afe70953915e864eeaf
+2025-07-02 06:02:39  [MongoDB] Logged status_change event for call CAae509961d9303afe70953915e864eeaf
+2025-07-02 06:02:39  [Socket.IO] Emitted status_update for call CAae509961d9303afe70953915e864eeaf
+2025-07-02 06:02:39  [Socket.IO] Emitted active calls list with 1 calls
+2025-07-02 06:02:39  [Campaign Engine] Call status update for campaign 6864c9e851e829170a3c3bac: CAae509961d9303afe70953915e864eeaf -> ringing
+2025-07-02 06:02:39  [Campaign Engine] Updated campaign status for call CAae509961d9303afe70953915e864eeaf
+2025-07-02 06:02:39  {"level":30,"time":1751436159782,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-46cd83dcbf9f99cb","res":{"statusCode":200},"responseTime":300.409873008728,"msg":"request completed"}
+2025-07-02 06:02:43  {"level":30,"time":1751436163259,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-1a2065a9169f96b7","req":{"method":"GET","url":"/healthz","hostname":"twilio-elevenlabs-app.onrender.com","remoteAddress":"10.209.17.6","remotePort":51960},"msg":"incoming request"}
+2025-07-02 06:02:43  {"level":30,"time":1751436163260,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-1a2065a9169f96b7","res":{"statusCode":200},"responseTime":0.5974831581115723,"msg":"request completed"}
+2025-07-02 06:02:43  {"level":30,"time":1751436163260,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-cec8a252636d79fa","req":{"method":"GET","url":"/healthz","hostname":"twilio-elevenlabs-app.onrender.com","remoteAddress":"10.209.17.6","remotePort":51962},"msg":"incoming request"}
+2025-07-02 06:02:43  {"level":30,"time":1751436163261,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-cec8a252636d79fa","res":{"statusCode":200},"responseTime":0.33667707443237305,"msg":"request completed"}
+2025-07-02 06:02:46  {"level":30,"time":1751436166745,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-f9e79d57d3ca5f47","req":{"method":"POST","url":"/call-status-callback","hostname":"twilio-elevenlabs-app.onrender.com","remoteAddress":"44.202.60.20","remotePort":53236},"msg":"incoming request"}
+2025-07-02 06:02:46  [Twilio Callback] Call CAae509961d9303afe70953915e864eeaf status: in-progress
+2025-07-02 06:02:46  [MongoDB] Updated call CAae509961d9303afe70953915e864eeaf status to in-progress
+2025-07-02 06:02:46  [MongoDB] Updated call CAae509961d9303afe70953915e864eeaf status to in-progress
+2025-07-02 06:02:46  [MongoDB] Logged status_change event for call CAae509961d9303afe70953915e864eeaf
+2025-07-02 06:02:46  [MongoDB] Logged status_change event for call CAae509961d9303afe70953915e864eeaf
+2025-07-02 06:02:46  [Socket.IO] Emitted status_update for call CAae509961d9303afe70953915e864eeaf
+2025-07-02 06:02:46  [Socket.IO] Emitted active calls list with 1 calls
+2025-07-02 06:02:46  [Campaign Engine] Call status update for campaign 6864c9e851e829170a3c3bac: CAae509961d9303afe70953915e864eeaf -> in-progress
+2025-07-02 06:02:47  [MongoDB] Updated campaign stats: cam (6864c9e851e829170a3c3bac)
+2025-07-02 06:02:47  [Socket.IO] Emitted progress_update for campaign 6864c9e851e829170a3c3bac
+2025-07-02 06:02:47  [Socket.IO] Updated campaign 6864c9e851e829170a3c3bac progress to 0%
+2025-07-02 06:02:47  [Campaign Socket] Updated stats for campaign: cam (6864c9e851e829170a3c3bac), progress: 0%
+2025-07-02 06:02:47  [Campaign Engine] Updated campaign status for call CAae509961d9303afe70953915e864eeaf
+2025-07-02 06:02:47  {"level":30,"time":1751436167242,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-f9e79d57d3ca5f47","res":{"statusCode":200},"responseTime":497.05070400238037,"msg":"request completed"}
+2025-07-02 06:02:47  {"level":30,"time":1751436167493,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-19d640075066c89e","req":{"method":"POST","url":"/outbound-call-twiml?prompt=&first_message=&name=Cameron&campaignId=6864c9e851e829170a3c3bac&contactId=68525194bdd4319485782a3b","hostname":"twilio-elevenlabs-app.onrender.com","remoteAddress":"18.207.195.18","remotePort":53236},"msg":"incoming request"}
+2025-07-02 06:02:47  [TwiML] Using Stream URL: wss://twilio-elevenlabs-app.onrender.com/outbound-media-stream
+2025-07-02 06:02:47  {"level":30,"time":1751436167495,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-19d640075066c89e","res":{"statusCode":200},"responseTime":1.4024100303649902,"msg":"request completed"}
+2025-07-02 06:02:48  {"level":30,"time":1751436168258,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-95f5c61e49737fcb","req":{"method":"GET","url":"/healthz","hostname":"twilio-elevenlabs-app.onrender.com","remoteAddress":"10.209.17.6","remotePort":37370},"msg":"incoming request"}
+2025-07-02 06:02:48  {"level":30,"time":1751436168259,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-95f5c61e49737fcb","res":{"statusCode":200},"responseTime":0.5511109828948975,"msg":"request completed"}
+2025-07-02 06:02:48  {"level":30,"time":1751436168313,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-8ed9eb927671f6ab","req":{"method":"GET","url":"/outbound-media-stream","hostname":"twilio-elevenlabs-app.onrender.com","remoteAddress":"34.229.231.113","remotePort":55172},"msg":"incoming request"}
+2025-07-02 06:02:48  {"level":30,"time":1751436168314,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","msg":"[Server Upgrade] Handling upgrade request for /outbound-media-stream"}
+2025-07-02 06:02:48  {"level":30,"time":1751436168315,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","msg":"[WS Manual] Twilio connected via manual upgrade"}
+2025-07-02 06:02:48  {"level":30,"time":1751436168315,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","msg":"[WS Manual] Attempting to send \"connected\" event immediately..."}
+2025-07-02 06:02:48  {"level":30,"time":1751436168316,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","msg":"[WS Manual] Successfully sent \"connected\" event immediately."}
+2025-07-02 06:02:48  {"level":40,"time":1751436168317,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-8ed9eb927671f6ab","err":{"type":"FastifyError","message":"Reply was already sent, did you forget to \"return reply\" in \"/outbound-media-stream\" (GET)?","stack":"FastifyError: Reply was already sent, did you forget to \"return reply\" in \"/outbound-media-stream\" (GET)?\n    at Reply.send (/opt/render/project/src/node_modules/fastify/lib/reply.js:151:26)\n    at preHandlerCallback (/opt/render/project/src/node_modules/fastify/lib/handleRequest.js:142:11)\n    at validationCompleted (/opt/render/project/src/node_modules/fastify/lib/handleRequest.js:123:5)\n    at preValidationCallback (/opt/render/project/src/node_modules/fastify/lib/handleRequest.js:100:5)\n    at handler (/opt/render/project/src/node_modules/fastify/lib/handleRequest.js:77:7)\n    at handleRequest (/opt/render/project/src/node_modules/fastify/lib/handleRequest.js:24:5)\n    at runPreParsing (/opt/render/project/src/node_modules/fastify/lib/route.js:613:5)\n    at next (/opt/render/project/src/node_modules/fastify/lib/hooks.js:233:9)\n    at Object.<anonymous> (file:///opt/render/project/src/api-middleware.js:279:7)\n    at hookIterator (/opt/render/project/src/node_modules/fastify/lib/hooks.js:405:10)","code":"FST_ERR_REP_ALREADY_SENT","name":"FastifyError","statusCode":500},"msg":"Reply was already sent, did you forget to \"return reply\" in \"/outbound-media-stream\" (GET)?"}
+2025-07-02 06:02:48  [Socket.IO] Emitted stream_started for call CAae509961d9303afe70953915e864eeaf
+2025-07-02 06:02:48  {"level":30,"time":1751436168567,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","msg":"[WS Manual] Received TwiML Parameters:"}
+2025-07-02 06:02:48  {"level":30,"time":1751436168567,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","msg":"[WS Manual] Twilio Stream started"}
+2025-07-02 06:02:48  [DEBUG] Full response from getSignedUrl: {
+2025-07-02 06:02:48    "signed_url": "wss://api.elevenlabs.io/v1/convai/conversation?agent_id=R73QIEy6joMmhE7kxOXJ&conversation_signature=cvtkn_01jz4vp3fqeq9t0ykwnrfwvdhm"
+2025-07-02 06:02:48  }
+2025-07-02 06:02:48  {"level":30,"time":1751436168864,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","msg":"[WS Manual] Creating ElevenLabs WebSocket connection"}
+2025-07-02 06:02:49  {"level":30,"time":1751436169443,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","msg":"[WS Manual] Connected to ElevenLabs. Waiting for metadata..."}
+2025-07-02 06:02:49  [Socket.IO] Emitted elevenlabs_connected for call CAae509961d9303afe70953915e864eeaf
+2025-07-02 06:02:49  {"level":30,"time":1751436169444,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","msg":"[WS Manual] Received conversation_initiation_metadata"}
+2025-07-02 06:02:49  {"level":30,"time":1751436169444,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","msg":"[WS Manual] Extracted conversation_id conv_01jz4vp3rwevqbr4rzaydp2g9a from metadata"}
+2025-07-02 06:02:49  [MongoDB] Updated call CAae509961d9303afe70953915e864eeaf metadata
+2025-07-02 06:02:50  {"level":30,"time":1751436170156,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-f81690e33d082705","req":{"method":"POST","url":"/recording-status-callback","hostname":"twilio-elevenlabs-app.onrender.com","remoteAddress":"34.228.157.133","remotePort":51048},"msg":"incoming request"}
+2025-07-02 06:02:50  [Recording] Received recording status callback. Event: in-progress
+2025-07-02 06:02:50  [Recording] Recording in progress for call CAae509961d9303afe70953915e864eeaf: RE6d4204f280970597393477614ee1d14f
+2025-07-02 06:02:50  [Socket.IO] Emitted recording_update for call CAae509961d9303afe70953915e864eeaf
+2025-07-02 06:02:50  [MongoDB] Logged agent_response event for call CAae509961d9303afe70953915e864eeaf
+2025-07-02 06:02:50  [MongoDB] Saved recording with SID: RE6d4204f280970597393477614ee1d14f
+2025-07-02 06:02:50  [MongoDB] Added recording 6864cb8ae9360fd79bc18005 to call CAae509961d9303afe70953915e864eeaf
+2025-07-02 06:02:50  [MongoDB] Saved recording RE6d4204f280970597393477614ee1d14f for call CAae509961d9303afe70953915e864eeaf
+2025-07-02 06:02:50  {"level":30,"time":1751436170366,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-f81690e33d082705","res":{"statusCode":200},"responseTime":209.15273809432983,"msg":"request completed"}
+2025-07-02 06:02:50  {"level":30,"time":1751436170511,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-0cbeace216a32bb6","req":{"method":"POST","url":"/amd-status-callback","hostname":"twilio-elevenlabs-app.onrender.com","remoteAddress":"18.206.97.198","remotePort":34300},"msg":"incoming request"}
+2025-07-02 06:02:50  [AMD] Received answering machine detection callback
+2025-07-02 06:02:50  [AMD] Call CAae509961d9303afe70953915e864eeaf answered by: human, status: undefined
+2025-07-02 06:02:50  [Machine Detection] Call CAae509961d9303afe70953915e864eeaf answered by: human
+2025-07-02 06:02:50  [Socket.IO] Emitted status_update for call CAae509961d9303afe70953915e864eeaf
+2025-07-02 06:02:50  [Socket.IO] Emitted active calls list with 1 calls
+2025-07-02 06:02:50  [Socket.IO] Emitted machine_detection for call CAae509961d9303afe70953915e864eeaf
+2025-07-02 06:02:50  [MongoDB] Updated call CAae509961d9303afe70953915e864eeaf metadata
+2025-07-02 06:02:50  [MongoDB] Updated call CAae509961d9303afe70953915e864eeaf with machine detection data
+2025-07-02 06:02:50  {"level":30,"time":1751436170614,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-0cbeace216a32bb6","res":{"statusCode":200},"responseTime":103.24502992630005,"msg":"request completed"}
+2025-07-02 06:02:53  {"level":30,"time":1751436173259,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-d9d1d9885ab576cb","req":{"method":"GET","url":"/healthz","hostname":"twilio-elevenlabs-app.onrender.com","remoteAddress":"10.209.17.6","remotePort":37372},"msg":"incoming request"}
+2025-07-02 06:02:53  {"level":30,"time":1751436173260,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-d9d1d9885ab576cb","res":{"statusCode":200},"responseTime":0.6546139717102051,"msg":"request completed"}
+2025-07-02 06:02:58  {"level":30,"time":1751436178259,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-001a6caf43404500","req":{"method":"GET","url":"/healthz","hostname":"twilio-elevenlabs-app.onrender.com","remoteAddress":"10.209.17.6","remotePort":43162},"msg":"incoming request"}
+2025-07-02 06:02:58  {"level":30,"time":1751436178260,"pid":121,"hostname":"srv-cvkclnpr0fns739purvg-98596d54f-ns59s","reqId":"req-001a6caf43404500","res":{"statusCode":200},"responseTime":0.5609719753265381,"msg":"request completed"}
+2025-07-02 06:02:59  [MongoDB] Logged user_transcript event for call CAae509961d9303afe70953915e864eeaf

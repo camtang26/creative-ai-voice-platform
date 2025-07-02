@@ -332,17 +332,17 @@ async function getNextContactsToCall(campaignId, limit = 1) {
     const contactRepository = getContactRepository();
     
     // Get contacts for campaign that haven't been called yet
-    // CRITICAL FIX: Only get contacts with callCount = 0 to prevent repeat calling
+    // DEPRECATED: This function is no longer used - see executeCampaignCycle
     const { contacts } = await contactRepository.getContacts(
       {
         campaignId,
-        status: 'pending',  // Only get contacts that are pending
-        callCount: 0  // Additional safety check
+        status: 'pending'  // Only get contacts that are pending
+        // REMOVED: callCount: 0 - this prevented reset contacts from being selected
       },
       {
         limit,
-        sortBy: 'createdAt',
-        sortOrder: 1  // Sort ascending to process contacts in the order they were added
+        sortBy: 'priority',
+        sortOrder: -1  // Sort by priority descending, then by creation date
       }
     );
     
