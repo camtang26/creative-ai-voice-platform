@@ -25,6 +25,7 @@ import crypto from 'crypto';
 import getRawBody from 'raw-body'; // Import raw-body library
 import Twilio from 'twilio';
 import mongoose from 'mongoose';
+import { recordAMDResult, recordCallStart, getAMDStats } from './amd-metrics.js';
 import {
   registerOutboundRoutes,
   activeCalls,
@@ -1191,14 +1192,25 @@ server.post('/amd-status-callback', async (request, reply) => {
     console.log('[AMD] Received answering machine detection callback');
     const { CallSid, AnsweredBy, CallStatus, MachineBehavior, Timestamp, ...rest } = request.body;
     console.log(`[AMD] Call ${CallSid} answered by: ${AnsweredBy}, status: ${CallStatus}`);
+    
+    // Record AMD metrics
     const amdData = { CallSid, AnsweredBy, MachineBehavior, CallStatus, Timestamp: Timestamp || new Date().toISOString(), ...rest };
+    recordAMDResult(CallSid, amdData);
+    
+    // Process machine detection (includes ElevenLabs termination)
     enhancedCallHandler.processMachineDetection(amdData);
+    
+    // Emit Socket.IO update
     emitCallUpdate(CallSid, 'machine_detection', { answeredBy: AnsweredBy, machineBehavior: MachineBehavior, status: CallStatus });
+    
+    // Update database
     try {
       await getCallRepository().updateCallStatus(CallSid, CallStatus, { answeredBy: AnsweredBy, machineBehavior: MachineBehavior });
       console.log(`[MongoDB] Updated call ${CallSid} with machine detection data`);
-    } catch (error) { console.error(`[MongoDB] Error updating call with machine detection data:`, error); }
-    // Optional termination logic based on AnsweredBy...
+    } catch (error) { 
+      console.error(`[MongoDB] Error updating call with machine detection data:`, error); 
+    }
+    
     return reply.code(200).send({ success: true, message: 'AMD status update received', answeredBy: AnsweredBy, callSid: CallSid });
   } catch (error) {
     console.error('[AMD] Error processing AMD callback:', error);
@@ -1241,7 +1253,16 @@ server.post('/call-status-callback', async (request, reply) => {
         console.error(`[Twilio Callback] Error sending to CRM:`, crmError);
       }
     }
-    activeCalls.set(CallSid, callInfo);
+    // Clean up completed calls from memory
+    if (['completed', 'failed', 'canceled', 'busy', 'no-answer'].includes(CallStatus)) {
+      // Remove from activeCalls map to prevent memory leak
+      activeCalls.delete(CallSid);
+      console.log(`[Call Status] Removed completed call ${CallSid} from activeCalls (status: ${CallStatus})`);
+    } else {
+      // Only update if call is still active
+      activeCalls.set(CallSid, callInfo);
+    }
+    
     if (previousStatus !== CallStatus) { handleCallStatusChange(CallSid, CallStatus, callInfo); }
     enhancedCallHandler.updateCallActivity(CallSid);
     
@@ -1327,6 +1348,27 @@ server.post('/api/email/send', async (request, reply) => {
     }
     // Generic server error
     return reply.code(500).send({ success: false, error: 'Internal server error while sending email.' });
+  }
+});
+
+// AMD statistics endpoint
+server.get('/api/amd-stats', async (request, reply) => {
+  try {
+    server.log.info('[AMD Stats] Retrieving AMD performance statistics');
+    
+    const stats = getAMDStats();
+    
+    return reply.send({
+      success: true,
+      stats: stats,
+      message: 'AMD statistics retrieved successfully'
+    });
+  } catch (error) {
+    server.log.error('[AMD Stats] Error retrieving statistics:', error);
+    return reply.code(500).send({
+      success: false,
+      error: error.message
+    });
   }
 });
 

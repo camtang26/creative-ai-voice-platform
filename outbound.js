@@ -6,6 +6,7 @@ import WebSocket from "ws";
 import Twilio from "twilio";
 // Removed node-fetch import - using native fetch
 import { createTimer, recordAudioLatency, trackCallStart } from './latency-monitor.js';
+import { recordCallStart as recordAMDCallStart } from './amd-metrics.js';
 import { saveCall, updateCallStatus, getCallBySid } from './db/repositories/call.repository.js';
 import { logEvent } from './db/repositories/callEvent.repository.js';
 import { updateContactCallHistory } from './db/repositories/contact.repository.js';
@@ -245,12 +246,15 @@ export async function makeOutboundCall(params) { // Added export
         'completed', 'busy', 'no-answer', 'canceled', 'failed'
       ],
       statusCallbackMethod: 'POST',
-      machineDetection: 'DetectMessageEnd', // Changed from 'Enable' based on Twilio blog example
-      machineDetectionTimeout: 10,
-      machineDetectionSilenceTimeout: 5000,
-      asyncAmd: 'true',
-      asyncAmdStatusCallback: `${baseUrl}/amd-status-callback`, // Changed to camelCase
-      asyncAmdStatusCallbackMethod: 'POST', // Changed to camelCase
+      // Optimized AMD configuration based on best practices
+      machineDetection: 'Enable', // Use 'Enable' for faster detection when hanging up on machines
+      machineDetectionTimeout: 15, // Increased from 10s to 15s for better accuracy
+      machineDetectionSpeechThreshold: 2500, // Time threshold to distinguish human vs machine
+      machineDetectionSpeechEndThreshold: 1500, // Gap detection in speech
+      machineDetectionSilenceTimeout: 5000, // Initial silence before returning "unknown"
+      asyncAmd: 'true', // Async AMD to avoid call delay
+      asyncAmdStatusCallback: `${baseUrl}/amd-status-callback`,
+      asyncAmdStatusCallbackMethod: 'POST',
       fallbackUrl: `${baseUrl}/fallback-twiml`,
       fallbackMethod: 'POST',
       timeout: 60,
@@ -267,6 +271,9 @@ export async function makeOutboundCall(params) { // Added export
 
     // Track this call in our statistics
     trackCallStart();
+    
+    // Record call start for AMD metrics
+    recordAMDCallStart(call.sid);
 
     // Store call in our active calls map (for backward compatibility)
     activeCalls.set(call.sid, {

@@ -8,6 +8,7 @@ import { getSignedUrl, isConversationComplete, terminateCall, activeCalls } from
 import { createTimer, recordAudioLatency } from './latency-monitor.js';
 import { getTranscriptRepository } from './db/index.js';
 import { emitTranscriptTypewriter } from './socket-server.js';
+import { registerWebSockets, closeWebSockets } from './websocket-registry.js';
 
 /**
  * Register WebSocket proxy handler on the Fastify server
@@ -101,6 +102,15 @@ export function registerWebSocketProxy(fastify, options = {}) {
           elevenLabsWs.on("open", () => {
             wsSetupTimer.stop();
             console.log("[WebSocket Proxy] Connected to ElevenLabs Conversational AI");
+            
+            // Register WebSockets in global registry
+            if (callSid) {
+              registerWebSockets(callSid, {
+                twilioWs: ws,
+                elevenLabsWs: elevenLabsWs
+              });
+              console.log(`[WebSocket Proxy] Registered WebSockets for call ${callSid} in global registry`);
+            }
 
             // Send initial configuration
             const initialConfig = {
@@ -326,7 +336,12 @@ export function registerWebSocketProxy(fastify, options = {}) {
               if (inactivityTimeout) {
                 clearTimeout(inactivityTimeout);
               }
-              if (elevenLabsWs?.readyState === WebSocket.OPEN) {
+              
+              // Use registry to close WebSockets
+              if (callSid) {
+                closeWebSockets(callSid, 'stream_stop');
+              } else if (elevenLabsWs?.readyState === WebSocket.OPEN) {
+                // Fallback if no callSid
                 elevenLabsWs.close();
               }
               break;
@@ -345,12 +360,15 @@ export function registerWebSocketProxy(fastify, options = {}) {
         if (inactivityTimeout) {
           clearTimeout(inactivityTimeout);
         }
-        if (elevenLabsWs?.readyState === WebSocket.OPEN) {
-          elevenLabsWs.close();
-        }
+        
+        // Use registry to close WebSockets
         if (callSid) {
+          closeWebSockets(callSid, 'twilio_disconnected');
           console.log(`[WebSocket Proxy] WebSocket closed. Ensuring call ${callSid} is terminated.`);
           terminateCall(twilioClient, callSid);
+        } else if (elevenLabsWs?.readyState === WebSocket.OPEN) {
+          // Fallback if no callSid
+          elevenLabsWs.close();
         }
       });
     });

@@ -5,6 +5,7 @@
 import Twilio from 'twilio';
 import { ApiError } from './api-utils.js';
 import { handleCallStatusChange } from './socket-server.js';
+import { closeElevenLabsWebSocket } from './websocket-registry.js';
 
 // Reference to the active calls map
 let activeCalls = null;
@@ -278,7 +279,16 @@ export function processMachineDetection(amdData) {
 // Terminate call if machine detected
   if (AnsweredBy && (AnsweredBy.startsWith('machine_') || AnsweredBy === 'fax' || AnsweredBy === 'unknown_machine')) {
     console.log(`[AMD] Machine detected (${AnsweredBy}). Terminating call ${CallSid}.`);
-    // Assuming terminateCall is imported or available in this scope
+    
+    // First close the ElevenLabs WebSocket to stop the AI agent
+    const closed = closeElevenLabsWebSocket(CallSid, `amd_${AnsweredBy}`);
+    if (closed) {
+      console.log(`[AMD] Successfully closed ElevenLabs connection for call ${CallSid}`);
+    } else {
+      console.log(`[AMD] No ElevenLabs connection found for call ${CallSid} - may have already closed`);
+    }
+    
+    // Then terminate the Twilio call
     terminateCall(CallSid, { reason: 'amd_machine_detected' });
   }
   
