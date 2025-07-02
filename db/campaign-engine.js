@@ -560,7 +560,10 @@ export async function handleCallStatusUpdate(callSid, status) {
         activeCampaigns.set(campaignId, campaignData);
         
         // Check if campaign should be completed after this call ends
-        await checkAndCompleteCampaign(campaignId);
+        // Add a small delay to ensure all database updates are complete
+        setTimeout(async () => {
+          await checkAndCompleteCampaign(campaignId);
+        }, 1000);
       }
     } else if (status === 'in-progress') {
       // Call has been answered
@@ -643,6 +646,8 @@ async function checkAndCompleteCampaign(campaignId) {
       }
     );
     
+    console.log(`[Campaign Engine] Campaign ${campaignId} completion check: pending=${pendingContacts}, calling=${callingContacts}, activeCalls=${campaignData.activeCalls.size}`);
+    
     if (pendingContacts === 0 && callingContacts === 0) {
       console.log(`[Campaign Engine] All contacts processed for campaign ${campaignId}. Marking as completed.`);
       
@@ -653,6 +658,8 @@ async function checkAndCompleteCampaign(campaignId) {
       await campaignRepository.updateCampaignStatus(campaignId, 'completed');
       
       console.log(`[Campaign Engine] Campaign ${campaignId} has been automatically completed`);
+    } else {
+      console.log(`[Campaign Engine] Campaign ${campaignId} still has contacts to process or active calls`);
     }
   } catch (error) {
     console.error(`[Campaign Engine] Error checking campaign completion for ${campaignId}:`, error);
