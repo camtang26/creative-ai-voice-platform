@@ -26,10 +26,10 @@ async function cleanupStuckCampaigns() {
       console.log(`\nChecking campaign: ${campaign.name} (${campaign._id})`);
       
       // Check if there are any contacts that can be called
+      // FIXED: Remove callCount: 0 restriction to match campaign engine logic
       const pendingContacts = await Contact.countDocuments({
         campaignIds: campaign._id,
-        status: 'pending',
-        callCount: 0
+        status: 'pending'
       });
       
       const callingContacts = await Contact.countDocuments({
@@ -37,16 +37,8 @@ async function cleanupStuckCampaigns() {
         status: 'calling'
       });
       
-      console.log(`  - Pending contacts (callCount=0): ${pendingContacts}`);
+      console.log(`  - Pending contacts: ${pendingContacts}`);
       console.log(`  - Calling contacts: ${callingContacts}`);
-      
-      // Also check contacts that might be callable (any pending regardless of callCount)
-      const anyPendingContacts = await Contact.countDocuments({
-        campaignIds: campaign._id,
-        status: 'pending'
-      });
-      
-      console.log(`  - Total pending contacts (any callCount): ${anyPendingContacts}`);
       
       // If no callable contacts, mark campaign as completed
       if (pendingContacts === 0 && callingContacts === 0) {

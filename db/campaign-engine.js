@@ -4,6 +4,7 @@
  */
 import { getCampaignRepository, getContactRepository, getCallRepository } from './index.js';
 import { makeOutboundCall } from '../outbound.js';
+import { updateCampaignStatusWithSocket } from '../campaign-socket-integration.js';
 
 // Active campaigns map
 const activeCampaigns = new Map();
@@ -224,8 +225,16 @@ export async function stopCampaign(campaignId) {
       campaignIntervals.delete(campaignId);
     }
     
+    // Get campaign for Socket.IO update
+    const campaign = await campaignRepository.getCampaignById(campaignId);
+    
     // Update campaign status to completed
     await campaignRepository.updateCampaignStatus(campaignId, 'completed');
+    
+    // Emit Socket.IO event for campaign completion
+    if (campaign) {
+      updateCampaignStatusWithSocket(campaign, 'completed');
+    }
     
     // Remove campaign from active campaigns map
     activeCampaigns.delete(campaignId);
