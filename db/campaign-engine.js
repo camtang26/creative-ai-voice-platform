@@ -300,6 +300,9 @@ async function executeCampaignCycle(campaignId) {
       if (!contact) {
         if (claimedContacts === 0) {
           console.log(`[Campaign Engine] No more contacts to call for campaign: ${campaignId}`);
+          
+          // Check if campaign should be marked as complete
+          await checkAndCompleteCampaign(campaignId);
         }
         break;
       }
@@ -318,6 +321,7 @@ async function executeCampaignCycle(campaignId) {
 
 /**
  * Get next contacts to call
+ * @deprecated Use atomic contact claiming in executeCampaignCycle instead
  * @param {string} campaignId - Campaign ID
  * @param {number} limit - Maximum number of contacts to return
  * @returns {Promise<Array>} Contacts to call
@@ -545,6 +549,9 @@ export async function handleCallStatusUpdate(callSid, status) {
         // Update campaign data
         Object.assign(campaignData.stats, statsUpdate);
         activeCampaigns.set(campaignId, campaignData);
+        
+        // Check if campaign should be completed after this call ends
+        await checkAndCompleteCampaign(campaignId);
       }
     } else if (status === 'in-progress') {
       // Call has been answered
@@ -583,6 +590,64 @@ function calculateAverageDuration(currentAverage, currentCount, newDuration) {
   
   const totalDuration = currentAverage * currentCount;
   return Math.round((totalDuration + newDuration) / (currentCount + 1));
+}
+
+/**
+ * Check if campaign is complete and stop it if all contacts have been processed
+ * @param {string} campaignId - Campaign ID
+ * @returns {Promise<void>}
+ */
+async function checkAndCompleteCampaign(campaignId) {
+  try {
+    const campaignData = activeCampaigns.get(campaignId);
+    if (!campaignData) return;
+    
+    // Check if there are any active calls
+    if (campaignData.activeCalls.size > 0) {
+      console.log(`[Campaign Engine] Campaign ${campaignId} still has ${campaignData.activeCalls.size} active calls`);
+      return;
+    }
+    
+    // Get repositories
+    const contactRepository = getContactRepository();
+    const campaignRepository = getCampaignRepository();
+    
+    // Check if there are any contacts still pending
+    const { total: pendingContacts } = await contactRepository.getContacts(
+      {
+        campaignId,
+        status: 'pending'
+      },
+      {
+        limit: 1  // We just need to know if any exist
+      }
+    );
+    
+    // Check if there are any contacts in 'calling' status (being processed)
+    const { total: callingContacts } = await contactRepository.getContacts(
+      {
+        campaignId,
+        status: 'calling'
+      },
+      {
+        limit: 1
+      }
+    );
+    
+    if (pendingContacts === 0 && callingContacts === 0) {
+      console.log(`[Campaign Engine] All contacts processed for campaign ${campaignId}. Marking as completed.`);
+      
+      // Stop the campaign
+      await stopCampaign(campaignId);
+      
+      // Update status to completed
+      await campaignRepository.updateCampaignStatus(campaignId, 'completed');
+      
+      console.log(`[Campaign Engine] Campaign ${campaignId} has been automatically completed`);
+    }
+  } catch (error) {
+    console.error(`[Campaign Engine] Error checking campaign completion for ${campaignId}:`, error);
+  }
 }
 
 /**
