@@ -161,12 +161,13 @@ export async function appendRealtimeTranscriptMessage(callSid, conversationId, r
       throw new Error('Call SID is required');
     }
 
-    console.log(`[Transcript] Appending real-time message for call ${callSid}, role: ${role}`);
+    console.log(`[Transcript] Appending real-time message for call ${callSid}, role: ${role}, message length: ${message?.length || 0}`);
     
     // Find or create transcript document
     let transcript = await Transcript.findOne({ callSid });
     
     if (!transcript) {
+      console.log(`[Transcript] No existing transcript found for call ${callSid}, creating new one`);
       // Create new transcript if it doesn't exist
       transcript = new Transcript({
         callSid,
@@ -176,6 +177,25 @@ export async function appendRealtimeTranscriptMessage(callSid, conversationId, r
         transcript: [],
         metadata: {}
       });
+      
+      try {
+        await transcript.save();
+        console.log(`[Transcript] Created new transcript document for call ${callSid}`);
+      } catch (saveError) {
+        console.error(`[Transcript] Error creating new transcript document:`, saveError);
+        // If it's a duplicate key error, try to find the existing document
+        if (saveError.code === 11000) {
+          console.log(`[Transcript] Duplicate key error, attempting to find existing document`);
+          transcript = await Transcript.findOne({ callSid });
+          if (!transcript) {
+            throw new Error(`Could not create or find transcript for call ${callSid}`);
+          }
+        } else {
+          throw saveError;
+        }
+      }
+    } else {
+      console.log(`[Transcript] Found existing transcript for call ${callSid}, current message count: ${transcript.transcript?.length || 0}`);
     }
 
     // Add the new message to the transcript array
@@ -186,11 +206,16 @@ export async function appendRealtimeTranscriptMessage(callSid, conversationId, r
     };
     
     transcript.transcript.push(transcriptItem);
+    console.log(`[Transcript] Added message to transcript array, new count: ${transcript.transcript.length}`);
     
     // Save the updated transcript
-    await transcript.save();
-    
-    console.log(`[Transcript] Successfully appended message to transcript for call ${callSid}`);
+    try {
+      await transcript.save();
+      console.log(`[Transcript] Successfully saved transcript with ${transcript.transcript.length} messages for call ${callSid}`);
+    } catch (updateError) {
+      console.error(`[Transcript] Error saving updated transcript:`, updateError);
+      throw updateError;
+    }
     
     // Emit the transcript message via Socket.IO for real-time updates
     try {

@@ -3,7 +3,7 @@
 import { DashboardHeader } from '@/components/dashboard-header';
 import { Button } from '@/components/ui/button';
 import { SocketProvider } from '@/lib/socket-context';
-import { EnhancedLiveCallsGrid } from '@/components/enhanced-live-calls-grid';
+import { LiveCallsWithTranscripts } from '@/components/live-calls-with-transcripts';
 import { PhoneCall, RotateCw } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
@@ -95,7 +95,7 @@ export default function LiveCallsPage() {
           </div>
         </div>
         
-        <EnhancedLiveCallsGrid />
+        <LiveCallsWithTranscripts />
         
         <div className="text-sm text-muted-foreground mt-4">
           <p>

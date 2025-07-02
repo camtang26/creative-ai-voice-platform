@@ -349,6 +349,7 @@ export function emitTranscriptTypewriter(callSid, message, wordsPerSecond = 3) {
         type: 'message',
         data: {
           text: accumulatedText,
+          message: accumulatedText,  // Add both fields for compatibility
           role: message.role,
           timestamp: message.timestamp || new Date().toISOString(),
           speaker: message.role === 'user' ? 'Customer' : 'Agent',
@@ -392,6 +393,7 @@ export function emitTranscriptMessage(callSid, message) {
     type: 'message',
     data: {
       text: message.message,
+      message: message.message,  // Add both fields for compatibility
       role: message.role,
       timestamp: message.timestamp || new Date().toISOString(),
       speaker: message.role === 'user' ? 'Customer' : 'Agent'

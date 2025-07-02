@@ -463,7 +463,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         // Use NEXT_PUBLIC_API_URL directly for socket connection base URL
         const socketUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
         socketInstance = io(socketUrl, { // Connect to the base URL
-          transports: ['websocket'], // Force WebSocket transport only
+          transports: ['polling', 'websocket'], // Allow both polling and websocket
           reconnection: true,
           reconnectionAttempts: 10,              // Increased from 5 to 10
           reconnectionDelay: 1000,               // Start with 1s delay

@@ -86,14 +86,14 @@ const transcriptSchema = new Schema({
   callSid: { // Link to Twilio Call
     type: String,
     required: true,
-    index: true,
-    unique: true // Assuming one transcript per callSid
+    index: true
+    // Removed unique constraint to allow real-time updates during call
   },
   conversationId: { // Link to ElevenLabs Conversation
     type: String,
     required: true,
-    index: true,
-    unique: true // Assuming one transcript per conversationId
+    index: true
+    // Removed unique constraint to allow real-time updates during call
   },
   agent_id: { // From ElevenLabs
     type: String,

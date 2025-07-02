@@ -114,6 +114,12 @@ export function registerWebSocketProxy(fastify, options = {}) {
                   stream_chunk_size: 512,
                   sample_rate: 16000,
                   silence_threshold: 0.1
+                },
+                // Enable real-time transcript events
+                transcript: {
+                  enable_real_time: true,
+                  send_user_transcripts: true,
+                  send_agent_responses: true
                 }
               },
               dynamic_variables: {
@@ -152,6 +158,11 @@ export function registerWebSocketProxy(fastify, options = {}) {
             
             try {
               const message = JSON.parse(data);
+              
+              // Log all message types for debugging real-time transcripts
+              if (message.type !== 'audio' && message.type !== 'ping') {
+                console.log(`[WebSocket Proxy] Received ElevenLabs message type: ${message.type}`);
+              }
               
               // Check if conversation is complete
               if (isConversationComplete(message)) {
