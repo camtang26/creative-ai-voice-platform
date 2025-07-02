@@ -247,7 +247,25 @@ export async function fetchCallTranscript(callSid: string) {
     }
     
     // If response IS ok, parse and return
-    return await response.json();
+    const result = await response.json();
+    
+    // Transform backend response to match frontend expectations
+    if (result.success && result.data) {
+      // The backend returns transcript data with 'transcript' array containing items with 'message' field
+      // Frontend expects 'messages' array with 'text' field
+      if (result.data.transcript && Array.isArray(result.data.transcript)) {
+        result.transcript = {
+          messages: result.data.transcript.map((item: any) => ({
+            role: item.role,
+            text: item.message || '', // Map 'message' to 'text'
+            timestamp: item.timestamp || new Date().toISOString(),
+            speaker: item.role === 'user' ? 'Customer' : 'Agent'
+          }))
+        };
+      }
+    }
+    
+    return result;
     
   } catch (error) {
      // This catch block now primarily handles network errors or other unexpected issues during fetch

@@ -142,11 +142,12 @@ export function EnhancedRealTimeTranscript({ callSid, initialTranscript, classNa
               const lastMessage = prevMessages[prevMessages.length - 1];
               
               // Only update if it's the same speaker and we're extending the message
-              if (lastMessage.role === data.data.role && data.data.text.startsWith(lastMessage.text)) {
+              const messageText = data.data.text || data.data.message;
+              if (lastMessage.role === data.data.role && messageText.startsWith(lastMessage.text)) {
                 const updatedMessages = [...prevMessages];
                 updatedMessages[updatedMessages.length - 1] = {
                   ...lastMessage,
-                  text: data.data.text,
+                  text: messageText,
                   timestamp: data.data.timestamp || lastMessage.timestamp
                 };
                 
@@ -159,15 +160,16 @@ export function EnhancedRealTimeTranscript({ callSid, initialTranscript, classNa
             }
             
             // If not partial or no existing message, check if this exact message already exists
+            const messageText = data.data.text || data.data.message;
             const messageExists = prevMessages.some((msg: TranscriptMessage) =>
-              msg.text === data.data.text && msg.role === data.data.role
+              msg.text === messageText && msg.role === data.data.role
             )
             
             if (messageExists) return prev;
             
-            // Add as new message
+            // Add as new message (handle both 'text' and 'message' fields)
             const newMessage: TranscriptMessage = {
-              text: data.data.text,
+              text: data.data.text || data.data.message,
               role: data.data.role,
               timestamp: data.data.timestamp || new Date().toISOString(),
               speaker: data.data.speaker
