@@ -134,18 +134,13 @@ server.register(fastifySocketIO, {
     origin: '*', // Allow all origins for simplicity, restrict in production
     methods: ['GET', 'POST']
   },
-  // Force WebSocket transport only
-  transports: ['websocket'], 
+  // Allow both polling and websocket transports
+  transports: ['polling', 'websocket'], 
   path: '/socket.io/', // Original path for frontend connection
   pingInterval: 10000,
   pingTimeout: 5000,
   connectTimeout: 5000,
-  perMessageDeflate: false,
-  reconnection: true,
-  reconnectionAttempts: 10,
-  reconnectionDelay: 1000,
-  reconnectionDelayMax: 10000,
-  randomizationFactor: 0.5
+  perMessageDeflate: false
 });
 
 // Register WebSocket plugin for media proxy
