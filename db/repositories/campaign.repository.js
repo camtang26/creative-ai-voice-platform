@@ -21,13 +21,10 @@ import {
  */
 export async function saveCampaign(campaignData) {
   try {
-    // Define default values
-    const DEFAULT_AGENT_PROMPT = "You are a helpful AI assistant. Your goal is to engage the contact and achieve the objective outlined in the campaign description. Be polite, professional, and concise.";
-
-    // Prepare campaign data with defaults
+    // Prepare campaign data without any defaults - let ElevenLabs handle all agent configuration
     const dataToSave = {
       ...campaignData,
-      agentPrompt: campaignData.agentPrompt && campaignData.agentPrompt.trim() !== '' ? campaignData.agentPrompt : DEFAULT_AGENT_PROMPT,
+      agentPrompt: campaignData.agentPrompt || null,  // Don't set a default - let ElevenLabs handle it
       firstMessage: campaignData.firstMessage || null,  // Don't set a default - let ElevenLabs handle it
     };
 

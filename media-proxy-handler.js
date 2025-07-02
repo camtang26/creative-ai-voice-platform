@@ -106,9 +106,12 @@ export function registerWebSocketProxy(fastify, options = {}) {
             const initialConfig = {
               type: "conversation_initiation_client_data",
               conversation_config_override: {
-                agent: {
-                  first_message: customParameters?.first_message || "Hello, this is an AI assistant. How can I help you today?",
-                },
+                // Only override agent settings if explicitly provided, otherwise let ElevenLabs handle it
+                ...(customParameters?.first_message && {
+                  agent: {
+                    first_message: customParameters.first_message
+                  }
+                }),
                 audio: {
                   optimize_latency: true,
                   stream_chunk_size: 512,
