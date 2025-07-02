@@ -67,7 +67,19 @@ export function Sidebar() {
     {
       name: 'Analytics',
       href: '/analytics',
-      icon: LineChart
+      icon: LineChart,
+      isExpandable: true,
+      id: 'analytics',
+      subItems: [
+        {
+          name: 'Overview',
+          href: '/analytics'
+        },
+        {
+          name: 'Selected Calls',
+          href: '/analytics/selected-calls'
+        }
+      ]
     },
     {
       name: 'Campaigns',

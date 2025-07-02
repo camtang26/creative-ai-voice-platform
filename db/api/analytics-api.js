@@ -4,6 +4,7 @@
  */
 import { getAnalyticsRepository, getCallRepository, getCampaignRepository } from '../index.js';
 import { getCacheValue, setCacheValue } from '../utils/cache.js';
+import enhancedAnalyticsRouter from './analytics-enhanced.js';
 
 // Cache TTL in milliseconds
 const CACHE_TTL = 60000; // 1 minute
@@ -562,6 +563,9 @@ export function registerAnalyticsApiRoutes(fastify, options = {}) {
       });
     }
   });
+  
+  // Register enhanced analytics routes
+  fastify.register(enhancedAnalyticsRouter);
   
   console.log('[MongoDB] Registered analytics API routes');
 }
