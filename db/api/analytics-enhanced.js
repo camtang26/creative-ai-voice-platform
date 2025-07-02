@@ -3,7 +3,7 @@
  * Provides advanced analytics for selected calls with AI insights
  */
 import { Router } from 'express';
-import { getCallRepository, getRecordingRepository, getEventRepository } from '../index.js';
+import { getCallRepository, getRecordingRepository, getCallEventRepository } from '../index.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Anthropic } from '@anthropic-ai/sdk';
 
@@ -27,7 +27,7 @@ router.post('/analyze-calls', async (req, res) => {
     // Get repositories
     const callRepository = getCallRepository();
     const recordingRepository = getRecordingRepository();
-    const eventRepository = getEventRepository();
+    const eventRepository = getCallEventRepository();
     
     // Fetch all call data
     const calls = await Promise.all(
@@ -115,7 +115,7 @@ router.post('/generate-report', async (req, res) => {
     const enhancedCalls = await Promise.all(
       calls.map(async (call) => {
         const recordings = await getRecordingRepository().getRecordingsByCallSid(call.callSid);
-        const events = await getEventRepository().getEventsByCallSid(call.callSid);
+        const events = await getCallEventRepository().getEventsByCallSid(call.callSid);
         return { ...call.toObject(), recordings, events };
       })
     );
@@ -438,7 +438,7 @@ async function generateAIInsights(calls, metrics, conversationAnalysis) {
 
 async function analyzeConversationQuality(callSids) {
   const callRepository = getCallRepository();
-  const eventRepository = getEventRepository();
+  const eventRepository = getCallEventRepository();
   
   const qualityMetrics = await Promise.all(
     callSids.map(async (callSid) => {
