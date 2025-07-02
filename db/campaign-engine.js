@@ -89,6 +89,7 @@ export async function startCampaign(campaignId) {
     
     // Start campaign execution interval
     const callDelay = campaign.settings?.callDelay || DEFAULT_CALL_DELAY;
+    console.log(`[Campaign Engine] Starting campaign with ${callDelay}ms interval and max ${campaign.settings?.maxConcurrentCalls || 1} concurrent calls`);
     const interval = setInterval(() => executeCampaignCycle(campaignId), callDelay);
     
     // Store interval reference
@@ -183,6 +184,7 @@ export async function resumeCampaign(campaignId) {
     
     // Start campaign execution interval
     const callDelay = campaign.settings?.callDelay || DEFAULT_CALL_DELAY;
+    console.log(`[Campaign Engine] Starting campaign with ${callDelay}ms interval and max ${campaign.settings?.maxConcurrentCalls || 1} concurrent calls`);
     const interval = setInterval(() => executeCampaignCycle(campaignId), callDelay);
     
     // Store interval reference
