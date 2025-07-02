@@ -4,14 +4,14 @@
  */
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import { getCampaignRepository, getContactRepository, getCallRepository } from './db/index.js';
+import { getCampaignRepository, getContactRepository, getCallRepository, initializeMongoDB } from './db/index.js';
 
 dotenv.config();
 
 async function fixStuckCampaigns() {
   try {
-    // Connect to MongoDB
-    await mongoose.connect(process.env.MONGODB_URI);
+    // Initialize MongoDB with models
+    await initializeMongoDB();
     console.log('Connected to MongoDB');
     
     const campaignRepo = getCampaignRepository();
@@ -59,21 +59,26 @@ async function fixStuckCampaigns() {
       console.log(`- Failed (includes no-answer): ${failedContacts.pagination.total}`);
       
       // Check for active calls
-      const recentCalls = await callRepo.getCalls(
-        { 
+      let activeCallCount = 0;
+      try {
+        // Use direct MongoDB query since getCalls might not be available
+        const Call = mongoose.model('Call');
+        const activeCalls = await Call.find({
           campaignId: campaign._id,
           status: { $in: ['initiated', 'ringing', 'in-progress'] }
-        },
-        { limit: 10 }
-      );
+        }).limit(10);
+        activeCallCount = activeCalls.length;
+      } catch (error) {
+        console.log('Error checking active calls:', error.message);
+      }
       
-      console.log(`Active calls: ${recentCalls.calls.length}`);
+      console.log(`Active calls: ${activeCallCount}`);
       
       // Determine if campaign should be completed
       const shouldComplete = 
         pendingContacts.pagination.total === 0 && 
         callingContacts.pagination.total === 0 &&
-        recentCalls.calls.length === 0;
+        activeCallCount === 0;
       
       if (shouldComplete) {
         console.log(`Campaign "${campaign.name}" should be marked as completed!`);
@@ -97,7 +102,7 @@ async function fixStuckCampaigns() {
         console.log(`Campaign "${campaign.name}" is still active`);
         
         // Check if there are stuck "calling" contacts
-        if (callingContacts.pagination.total > 0 && recentCalls.calls.length === 0) {
+        if (callingContacts.pagination.total > 0 && activeCallCount === 0) {
           console.log('Found stuck contacts in "calling" status with no active calls');
           
           // Reset stuck calling contacts back to pending
@@ -109,8 +114,8 @@ async function fixStuckCampaigns() {
           for (const contact of stuckContacts.contacts) {
             console.log(`Resetting stuck contact: ${contact.name} (${contact.phoneNumber})`);
             await contactRepo.updateContact(contact._id, { 
-              status: 'pending',
-              lastCallResult: 'reset_from_stuck'
+              status: 'pending'
+              // Don't set lastCallResult as it has enum validation
             });
           }
           
