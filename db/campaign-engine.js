@@ -309,6 +309,26 @@ async function executeCampaignCycle(campaignId) {
       }
     }
     
+    // CRITICAL FIX: If there are no active calls but contacts are stuck in "calling" status,
+    // reset ONE contact back to pending to break the deadlock
+    if (campaignData.activeCalls.size === 0) {
+      const callingContacts = await contactRepository.getContacts(
+        { campaignId, status: 'calling' },
+        { limit: 1 }
+      );
+      
+      if (callingContacts.contacts.length > 0) {
+        const stuckContact = callingContacts.contacts[0];
+        console.log(`[Campaign Engine] Found stuck contact in calling status with no active calls: ${stuckContact.name}`);
+        console.log(`[Campaign Engine] Resetting contact to pending to break deadlock`);
+        
+        await contactRepository.updateContact(stuckContact._id, {
+          status: 'pending',
+          callCount: Math.max(0, stuckContact.callCount - 1)
+        });
+      }
+    }
+    
     // Check if we've reached the maximum concurrent calls
     const activeCalls = campaignData.activeCalls.size;
     if (activeCalls >= maxConcurrentCalls) {
@@ -395,8 +415,9 @@ async function makeCallToContact(campaignId, contact) {
       return;
     }
     
-    // Get campaign repositories
+    // Get repositories
     const campaignRepository = getCampaignRepository();
+    const contactRepository = getContactRepository();
     
     // Get campaign
     const campaign = await campaignRepository.getCampaignById(campaignId);
@@ -451,15 +472,31 @@ async function makeCallToContact(campaignId, contact) {
       await updateContactCallHistory(contact._id, callResult.callSid);
     } else {
       console.error(`[Campaign Engine] Failed to initiate call: ${callResult.error}`);
-      // Mark contact as failed instead of decrementing call count
-      // This prevents the system from immediately retrying failed numbers
-      await contactRepository.updateContact(contact._id, {
-        status: 'failed',
-        lastCallResult: 'failed_to_initiate',
-        lastCallError: callResult.error,
-        lastCallDate: new Date()
-      });
-      console.log(`[Campaign Engine] Marked contact as failed due to call initiation error: ${contact.name}`);
+      
+      // Check if this is a Twilio balance issue
+      const isTwilioBalanceIssue = callResult.code === 20003 || 
+                                   callResult.details?.includes('balance') ||
+                                   callResult.details?.includes('insufficient');
+      
+      if (isTwilioBalanceIssue) {
+        // For balance issues, reset to pending so they can be retried later
+        console.log(`[Campaign Engine] Twilio balance issue detected, resetting contact to pending: ${contact.name}`);
+        await contactRepository.updateContact(contact._id, {
+          status: 'pending',
+          callCount: Math.max(0, contact.callCount - 1),
+          lastCallError: 'Insufficient Twilio balance',
+          lastCallDate: new Date()
+        });
+      } else {
+        // For other errors, mark as failed
+        await contactRepository.updateContact(contact._id, {
+          status: 'failed',
+          lastCallResult: 'failed_to_initiate',
+          lastCallError: callResult.error,
+          lastCallDate: new Date()
+        });
+        console.log(`[Campaign Engine] Marked contact as failed due to call initiation error: ${contact.name}`);
+      }
     }
   } catch (error) {
     console.error(`[Campaign Engine] Error making call to contact for campaign ${campaignId}:`, error);

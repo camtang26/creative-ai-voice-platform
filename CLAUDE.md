@@ -111,6 +111,9 @@ npm run dev  # Runs on port 3000
 4. **MongoDB Connection**: Check `MONGODB_URI` in environment variables
 5. **Call Not Ending**: Verify `ELEVENLABS_WEBHOOK_SECRET` is configured correctly
 6. **Phone Number Format**: System defaults to Australian (+61) for numbers without country codes
+7. **Twilio Balance Issues**: When Twilio runs out of balance, contacts get stuck in "calling" status
+   - Run `node reset-stuck-contacts.js` after adding balance to reset stuck contacts
+   - Campaign engine now properly handles call failures due to insufficient balance
 
 ## Testing Strategy
 
