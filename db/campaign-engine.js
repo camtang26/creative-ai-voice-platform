@@ -292,6 +292,21 @@ async function executeCampaignCycle(campaignId) {
     // Get maximum concurrent calls
     const maxConcurrentCalls = campaign.settings?.maxConcurrentCalls || MAX_CONCURRENT_CALLS;
     
+    // Clean up any stale active calls (calls that might have ended without proper cleanup)
+    const callRepository = getCallRepository();
+    for (const [callSid, callData] of campaignData.activeCalls.entries()) {
+      try {
+        const call = await callRepository.getCallBySid(callSid);
+        if (call && ['completed', 'failed', 'busy', 'no-answer', 'canceled'].includes(call.status)) {
+          console.log(`[Campaign Engine] Cleaning up stale active call: ${callSid} (status: ${call.status})`);
+          campaignData.activeCalls.delete(callSid);
+        }
+      } catch (error) {
+        console.log(`[Campaign Engine] Error checking call ${callSid}, removing from active:`, error.message);
+        campaignData.activeCalls.delete(callSid);
+      }
+    }
+    
     // Check if we've reached the maximum concurrent calls
     const activeCalls = campaignData.activeCalls.size;
     if (activeCalls >= maxConcurrentCalls) {
@@ -661,11 +676,38 @@ async function checkAndCompleteCampaign(campaignId) {
     if (pendingContacts === 0 && callingContacts === 0) {
       console.log(`[Campaign Engine] All contacts processed for campaign ${campaignId}. Marking as completed.`);
       
+      // Get final stats for the campaign
+      const completedResult = await contactRepository.getContacts(
+        { campaignId, status: 'completed' },
+        { limit: 1 }
+      );
+      const failedResult = await contactRepository.getContacts(
+        { campaignId, status: 'failed' },
+        { limit: 1 }
+      );
+      
+      const completedCount = completedResult?.pagination?.total || 0;
+      const failedCount = failedResult?.pagination?.total || 0;
+      const totalProcessed = completedCount + failedCount;
+      
+      console.log(`[Campaign Engine] Campaign ${campaignId} final stats: ${completedCount} completed, ${failedCount} failed (includes no-answer), ${totalProcessed} total`);
+      
       // Stop the campaign
       await stopCampaign(campaignId);
       
       // Update status to completed
       await campaignRepository.updateCampaignStatus(campaignId, 'completed');
+      
+      // Emit campaign completion event
+      const io = global.io;
+      if (io) {
+        io.emit('campaign_completed', {
+          campaignId,
+          completedContacts: completedCount,
+          failedContacts: failedCount,
+          totalContacts: totalProcessed
+        });
+      }
       
       console.log(`[Campaign Engine] Campaign ${campaignId} has been automatically completed`);
     } else {
