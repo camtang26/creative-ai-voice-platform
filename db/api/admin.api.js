@@ -1,4 +1,4 @@
-const Call = require('../models/call.model');
+import Call from '../models/call.model.js';
 
 /**
  * Admin API endpoints for maintenance tasks
@@ -8,7 +8,7 @@ const Call = require('../models/call.model');
  * Fix historical terminatedBy values in the database
  * Updates calls that have 'conversation_completed' to more accurate values
  */
-async function fixTerminatedByValues(req, res) {
+export async function fixTerminatedByValues(req, res) {
   try {
     console.log('[Admin] Starting terminatedBy fix...');
     
@@ -89,6 +89,3 @@ async function fixTerminatedByValues(req, res) {
   }
 }
 
-module.exports = {
-  fixTerminatedByValues
-};

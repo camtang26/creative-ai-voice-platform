@@ -15,6 +15,7 @@ import {
 import {
   terminateCall
 } from './enhanced-call-handler.js';
+import { fixTerminatedByValues } from './db/api/admin.api.js';
 
 /**
  * Register enhanced API routes with standardized response formats and error handling
@@ -355,7 +356,6 @@ export function registerApiRoutes(server, twilioClient, activeCalls) {
   
   // Admin endpoint to fix historical terminatedBy values
   server.post('/api/admin/fix-terminated-by', asyncHandler(async (request, reply) => {
-    const adminApi = require('./db/api/admin.api.js');
-    return await adminApi.fixTerminatedByValues(request, reply);
+    return await fixTerminatedByValues(request, reply);
   }));
 }
