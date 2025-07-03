@@ -364,4 +364,10 @@ export function registerApiRoutes(server, twilioClient, activeCalls) {
   server.post('/api/admin/fix-terminated-by-voice-insights', asyncHandler(async (request, reply) => {
     return await fixTerminatedByWithVoiceInsights(request, reply);
   }));
+  
+  // Admin endpoint to fix terminatedBy using enhanced detection
+  server.post('/api/admin/fix-terminated-by-enhanced', asyncHandler(async (request, reply) => {
+    const { enhancedTerminationDetection } = await import('./db/api/admin.api.js');
+    return await enhancedTerminationDetection(request, reply);
+  }));
 }

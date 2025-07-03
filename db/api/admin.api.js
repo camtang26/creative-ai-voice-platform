@@ -1,4 +1,5 @@
 import Call from '../models/call.model.js';
+import { enhancedTerminationDetection } from '../../enhanced-termination-detection.js';
 
 /**
  * Admin API endpoints for maintenance tasks
@@ -85,4 +86,10 @@ export async function fixTerminatedByValues(req, res) {
     throw error;
   }
 }
+
+/**
+ * Use enhanced detection to determine who terminated calls
+ * This uses multiple heuristics since Voice Insights API is not available
+ */
+export { enhancedTerminationDetection };
 
