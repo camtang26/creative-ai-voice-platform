@@ -1,23 +1,18 @@
-/**
- * Twilio Voice Insights Integration
- * Fetches detailed call metrics including who hung up
- */
-
 import axios from 'axios';
 
 /**
- * Fetch Voice Insights data for a call
- * @param {Object} twilioClient - Twilio client instance
- * @param {string} callSid - The call SID
- * @returns {Promise<Object>} Voice Insights data
+ * Get Voice Insights data from Twilio
+ * Voice Insights provides detailed metrics about calls including who hung up
  */
-export async function fetchVoiceInsights(twilioClient, callSid) {
+export async function getTerminationFromVoiceInsights(twilioClient, callSid) {
   try {
-    const accountSid = twilioClient.accountSid;
-    const authToken = twilioClient.username; // In Twilio client, username is the auth token
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
     
     // Voice Insights API endpoint
     const url = `https://insights.twilio.com/v1/Voice/${callSid}/Summary`;
+    
+    console.log(`[Voice Insights] Fetching data for ${callSid}...`);
     
     const response = await axios.get(url, {
       auth: {
@@ -26,105 +21,123 @@ export async function fetchVoiceInsights(twilioClient, callSid) {
       }
     });
     
-    return response.data;
-  } catch (error) {
-    // Voice Insights might not be available for all calls immediately
-    if (error.response && error.response.status === 404) {
-      console.log(`[Voice Insights] Data not yet available for call ${callSid}`);
-      return null;
-    }
-    console.error(`[Voice Insights] Error fetching data for ${callSid}:`, error.message);
-    return null;
-  }
-}
-
-/**
- * Extract who hung up from Voice Insights data
- * @param {Object} insightsData - Voice Insights response
- * @returns {string|null} Who hung up: 'user', 'agent', 'system', or null
- */
-export function extractWhoHungUp(insightsData) {
-  if (!insightsData) return null;
-  
-  // Voice Insights provides various metrics
-  const { 
-    call_state,
-    processing_state,
-    attributes,
-    metrics
-  } = insightsData;
-  
-  // Check if processing is complete
-  if (processing_state !== 'complete') {
-    return null;
-  }
-  
-  // Look for disconnect initiator in attributes
-  if (attributes) {
-    // Twilio typically provides disconnect_initiator
-    if (attributes.disconnect_initiator) {
-      switch (attributes.disconnect_initiator) {
-        case 'caller':
-          return 'agent'; // For outbound calls, caller is the AI agent
-        case 'callee':
-          return 'user'; // For outbound calls, callee is the recipient
-        case 'system':
-        case 'carrier':
-          return 'system';
-        default:
-          console.log(`[Voice Insights] Unknown disconnect_initiator: ${attributes.disconnect_initiator}`);
-      }
+    console.log(`[Voice Insights] Response for ${callSid}:`, JSON.stringify(response.data, null, 2));
+    
+    // Extract who hung up from Voice Insights
+    const whoHungUp = response.data?.call_state?.who_hung_up || 
+                      response.data?.attributes?.who_hung_up ||
+                      response.data?.who_hung_up;
+    
+    if (whoHungUp) {
+      console.log(`[Voice Insights] Found who hung up: ${whoHungUp}`);
+      return {
+        available: true,
+        whoHungUp: whoHungUp.toLowerCase() // Normalize to lowercase
+      };
     }
     
-    // Alternative attribute names Twilio might use
-    if (attributes.who_hung_up) {
-      switch (attributes.who_hung_up.toLowerCase()) {
-        case 'caller':
-          return 'agent';
-        case 'callee':
-          return 'user';
-        case 'system':
-          return 'system';
-      }
+    return {
+      available: false,
+      whoHungUp: null
+    };
+    
+  } catch (error) {
+    console.error(`[Voice Insights] Error fetching data for ${callSid}:`, error.message);
+    
+    // If it's a 404, Voice Insights might not be available for this call
+    if (error.response && error.response.status === 404) {
+      console.log(`[Voice Insights] No data available for ${callSid}`);
     }
-  }
-  
-  // Check metrics for additional clues
-  if (metrics && metrics.carrier) {
-    // If carrier metrics show issues, it was likely system terminated
-    if (metrics.carrier.connection_failures > 0) {
-      return 'system';
-    }
-  }
-  
-  return null;
-}
-
-/**
- * Get termination details from Voice Insights
- * @param {Object} twilioClient - Twilio client instance
- * @param {string} callSid - The call SID
- * @returns {Promise<Object>} Termination details
- */
-export async function getTerminationFromVoiceInsights(twilioClient, callSid) {
-  const insightsData = await fetchVoiceInsights(twilioClient, callSid);
-  
-  if (!insightsData) {
+    
     return {
       available: false,
       whoHungUp: null,
-      reason: 'Voice Insights data not available'
+      error: error.message
     };
   }
-  
-  const whoHungUp = extractWhoHungUp(insightsData);
-  
-  return {
-    available: true,
-    whoHungUp,
-    processingState: insightsData.processing_state,
-    callState: insightsData.call_state,
-    attributes: insightsData.attributes,
-    metrics: insightsData.metrics
-  };
+}
+
+/**
+ * Alternative approach: Use the regular Twilio API to check for additional call properties
+ */
+export async function getCallDetailsFromTwilio(twilioClient, callSid) {
+  try {
+    console.log(`[Twilio API] Fetching call details for ${callSid}...`);
+    
+    // Fetch the call
+    const call = await twilioClient.calls(callSid).fetch();
+    
+    // Log all available properties
+    console.log(`[Twilio API] Call properties:`, Object.keys(call));
+    
+    // Check if there's any termination info in the call object
+    const possibleTerminationFields = [
+      'whoHungUp',
+      'who_hung_up',
+      'terminatedBy',
+      'terminated_by',
+      'endedBy',
+      'ended_by',
+      'disconnectedBy',
+      'disconnected_by'
+    ];
+    
+    for (const field of possibleTerminationFields) {
+      if (call[field]) {
+        console.log(`[Twilio API] Found termination field ${field}: ${call[field]}`);
+        return {
+          available: true,
+          whoHungUp: call[field].toLowerCase()
+        };
+      }
+    }
+    
+    // Try to fetch call events which might contain termination info
+    try {
+      const events = await twilioClient.calls(callSid).events.list({ limit: 50 });
+      console.log(`[Twilio API] Found ${events.length} events for call`);
+      
+      // Look for termination-related events
+      const terminationEvent = events.find(event => 
+        event.name && (
+          event.name.toLowerCase().includes('disconnect') ||
+          event.name.toLowerCase().includes('hangup') ||
+          event.name.toLowerCase().includes('complete') ||
+          event.name.toLowerCase().includes('terminate')
+        )
+      );
+      
+      if (terminationEvent) {
+        console.log(`[Twilio API] Found termination event:`, terminationEvent);
+        // Try to extract who initiated from event data
+        if (terminationEvent.data) {
+          const data = typeof terminationEvent.data === 'string' ? 
+            JSON.parse(terminationEvent.data) : terminationEvent.data;
+          
+          if (data.initiated_by || data.initiatedBy || data.who_hung_up || data.whoHungUp) {
+            const whoHungUp = data.initiated_by || data.initiatedBy || data.who_hung_up || data.whoHungUp;
+            return {
+              available: true,
+              whoHungUp: whoHungUp.toLowerCase()
+            };
+          }
+        }
+      }
+    } catch (eventError) {
+      console.log(`[Twilio API] Could not fetch events:`, eventError.message);
+    }
+    
+    return {
+      available: false,
+      whoHungUp: null
+    };
+    
+  } catch (error) {
+    console.error(`[Twilio API] Error fetching call details:`, error.message);
+    return {
+      available: false,
+      whoHungUp: null,
+      error: error.message
+    };
+  }
 }
