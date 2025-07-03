@@ -310,15 +310,14 @@ export default function CampaignPageEnhanced({ params }: CampaignPageProps) {
   }
   
   // Load campaign contacts
-  const loadCampaignContacts = async (forceRefresh: boolean = false) => {
+  const loadCampaignContacts = async () => {
     if (!campaign?.id) return
     
     setContactsLoading(true)
     
     try {
       // Fetch contacts for this campaign from MongoDB API
-      const refreshParam = forceRefresh ? '?refresh=true' : ''
-      const contactsUrl = getApiUrl(`/api/db/campaigns/${campaign.id}/contacts${refreshParam}`)
+      const contactsUrl = getApiUrl(`/api/db/campaigns/${campaign.id}/contacts`)
       console.log('[loadCampaignContacts] Fetching contacts from:', contactsUrl)
       const response = await fetch(contactsUrl)
       
@@ -758,7 +757,7 @@ export default function CampaignPageEnhanced({ params }: CampaignPageProps) {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => loadCampaignContacts(true)}
+                        onClick={() => loadCampaignContacts()}
                         disabled={contactsLoading}
                       >
                         {contactsLoading ? (
