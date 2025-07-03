@@ -38,6 +38,7 @@ import { sendEmail } from './email-tools/api-email-service.js';
 import { sendSESEmail } from './email-tools/aws-ses-email.js';
 import { handleTwilioCallCompletion } from './src/integrations/twilio-crm-webhook.js';
 import enhancedCallHandler from './enhanced-call-handler.js';
+import { trackTermination, getTerminationInfo } from './call-termination-tracker.js';
 import recordingHandler from './recording-handler.js';
 import callQualityMetrics from './call-quality-metrics.js';
 import { registerApiRoutes } from './api-routes.js';
@@ -1190,28 +1191,60 @@ server.post('/recording-status-callback', async (request, reply) => {
 server.post('/amd-status-callback', async (request, reply) => {
   try {
     console.log('[AMD] Received answering machine detection callback');
-    const { CallSid, AnsweredBy, CallStatus, MachineBehavior, Timestamp, ...rest } = request.body;
+    const { CallSid, AnsweredBy, CallStatus, MachineBehavior, Timestamp, TranscribedText, ...rest } = request.body;
     console.log(`[AMD] Call ${CallSid} answered by: ${AnsweredBy}, status: ${CallStatus}`);
     
-    // Record AMD metrics
-    const amdData = { CallSid, AnsweredBy, MachineBehavior, CallStatus, Timestamp: Timestamp || new Date().toISOString(), ...rest };
+    // Import the enhanced AMD detection function
+    const { enhanceAMDDetection } = await import('./amd-config.js');
+    
+    // Record raw AMD metrics
+    const amdData = { CallSid, AnsweredBy, MachineBehavior, CallStatus, TranscribedText, Timestamp: Timestamp || new Date().toISOString(), ...rest };
     recordAMDResult(CallSid, amdData);
     
+    // Apply enhanced detection logic to reduce false positives
+    const enhancedResult = enhanceAMDDetection(amdData);
+    console.log(`[AMD Enhancement] Original: ${AnsweredBy}, Enhanced: ${enhancedResult.enhancedDetection}, Confidence: ${enhancedResult.confidence}`);
+    if (enhancedResult.reason.length > 0) {
+      console.log(`[AMD Enhancement] Reasoning: ${enhancedResult.reason.join(', ')}`);
+    }
+    
+    // Use enhanced detection for decision making
+    const effectiveDetection = enhancedResult.enhancedDetection;
+    const processData = { ...amdData, AnsweredBy: effectiveDetection };
+    
     // Process machine detection (includes ElevenLabs termination)
-    enhancedCallHandler.processMachineDetection(amdData);
+    enhancedCallHandler.processMachineDetection(processData);
     
-    // Emit Socket.IO update
-    emitCallUpdate(CallSid, 'machine_detection', { answeredBy: AnsweredBy, machineBehavior: MachineBehavior, status: CallStatus });
+    // Emit Socket.IO update with both original and enhanced detection
+    emitCallUpdate(CallSid, 'machine_detection', { 
+      answeredBy: AnsweredBy, 
+      enhancedDetection: effectiveDetection,
+      confidence: enhancedResult.confidence,
+      machineBehavior: MachineBehavior, 
+      status: CallStatus 
+    });
     
-    // Update database
+    // Update database with enhanced detection
     try {
-      await getCallRepository().updateCallStatus(CallSid, CallStatus, { answeredBy: AnsweredBy, machineBehavior: MachineBehavior });
+      await getCallRepository().updateCallStatus(CallSid, CallStatus, { 
+        answeredBy: AnsweredBy,
+        enhancedAnsweredBy: effectiveDetection,
+        amdConfidence: enhancedResult.confidence,
+        machineBehavior: MachineBehavior 
+      });
       console.log(`[MongoDB] Updated call ${CallSid} with machine detection data`);
     } catch (error) { 
       console.error(`[MongoDB] Error updating call with machine detection data:`, error); 
     }
     
-    return reply.code(200).send({ success: true, message: 'AMD status update received', answeredBy: AnsweredBy, callSid: CallSid });
+    return reply.code(200).send({ 
+      success: true, 
+      message: 'AMD status update received', 
+      answeredBy: AnsweredBy,
+      enhancedDetection: effectiveDetection,
+      confidence: enhancedResult.confidence,
+      callSid: CallSid 
+    });
   } catch (error) {
     console.error('[AMD] Error processing AMD callback:', error);
     return reply.code(200).send({ success: true, status: 'error', message: error.message });
@@ -1239,6 +1272,35 @@ server.post('/call-status-callback', async (request, reply) => {
     if (['completed', 'failed', 'canceled', 'busy', 'no-answer'].includes(CallStatus)) {
       callInfo.endTime = new Date();
       if (callInfo.startTime) { callInfo.duration = Math.round((callInfo.endTime - new Date(callInfo.startTime)) / 1000); }
+      
+      // Track call termination if not already tracked
+      const existingTermination = getTerminationInfo(CallSid);
+      if (!existingTermination) {
+        // Call ended but we didn't track it from WebSocket/ElevenLabs
+        // This means it was likely a user hangup or system issue
+        trackTermination(CallSid, 'twilio_status', CallStatus, {
+          duration: callInfo.duration,
+          hasTranscript: !!callInfo.transcriptId,
+          from: callInfo.from,
+          to: callInfo.to
+        });
+      }
+      
+      // Get final termination info to save to database
+      const terminationInfo = getTerminationInfo(CallSid);
+      if (terminationInfo) {
+        // Update database with terminatedBy
+        try {
+          await getCallRepository().updateCallStatus(CallSid, null, {
+            terminatedBy: terminationInfo.terminatedBy,
+            terminationReason: terminationInfo.reason,
+            terminationSource: terminationInfo.source
+          });
+          console.log(`[MongoDB] Updated call ${CallSid} with termination info: ${terminationInfo.terminatedBy}`);
+        } catch (error) {
+          console.error(`[MongoDB] Error updating termination info:`, error);
+        }
+      }
       
       // Trigger CRM webhook for completed calls
       try {

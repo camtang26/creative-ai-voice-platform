@@ -12,6 +12,7 @@ import { logEvent } from './db/repositories/callEvent.repository.js';
 import { updateContactCallHistory } from './db/repositories/contact.repository.js';
 import { handleCallStatusUpdate } from './db/campaign-engine.js';
 import { emitActiveCallsList, emitCallUpdate, handleCallStatusChange } from './socket-server.js';
+import { AMD_CONFIG } from './amd-config.js';
 
 // Map to store active call information (keeping for backward compatibility)
 export const activeCalls = new Map();
@@ -246,13 +247,13 @@ export async function makeOutboundCall(params) { // Added export
         'completed', 'busy', 'no-answer', 'canceled', 'failed'
       ],
       statusCallbackMethod: 'POST',
-      // Optimized AMD configuration based on best practices
-      machineDetection: 'Enable', // Use 'Enable' for faster detection when hanging up on machines
-      machineDetectionTimeout: 15, // Increased from 10s to 15s for better accuracy
-      machineDetectionSpeechThreshold: 2500, // Time threshold to distinguish human vs machine
-      machineDetectionSpeechEndThreshold: 1500, // Gap detection in speech
-      machineDetectionSilenceTimeout: 5000, // Initial silence before returning "unknown"
-      asyncAmd: 'true', // Async AMD to avoid call delay
+      // AMD configuration using imported settings for better accuracy
+      machineDetection: AMD_CONFIG.machineDetection,
+      machineDetectionTimeout: AMD_CONFIG.machineDetectionTimeout,
+      machineDetectionSpeechThreshold: AMD_CONFIG.machineDetectionSpeechThreshold,
+      machineDetectionSpeechEndThreshold: AMD_CONFIG.machineDetectionSpeechEndThreshold,
+      machineDetectionSilenceTimeout: AMD_CONFIG.machineDetectionSilenceTimeout,
+      asyncAmd: AMD_CONFIG.asyncAmd,
       asyncAmdStatusCallback: `${baseUrl}/amd-status-callback`,
       asyncAmdStatusCallbackMethod: 'POST',
       fallbackUrl: `${baseUrl}/fallback-twiml`,

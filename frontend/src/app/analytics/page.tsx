@@ -13,10 +13,12 @@ import { TopicDistributionChart } from '@/components/topic-distribution-chart'
 import { SuccessRateChart } from '@/components/success-rate-chart'
 import { AnalyticsFilters } from '@/lib/types'
 import { Button } from '@/components/ui/button'
-import { Loader2, RefreshCw } from 'lucide-react'
+import { Loader2, RefreshCw, BarChart3 } from 'lucide-react'
+import Link from 'next/link'
 import { fetchDashboardSummary } from '@/lib/mongodb-analytics'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CampaignComparisonChart } from '@/components/campaign-comparison-chart'
+import { CallTerminationStats } from '@/components/call-termination-stats'
 
 export default function AnalyticsPage() {
   const [filters, setFilters] = useState<AnalyticsFilters>({
@@ -86,18 +88,27 @@ export default function AnalyticsPage() {
           description="View and analyze conversation performance metrics."
         />
         
-        <Button 
-          variant="outline" 
-          size="icon" 
-          onClick={loadSummaryData}
-          disabled={loading}
-        >
-          {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="h-4 w-4" />
-          )}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Link href="/analytics/selected-calls">
+            <Button variant="outline">
+              <BarChart3 className="mr-2 h-4 w-4" />
+              Analyze Selected Calls
+            </Button>
+          </Link>
+          
+          <Button 
+            variant="outline" 
+            size="icon" 
+            onClick={loadSummaryData}
+            disabled={loading}
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
       </div>
       
       <div className="flex items-center justify-between">
@@ -109,6 +120,7 @@ export default function AnalyticsPage() {
               <TabsTrigger value="agent-performance">Agent Performance</TabsTrigger>
               <TabsTrigger value="topics">Topic Analysis</TabsTrigger>
               <TabsTrigger value="campaigns">Campaign Comparison</TabsTrigger>
+              <TabsTrigger value="terminations">Call Terminations</TabsTrigger>
             </TabsList>
             
             <DateRangePicker onChange={handleDateRangeChange} />
@@ -289,6 +301,20 @@ export default function AnalyticsPage() {
               </CardHeader>
               <CardContent className="h-[500px]">
                 <CampaignComparisonChart filters={filters} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="terminations" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Call Termination Analysis</CardTitle>
+                <CardDescription>
+                  Understand who is ending calls and why
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <CallTerminationStats filters={filters} />
               </CardContent>
             </Card>
           </TabsContent>

@@ -49,6 +49,13 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -173,6 +180,17 @@ export default function CampaignPageEnhanced({ params }: CampaignPageProps) {
     date: string | null
   }
   
+  // Define the type for contact data
+  interface ContactData {
+    _id: string
+    phoneNumber: string
+    name: string
+    status: string
+    callCount: number
+    lastContacted: string | null
+    lastCallResult: string | null
+  }
+  
   // State for campaign stats and call data
   const [campaignStats, setCampaignStats] = useState({
     totalContacts: 0,
@@ -189,13 +207,19 @@ export default function CampaignPageEnhanced({ params }: CampaignPageProps) {
   const [callData, setCallData] = useState<CallData[]>([])
   const [callsLoading, setCallsLoading] = useState(false)
   
+  // State for contacts data
+  const [contactData, setContactData] = useState<ContactData[]>([])
+  const [contactsLoading, setContactsLoading] = useState(false)
+  const [contactStatusFilter, setContactStatusFilter] = useState<string>('all')
+  
   // Load campaign stats and call data
   useEffect(() => {
     if (campaign?.id) {
-      // Load both in parallel for better performance
+      // Load all data in parallel for better performance
       Promise.all([
         loadCampaignStats(),
-        loadCampaignCalls()
+        loadCampaignCalls(),
+        loadCampaignContacts()
       ])
     }
   }, [campaign?.id])
@@ -273,6 +297,44 @@ export default function CampaignPageEnhanced({ params }: CampaignPageProps) {
     } finally {
       setCallsLoading(false)
     }
+  }
+  
+  // Load campaign contacts
+  const loadCampaignContacts = async () => {
+    if (!campaign?.id) return
+    
+    setContactsLoading(true)
+    
+    try {
+      // Fetch contacts for this campaign from MongoDB API
+      const response = await fetch(getApiUrl(`/api/db/campaigns/${campaign.id}/contacts`))
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch campaign contacts: ${response.statusText}`)
+      }
+      
+      const result = await response.json()
+      
+      if (result.success && result.data) {
+        setContactData(result.data.contacts || [])
+      } else {
+        console.error("Failed to load campaign contacts:", result.error)
+        setContactData([])
+      }
+    } catch (error) {
+      console.error("Error loading campaign contacts:", error)
+      setContactData([])
+    } finally {
+      setContactsLoading(false)
+    }
+  }
+  
+  // Get filtered contacts based on status
+  const getFilteredContacts = () => {
+    if (contactStatusFilter === 'all') {
+      return contactData
+    }
+    return contactData.filter(contact => contact.status === contactStatusFilter)
   }
 
   return (
@@ -642,12 +704,151 @@ export default function CampaignPageEnhanced({ params }: CampaignPageProps) {
             </div>
           )}
           
-          <Tabs defaultValue="calls">
+          <Tabs defaultValue="contacts">
             <TabsList>
-              <TabsTrigger value="calls">Calls</TabsTrigger>
+              <TabsTrigger value="contacts">Contacts</TabsTrigger>
+              <TabsTrigger value="calls">Call History</TabsTrigger>
               <TabsTrigger value="details">Configuration</TabsTrigger>
               <TabsTrigger value="analytics">Analytics</TabsTrigger>
             </TabsList>
+            
+            <TabsContent value="contacts" className="mt-4">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Campaign Contacts</CardTitle>
+                      <CardDescription>
+                        All contacts in this campaign with their call status
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Select value={contactStatusFilter} onValueChange={setContactStatusFilter}>
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue placeholder="Filter by status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Contacts</SelectItem>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="calling">Calling</SelectItem>
+                          <SelectItem value="completed">Completed</SelectItem>
+                          <SelectItem value="failed">Failed</SelectItem>
+                          <SelectItem value="no-answer">No Answer</SelectItem>
+                          <SelectItem value="do-not-call">Do Not Call</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={loadCampaignContacts}
+                        disabled={contactsLoading}
+                      >
+                        {contactsLoading ? (
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                        )}
+                        Refresh
+                      </Button>
+                      <Button variant="outline" size="sm">
+                        <Download className="h-4 w-4 mr-2" />
+                        Export
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {contactsLoading ? (
+                    <div className="space-y-4 py-4">
+                      <Skeleton className="h-12 w-full" />
+                      <Skeleton className="h-12 w-full" />
+                      <Skeleton className="h-12 w-full" />
+                      <Skeleton className="h-12 w-full" />
+                      <Skeleton className="h-12 w-full" />
+                    </div>
+                  ) : getFilteredContacts().length === 0 ? (
+                    <div className="text-center py-10 text-muted-foreground">
+                      <p>No contacts found{contactStatusFilter !== 'all' ? ` with status '${contactStatusFilter}'` : ''}</p>
+                      {contactData.length === 0 && (
+                        <p className="text-sm mt-1">Add contacts to this campaign to get started</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Name</TableHead>
+                            <TableHead>Phone Number</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-center">Call Count</TableHead>
+                            <TableHead>Last Contact</TableHead>
+                            <TableHead>Last Result</TableHead>
+                            <TableHead></TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {getFilteredContacts().map((contact) => (
+                            <TableRow key={contact._id}>
+                              <TableCell className="font-medium">
+                                {contact.name || 'Unknown'}
+                              </TableCell>
+                              <TableCell>
+                                <span className="text-sm">{contact.phoneNumber}</span>
+                              </TableCell>
+                              <TableCell>
+                                <ContactStatusBadge status={contact.status} />
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <Badge variant={contact.callCount > 0 ? 'default' : 'outline'}>
+                                  {contact.callCount}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                {contact.lastContacted ? (
+                                  <span className="text-sm">
+                                    {new Date(contact.lastContacted).toLocaleDateString()}
+                                  </span>
+                                ) : (
+                                  <span className="text-sm text-muted-foreground">Never</span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {contact.lastCallResult ? (
+                                  <Badge variant="outline" className="text-xs">
+                                    {contact.lastCallResult.replace('_', ' ')}
+                                  </Badge>
+                                ) : (
+                                  '-'
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => {
+                                    // Navigate to calls filtered by this contact's phone number
+                                    window.location.href = `/calls?phone=${encodeURIComponent(contact.phoneNumber)}`
+                                  }}
+                                >
+                                  <Phone className="h-4 w-4 mr-1" />
+                                  View Calls
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                  {getFilteredContacts().length > 0 && (
+                    <div className="mt-4 text-sm text-muted-foreground">
+                      Showing {getFilteredContacts().length} of {contactData.length} contacts
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
             
             <TabsContent value="calls" className="mt-4">
               <Card>
@@ -979,6 +1180,51 @@ function CallOutcomeBadge({ outcome }: CallOutcomeBadgeProps) {
       className="capitalize"
     >
       {outcome}
+    </Badge>
+  )
+}
+
+interface ContactStatusBadgeProps {
+  status: string
+}
+
+function ContactStatusBadge({ status }: ContactStatusBadgeProps) {
+  let variant: 'destructive' | 'default' | 'secondary' | 'outline' = 'outline'
+  let label = status
+  
+  switch (status) {
+    case 'pending':
+      variant = 'outline'
+      break
+    case 'calling':
+      variant = 'default'
+      label = 'in progress'
+      break
+    case 'completed':
+      variant = 'secondary'
+      break
+    case 'failed':
+      variant = 'destructive'
+      break
+    case 'no-answer':
+      variant = 'outline'
+      label = 'no answer'
+      break
+    case 'do-not-call':
+      variant = 'destructive'
+      label = 'do not call'
+      break
+    case 'active':
+      variant = 'secondary'
+      break
+  }
+  
+  return (
+    <Badge 
+      variant={variant}
+      className="capitalize"
+    >
+      {label}
     </Badge>
   )
 }

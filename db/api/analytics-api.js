@@ -564,6 +564,88 @@ export function registerAnalyticsApiRoutes(fastify, options = {}) {
     }
   });
   
+  // Get call termination statistics
+  fastify.get('/api/db/analytics/termination-stats', async (request, reply) => {
+    try {
+      const { startDate, endDate, groupBy } = request.query;
+      
+      // Import termination tracker
+      const { getTerminationStats } = await import('../../call-termination-tracker.js');
+      
+      // Get termination stats from in-memory tracker
+      const inMemoryStats = getTerminationStats();
+      
+      // Query database for termination data
+      const calls = await callRepository.getCallHistory({
+        ...(startDate && { startTime: { $gte: new Date(startDate) } }),
+        ...(endDate && { endTime: { $lte: new Date(endDate) } }),
+        terminatedBy: { $exists: true }
+      }, {
+        limit: 1000,
+        page: 1,
+        sortBy: 'startTime',
+        sortOrder: 'desc'
+      });
+      
+      // Combine database stats with in-memory stats
+      const dbTerminationStats = calls.calls.reduce((stats, call) => {
+        const terminator = call.terminatedBy || 'unknown';
+        stats[terminator] = (stats[terminator] || 0) + 1;
+        return stats;
+      }, {});
+      
+      // Calculate percentages
+      const totalTerminations = Object.values(dbTerminationStats).reduce((sum, count) => sum + count, 0);
+      const terminationBreakdown = Object.entries(dbTerminationStats).map(([terminator, count]) => ({
+        terminator,
+        count,
+        percentage: totalTerminations > 0 ? ((count / totalTerminations) * 100).toFixed(1) : 0
+      }));
+      
+      // Sort by count descending
+      terminationBreakdown.sort((a, b) => b.count - a.count);
+      
+      // Get recent terminations for details
+      const recentTerminations = calls.calls.slice(0, 10).map(call => ({
+        callSid: call.sid,
+        phoneNumber: call.to,
+        terminatedBy: call.terminatedBy,
+        duration: call.duration,
+        timestamp: call.endTime || call.updatedAt,
+        status: call.status
+      }));
+      
+      const responseData = {
+        summary: {
+          total: totalTerminations,
+          byTerminator: dbTerminationStats,
+          breakdown: terminationBreakdown
+        },
+        inMemoryStats: {
+          ...inMemoryStats,
+          note: 'Real-time stats from current server session'
+        },
+        recentTerminations,
+        timeRange: {
+          startDate: startDate || 'all time',
+          endDate: endDate || 'present'
+        }
+      };
+      
+      return {
+        success: true,
+        data: responseData
+      };
+    } catch (error) {
+      console.error('[API] Error getting termination stats:', error);
+      return reply.code(500).send({
+        success: false,
+        error: 'Failed to get termination statistics',
+        details: error.message
+      });
+    }
+  });
+  
   // Register enhanced analytics routes
   fastify.register(enhancedAnalyticsRouter);
   

@@ -9,6 +9,7 @@ import { createTimer, recordAudioLatency } from './latency-monitor.js';
 import { getTranscriptRepository } from './db/index.js';
 import { emitTranscriptTypewriter } from './socket-server.js';
 import { registerWebSockets, closeWebSockets } from './websocket-registry.js';
+import { trackTermination } from './call-termination-tracker.js';
 
 /**
  * Register WebSocket proxy handler on the Fastify server
@@ -45,6 +46,11 @@ export function registerWebSocketProxy(fastify, options = {}) {
         inactivityTimeout = setTimeout(() => {
           console.log(`[WebSocket Proxy] Inactivity detected for call ${callSid}, terminating call`);
           if (callSid) {
+            // Track timeout termination
+            trackTermination(callSid, 'system', 'inactivity', {
+              lastActivityAge: Date.now() - lastActivity,
+              conversationId
+            });
             terminateCall(twilioClient, callSid);
           }
           if (elevenLabsWs?.readyState === WebSocket.OPEN) {
@@ -197,6 +203,11 @@ export function registerWebSocketProxy(fastify, options = {}) {
               if (isConversationComplete(message)) {
                 console.log(`[WebSocket Proxy] Conversation complete detected. Terminating call ${callSid}`);
                 if (callSid) {
+                  // Track that agent/conversation completed normally
+                  trackTermination(callSid, 'elevenlabs', 'conversation_completed', {
+                    conversationId,
+                    messageType: message.type
+                  });
                   terminateCall(twilioClient, callSid);
                 }
               }
@@ -353,6 +364,14 @@ export function registerWebSocketProxy(fastify, options = {}) {
                 clearTimeout(inactivityTimeout);
               }
               
+              // Track stream stop - could be user hangup
+              if (callSid) {
+                trackTermination(callSid, 'twilio', 'stream_stop', {
+                  conversationId,
+                  conversationActive: elevenLabsWs?.readyState === WebSocket.OPEN
+                });
+              }
+              
               // Use registry to close WebSockets
               if (callSid) {
                 closeWebSockets(callSid, 'stream_stop');
@@ -375,6 +394,14 @@ export function registerWebSocketProxy(fastify, options = {}) {
         console.log("[WebSocket Proxy] Twilio WebSocket disconnected");
         if (inactivityTimeout) {
           clearTimeout(inactivityTimeout);
+        }
+        
+        // Track disconnection - likely user hung up
+        if (callSid) {
+          trackTermination(callSid, 'websocket', 'twilio_disconnected', {
+            conversationId,
+            elevenLabsActive: elevenLabsWs?.readyState === WebSocket.OPEN
+          });
         }
         
         // Use registry to close WebSockets

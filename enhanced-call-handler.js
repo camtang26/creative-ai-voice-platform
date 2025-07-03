@@ -6,6 +6,7 @@ import Twilio from 'twilio';
 import { ApiError } from './api-utils.js';
 import { handleCallStatusChange } from './socket-server.js';
 import { closeElevenLabsWebSocket } from './websocket-registry.js';
+import { trackTermination } from './call-termination-tracker.js';
 
 // Reference to the active calls map
 let activeCalls = null;
@@ -80,6 +81,11 @@ export async function terminateCall(callSid, options = {}) {
     }
 
     console.log(`[Call Control] Terminating call ${callSid} via Twilio API, reason: ${reason}`);
+    
+    // Track API termination
+    trackTermination(callSid, 'api', reason, {
+      force: force
+    });
     
     // Try to terminate via Twilio API
     await twilioClient.calls(callSid).update({ status: 'completed' });
@@ -276,9 +282,27 @@ export function processMachineDetection(amdData) {
   callInfo.machineBehavior = MachineBehavior;
   
   console.log(`[Machine Detection] Call ${CallSid} answered by: ${AnsweredBy}`);
-// Terminate call if machine detected
-  if (AnsweredBy && (AnsweredBy.startsWith('machine_') || AnsweredBy === 'fax' || AnsweredBy === 'unknown_machine')) {
+  
+  // Terminate call if machine detected
+  // Also check for enhanced detection results
+  const isMachine = AnsweredBy && (
+    AnsweredBy.startsWith('machine_') || 
+    AnsweredBy === 'fax' || 
+    AnsweredBy === 'unknown_machine' ||
+    AnsweredBy === 'machine_enhanced' // From enhanced detection
+  );
+  
+  // Don't terminate if it's been verified as human
+  const isVerifiedHuman = AnsweredBy === 'human_verified' || AnsweredBy === 'human_assumed';
+  
+  if (isMachine && !isVerifiedHuman) {
     console.log(`[AMD] Machine detected (${AnsweredBy}). Terminating call ${CallSid}.`);
+    
+    // Track AMD termination
+    trackTermination(CallSid, 'amd', `machine_detected_${AnsweredBy}`, {
+      answeredBy: AnsweredBy,
+      machineBehavior: MachineBehavior
+    });
     
     // First close the ElevenLabs WebSocket to stop the AI agent
     const closed = closeElevenLabsWebSocket(CallSid, `amd_${AnsweredBy}`);
