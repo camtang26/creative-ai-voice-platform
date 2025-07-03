@@ -8,7 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Download, FileText, BarChart3, Clock, Phone, Users } from 'lucide-react';
 import { format } from 'date-fns';
-import { fetchCalls, fetchCall } from '@/lib/mongodb-api';
+import { fetchCalls, fetchCall, analyzeSelectedCalls as analyzeCallsAPI, generateAnalyticsReport } from '@/lib/mongodb-api';
 
 interface Call {
   _id: string;
@@ -110,19 +110,10 @@ export default function SelectedCallsAnalytics() {
       setCalls(validCalls);
 
       // Then analyze them
-      const response = await fetch('/api/db/analytics/analyze-calls', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          callSids: sids,
-          reportType: 'detailed'
-        })
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        setAnalytics(data.data.metrics);
-        setAiAnalysis(data.data.aiAnalysis);
+      const response = await analyzeCallsAPI(sids, 'detailed');
+      if (response.success && response.data) {
+        setAnalytics(response.data.metrics);
+        setAiAnalysis(response.data.aiAnalysis);
       }
     } catch (error) {
       console.error('Error analyzing calls:', error);
@@ -159,19 +150,10 @@ export default function SelectedCallsAnalytics() {
 
     setAnalyzing(true);
     try {
-      const response = await fetch('/api/db/analytics/analyze-calls', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          callSids: Array.from(selectedCalls),
-          reportType: 'detailed'
-        })
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        setAnalytics(data.data.metrics);
-        setAiAnalysis(data.data.aiAnalysis);
+      const response = await analyzeCallsAPI(Array.from(selectedCalls), 'detailed');
+      if (response.success && response.data) {
+        setAnalytics(response.data.metrics);
+        setAiAnalysis(response.data.aiAnalysis);
       }
     } catch (error) {
       console.error('Error analyzing calls:', error);
@@ -188,32 +170,33 @@ export default function SelectedCallsAnalytics() {
     }
 
     try {
-      const response = await fetch('/api/db/analytics/generate-report', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          callSids: Array.from(selectedCalls),
-          format,
-          includeTranscripts: false
-        })
+      // Generate report with selected call SIDs
+      const startDate = new Date(Math.min(...calls.filter(c => selectedCalls.has(c.callSid)).map(c => new Date(c.startTime).getTime())));
+      const endDate = new Date(Math.max(...calls.filter(c => selectedCalls.has(c.callSid)).map(c => new Date(c.startTime).getTime())));
+      
+      const response = await generateAnalyticsReport({
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0],
+        format,
+        includeTranscripts: false
       });
 
-      if (format === 'html') {
-        const html = await response.text();
-        const blob = new Blob([html], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `call-report-${new Date().toISOString()}.html`;
-        a.click();
-      } else {
-        const data = await response.json();
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `call-report-${new Date().toISOString()}.json`;
-        a.click();
+      if (response.success && response.data) {
+        if (format === 'html' && response.format === 'html') {
+          const blob = new Blob([response.data], { type: 'text/html' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `call-report-${new Date().toISOString()}.html`;
+          a.click();
+        } else {
+          const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `call-report-${new Date().toISOString()}.json`;
+          a.click();
+        }
       }
     } catch (error) {
       console.error('Error generating report:', error);

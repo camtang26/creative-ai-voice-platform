@@ -19,6 +19,7 @@ import { fetchDashboardSummary } from '@/lib/mongodb-analytics'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CampaignComparisonChart } from '@/components/campaign-comparison-chart'
 import { CallTerminationStats } from '@/components/call-termination-stats'
+import { AIInsightsCard } from '@/components/ai-insights-card'
 
 export default function AnalyticsPage() {
   const [filters, setFilters] = useState<AnalyticsFilters>({
@@ -195,6 +196,16 @@ export default function AnalyticsPage() {
                 </Card>
               </div>
             )}
+            
+            {/* AI Insights Section */}
+            <div className="grid gap-4">
+              <AIInsightsCard 
+                timeRange={{
+                  start: filters.timeframe.start_date,
+                  end: filters.timeframe.end_date
+                }}
+              />
+            </div>
             
             <div className="grid gap-4 md:grid-cols-2">
               <Card className="col-span-1">

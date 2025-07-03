@@ -885,3 +885,126 @@ export async function cancelCampaign(campaignId: string): Promise<{success: bool
     return handleApiError(error, `Failed to cancel campaign ${campaignId}:`) as any;
   }
 }
+
+/**
+ * Fetch campaign contacts
+ * @param {string} campaignId - Campaign ID
+ * @param {Object} options - Query options
+ * @returns {Promise<{success: boolean, data: Object}>}
+ */
+export async function fetchCampaignContacts(campaignId: string, options: {
+  page?: number;
+  limit?: number;
+} = {}) {
+  try {
+    const params = new URLSearchParams();
+    params.append('page', (options.page || DEFAULT_PAGE).toString());
+    params.append('limit', (options.limit || 50).toString());
+
+    const apiUrl = getApiUrl(`/api/db/campaigns/${campaignId}/contacts?${params.toString()}`);
+    const response = await fetch(apiUrl);
+
+    if (!response.ok) {
+      throw new Error(`Error fetching campaign contacts: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    return handleApiError(error, 'Failed to fetch campaign contacts:') as any;
+  }
+}
+
+/**
+ * Analyze selected calls with AI insights
+ * @param {string[]} callSids - Array of call SIDs to analyze
+ * @param {string} reportType - Type of report ('detailed' or 'summary')
+ * @returns {Promise<{success: boolean, data: Object}>}
+ */
+export async function analyzeSelectedCalls(callSids: string[], reportType: 'detailed' | 'summary' = 'detailed') {
+  try {
+    const apiUrl = getApiUrl('/api/db/analytics/analyze-calls');
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ callSids, reportType }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Error analyzing calls: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    return handleApiError(error, 'Failed to analyze calls:') as any;
+  }
+}
+
+/**
+ * Generate comprehensive analytics report
+ * @param {Object} options - Report generation options
+ * @returns {Promise<{success: boolean, data: Object}>}
+ */
+export async function generateAnalyticsReport(options: {
+  campaignId?: string;
+  startDate?: string;
+  endDate?: string;
+  format?: 'json' | 'html' | 'pdf';
+  includeTranscripts?: boolean;
+}) {
+  try {
+    const apiUrl = getApiUrl('/api/db/analytics/generate-report');
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(options),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Error generating report: ${response.statusText}`);
+    }
+
+    // Handle different content types
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('text/html')) {
+      return {
+        success: true,
+        data: await response.text(),
+        format: 'html'
+      };
+    }
+
+    return await response.json();
+  } catch (error) {
+    return handleApiError(error, 'Failed to generate report:') as any;
+  }
+}
+
+/**
+ * Get conversation quality metrics for selected calls
+ * @param {string[]} callSids - Array of call SIDs
+ * @returns {Promise<{success: boolean, data: Object}>}
+ */
+export async function getConversationQuality(callSids: string[]) {
+  try {
+    const apiUrl = getApiUrl('/api/db/analytics/conversation-quality');
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ callSids }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Error getting conversation quality: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    return handleApiError(error, 'Failed to get conversation quality:') as any;
+  }
+}
