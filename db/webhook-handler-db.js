@@ -13,6 +13,7 @@ import { logEvent } from './repositories/callEvent.repository.js';
 import { emitTranscriptUpdate, emitTranscriptMessage } from '../socket-server.js';
 import mongoose from 'mongoose'; // Import mongoose for error checking
 import Call from './models/call.model.js'; // Import Call model for database searches
+import { getTerminationInfo } from '../call-termination-tracker.js'; // Import termination tracker
 
 // Reference to the active calls map (will be kept for backward compatibility)
 let activeCalls = null;
@@ -251,17 +252,23 @@ export async function terminateCall(twilioClient, callSid) {
     console.log(`[Webhook] Terminating call ${callSid} after conversation completion`);
     await twilioClient.calls(callSid).update({ status: 'completed' });
 
-    // Update call status in MongoDB
+    // Get the actual termination info from the tracker
+    const terminationInfo = getTerminationInfo(callSid);
+    
+    // Update call status in MongoDB with actual termination data
     await updateCallStatus(callSid, 'completed', {
       endTime: new Date(),
-      terminatedBy: 'conversation_completed'
+      terminatedBy: terminationInfo?.terminatedBy || 'agent', // Default to 'agent' if not tracked
+      terminationReason: terminationInfo?.reason || 'conversation_completed',
+      terminationSource: terminationInfo?.source || 'elevenlabs_webhook'
     });
 
     // Log call termination event
     await logEvent(callSid, 'status_change', {
       status: 'completed',
-      reason: 'terminated_by_system',
-      terminatedBy: 'conversation_completed',
+      reason: terminationInfo?.reason || 'conversation_completed',
+      terminatedBy: terminationInfo?.terminatedBy || 'agent',
+      terminationSource: terminationInfo?.source || 'elevenlabs_webhook',
       timestamp: new Date().toISOString()
     }, { source: 'system' });
 

@@ -87,7 +87,8 @@ const callSchema = new Schema({
     type: String,
     enum: [
       'human', 'machine_start', 'machine_end_beep',
-      'machine_end_silence', 'machine_end_other', 'fax', 'unknown'
+      'machine_end_silence', 'machine_end_other', 'fax', 'unknown',
+      'failed', 'no-answer', 'busy', 'machine' // Added edge case values and Twilio's 'machine' value
     ]
   },
   machineBehavior: { 
@@ -101,6 +102,18 @@ const callSchema = new Schema({
   },
   terminatedBy: { 
     type: String 
+  },
+  terminationReason: {
+    type: String
+  },
+  terminationSource: {
+    type: String
+  },
+  enhancedAnsweredBy: {
+    type: String
+  },
+  amdConfidence: {
+    type: Number
   },
   
   // Call quality metrics

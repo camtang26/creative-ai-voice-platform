@@ -367,20 +367,32 @@ export async function getCampaignContacts(campaignId, pagination = {}) {
       // Debug logging
       if (calls.length > 0) {
         console.log(`[MongoDB] Found ${calls.length} calls for contact ${contact.phoneNumber} in campaign ${campaignId}`);
+        // Log call statuses for debugging live vs total count
+        const callStatuses = calls.map(c => c.status);
+        console.log(`[MongoDB] Call statuses for ${contact.phoneNumber}: ${callStatuses.join(', ')}`);
       }
       
       // Calculate live call count (calls that actually rang/connected)
-      // These are calls that made it past the initial attempt phase
-      const liveCallCount = calls.filter(call => 
-        // Include calls that rang or were answered
-        call.status === 'ringing' || 
-        call.status === 'in-progress' ||
-        call.status === 'completed' ||
-        call.status === 'busy' ||
-        call.status === 'no-answer' ||
-        // Also include based on answeredBy field (indicates call connected)
-        call.answeredBy !== null
-      ).length;
+      // These are calls that made it past the initial attempt phase and reached the recipient
+      const liveCallCount = calls.filter(call => {
+        // These statuses indicate the call actually rang on the recipient's phone
+        const rangStatuses = [
+          'ringing',      // Currently ringing
+          'in-progress',  // Call was answered and is active
+          'completed',    // Call connected and ended normally
+          'busy',         // Reached recipient but line was busy
+          'no-answer'     // Call rang but wasn't answered
+        ];
+        
+        // Include if status shows it rang OR if it was answered (answeredBy field)
+        // This catches edge cases where status might not be updated but call was answered
+        return rangStatuses.includes(call.status) || call.answeredBy !== null;
+      }).length;
+      
+      // Debug the live call count calculation
+      if (calls.length > 0 && liveCallCount !== calls.length) {
+        console.log(`[MongoDB] Contact ${contact.phoneNumber}: Total attempts = ${calls.length}, Live calls (rang) = ${liveCallCount}`);
+      }
       
       // Get the last call for this contact
       const lastCall = calls.length > 0 ? calls[calls.length - 1] : null;

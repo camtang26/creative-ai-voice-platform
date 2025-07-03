@@ -104,6 +104,29 @@ export async function updateCallStatus(callSid, status, metadata = {}) {
         const endTime = new Date(updateData.endTime);
         updateData.duration = Math.round((endTime - startTime) / 1000); // in seconds
       }
+      
+      // Add default values for failed/incomplete calls
+      if (status === 'failed' && !updateData.answeredBy && !call?.answeredBy) {
+        updateData.answeredBy = 'failed';
+      } else if (status === 'no-answer' && !updateData.answeredBy && !call?.answeredBy) {
+        updateData.answeredBy = 'no-answer';
+      } else if (status === 'busy' && !updateData.answeredBy && !call?.answeredBy) {
+        updateData.answeredBy = 'busy';
+      } else if (status === 'canceled' && !updateData.answeredBy && !call?.answeredBy) {
+        updateData.answeredBy = 'unknown';
+      }
+      
+      // Set default terminatedBy for calls that ended without explicit termination tracking
+      if (!updateData.terminatedBy && !call?.terminatedBy) {
+        if (status === 'failed' || status === 'canceled') {
+          updateData.terminatedBy = 'system';
+        } else if (status === 'no-answer') {
+          updateData.terminatedBy = 'timeout';
+        } else if (updateData.duration && updateData.duration < 3) {
+          // Very short calls likely ended by recipient
+          updateData.terminatedBy = 'user';
+        }
+      }
     }
     
     // Update the call document

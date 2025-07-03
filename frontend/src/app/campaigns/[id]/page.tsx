@@ -22,7 +22,8 @@ import {
   Trash,
   Download,
   RefreshCw,
-  ExternalLink
+  ExternalLink,
+  Info
 } from 'lucide-react'
 import { DashboardHeader } from '@/components/dashboard-header'
 import { Button } from '@/components/ui/button'
@@ -69,6 +70,12 @@ import {
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { RealTimeCampaignMonitor } from '@/components/real-time-campaign-monitor'
 import { RealTimeCallMonitor } from '@/components/real-time-call-monitor'
 import { AnsweredByBadge } from '@/components/answered-by-badge'
@@ -217,6 +224,12 @@ export default function CampaignPageEnhanced({ params }: CampaignPageProps) {
   const [contactData, setContactData] = useState<ContactData[]>([])
   const [contactsLoading, setContactsLoading] = useState(false)
   const [contactStatusFilter, setContactStatusFilter] = useState<string>('all')
+  const [contactsPagination, setContactsPagination] = useState({
+    page: 1,
+    limit: 100,
+    total: 0,
+    pages: 0
+  })
   
   // Load campaign stats and call data
   useEffect(() => {
@@ -317,7 +330,8 @@ export default function CampaignPageEnhanced({ params }: CampaignPageProps) {
     
     try {
       // Fetch contacts for this campaign from MongoDB API
-      const contactsUrl = getApiUrl(`/api/db/campaigns/${campaign.id}/contacts${forceRefresh ? '?skipCache=true' : ''}`)
+      // Increase limit to 100 to show more contacts (default is 20)
+      const contactsUrl = getApiUrl(`/api/db/campaigns/${campaign.id}/contacts?limit=100${forceRefresh ? '&skipCache=true' : ''}`)
       console.log('[loadCampaignContacts] Fetching contacts from:', contactsUrl)
       const response = await fetch(contactsUrl)
       
@@ -331,6 +345,15 @@ export default function CampaignPageEnhanced({ params }: CampaignPageProps) {
       if (result.success && result.data) {
         console.log('[loadCampaignContacts] Contacts data:', result.data)
         setContactData(result.data.contacts || [])
+        // Update pagination info
+        if (result.data.pagination) {
+          setContactsPagination({
+            page: result.data.pagination.page || 1,
+            limit: result.data.pagination.limit || 100,
+            total: result.data.pagination.total || 0,
+            pages: result.data.pagination.pages || 0
+          })
+        }
       } else {
         console.error("Failed to load campaign contacts:", result.error)
         setContactData([])
@@ -737,6 +760,10 @@ export default function CampaignPageEnhanced({ params }: CampaignPageProps) {
                       <CardTitle>Campaign Contacts</CardTitle>
                       <CardDescription>
                         All contacts in this campaign with their call status
+                        <div className="text-xs mt-1">
+                          <span className="font-medium">Note:</span> "Live Calls" are calls that actually rang on the recipient's phone. 
+                          "Total Attempts" includes all call attempts, even those that failed before connecting.
+                        </div>
                       </CardDescription>
                     </div>
                     <div className="flex items-center space-x-2">
@@ -798,8 +825,36 @@ export default function CampaignPageEnhanced({ params }: CampaignPageProps) {
                             <TableHead>Name</TableHead>
                             <TableHead>Phone Number</TableHead>
                             <TableHead>Status</TableHead>
-                            <TableHead className="text-center">Total Attempts</TableHead>
-                            <TableHead className="text-center">Live Calls</TableHead>
+                            <TableHead className="text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                Total Attempts
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger>
+                                      <Info className="h-3 w-3 text-muted-foreground" />
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p className="max-w-xs">All call attempts including those that failed to connect</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              </div>
+                            </TableHead>
+                            <TableHead className="text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                Live Calls
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger>
+                                      <Info className="h-3 w-3 text-muted-foreground" />
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p className="max-w-xs">Calls that actually rang or connected (excludes backend failures)</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              </div>
+                            </TableHead>
                             <TableHead>Answered By</TableHead>
                             <TableHead>Terminated By</TableHead>
                             <TableHead>Last Contact</TableHead>
@@ -871,8 +926,25 @@ export default function CampaignPageEnhanced({ params }: CampaignPageProps) {
                     </div>
                   )}
                   {getFilteredContacts().length > 0 && (
-                    <div className="mt-4 text-sm text-muted-foreground">
-                      Showing {getFilteredContacts().length} of {contactData.length} contacts
+                    <div className="mt-4 space-y-2">
+                      <div className="text-sm text-muted-foreground">
+                        <div>Showing {getFilteredContacts().length} of {contactData.length} contacts on this page</div>
+                        {contactsPagination.total > contactData.length && (
+                          <div className="text-xs mt-1">
+                            Total contacts in campaign: {contactsPagination.total} 
+                            {contactsPagination.pages > 1 && ` (${contactsPagination.pages} pages)`}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground border-t pt-2">
+                        <p className="font-medium mb-1">Understanding the columns:</p>
+                        <ul className="space-y-1 ml-4">
+                          <li>• <strong>Total Attempts:</strong> All call attempts including those that failed in the backend</li>
+                          <li>• <strong>Live Calls:</strong> Calls that actually rang on the recipient's phone (excludes technical failures)</li>
+                          <li>• <strong>Answered By:</strong> Who picked up - Human, Machine, or call outcome (No Answer, Busy, Failed)</li>
+                          <li>• <strong>Terminated By:</strong> Who ended the call - User (recipient), Agent (AI), System, or Timeout</li>
+                        </ul>
+                      </div>
                     </div>
                   )}
                 </CardContent>
