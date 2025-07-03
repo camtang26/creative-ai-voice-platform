@@ -138,7 +138,11 @@ export function registerWebSocketProxy(fastify, options = {}) {
                   optimize_latency: true,
                   stream_chunk_size: 512,
                   sample_rate: 16000,
-                  silence_threshold: 0.1
+                  silence_threshold: 0.1,
+                  // Improve audio quality for better transcription
+                  encoding: 'pcmu',  // Use G.711 μ-law for better quality
+                  channels: 1,       // Mono audio
+                  bit_depth: 16      // 16-bit audio
                 },
                 // Enable real-time transcript events
                 transcript: {
@@ -274,7 +278,7 @@ export function registerWebSocketProxy(fastify, options = {}) {
                         await transcriptRepo.appendRealtimeTranscriptMessage(
                           callSid,
                           conversationId,
-                          'assistant',
+                          'agent',  // Changed from 'assistant' to match ElevenLabs schema
                           response,
                           Math.floor((Date.now() - lastActivity) / 1000)
                         );
