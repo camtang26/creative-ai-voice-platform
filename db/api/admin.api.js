@@ -73,19 +73,16 @@ export async function fixTerminatedByValues(req, res) {
 
     console.log(`[Admin] Successfully updated ${updatedCount} calls`);
     
-    res.json({
+    return {
       success: true,
       message: `Updated ${updatedCount} calls with correct terminatedBy values`,
       totalProcessed: callsToFix.length,
       sampleUpdates: updates.slice(0, 10)
-    });
+    };
 
   } catch (error) {
     console.error('[Admin] Failed to fix terminatedBy values:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    throw error;
   }
 }
 
