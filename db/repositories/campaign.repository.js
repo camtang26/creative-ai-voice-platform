@@ -352,8 +352,15 @@ export async function getCampaignContacts(campaignId, pagination = {}) {
       const Call = (await import('../models/call.model.js')).default;
       
       // Get all calls for this contact's phone number in this campaign
+      // Normalize phone number to handle both formats (with/without + prefix)
+      const phoneWithPlus = contact.phoneNumber.startsWith('+') ? contact.phoneNumber : `+${contact.phoneNumber}`;
+      const phoneWithoutPlus = contact.phoneNumber.startsWith('+') ? contact.phoneNumber.substring(1) : contact.phoneNumber;
+      
       const calls = await Call.find({
-        to: contact.phoneNumber,
+        $or: [
+          { to: phoneWithPlus },
+          { to: phoneWithoutPlus }
+        ],
         campaignId: campaignId
       }).select('status answeredBy terminatedBy outcome duration');
       
