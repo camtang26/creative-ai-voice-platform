@@ -317,15 +317,19 @@ export default function CampaignPageEnhanced({ params }: CampaignPageProps) {
     
     try {
       // Fetch contacts for this campaign from MongoDB API
-      const response = await fetch(getApiUrl(`/api/db/campaigns/${campaign.id}/contacts`))
+      const contactsUrl = getApiUrl(`/api/db/campaigns/${campaign.id}/contacts`)
+      console.log('[loadCampaignContacts] Fetching contacts from:', contactsUrl)
+      const response = await fetch(contactsUrl)
       
       if (!response.ok) {
         throw new Error(`Failed to fetch campaign contacts: ${response.statusText}`)
       }
       
       const result = await response.json()
+      console.log('[loadCampaignContacts] API response:', result)
       
       if (result.success && result.data) {
+        console.log('[loadCampaignContacts] Contacts data:', result.data)
         setContactData(result.data.contacts || [])
       } else {
         console.error("Failed to load campaign contacts:", result.error)

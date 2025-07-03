@@ -336,15 +336,15 @@ export async function getCampaignContacts(campaignId, pagination = {}) {
     // Calculate skip value for pagination
     const skip = (page - 1) * limit;
     
-    // Find ALL contacts that are in the campaign's contactIds array
-    // This shows all originally validated contacts, not just those with calls
-    const contacts = await Contact.find({ _id: { $in: campaign.contactIds } })
+    // Find ALL contacts that have this campaignId in their campaignIds array
+    // This is more reliable than using campaign.contactIds which might not be populated
+    const contacts = await Contact.find({ campaignIds: campaignId })
       .sort({ priority: -1, createdAt: -1 })
       .skip(skip)
       .limit(limit);
     
-    // Get total count for pagination - use the campaign's contactIds length
-    const total = campaign.contactIds.length;
+    // Get total count for pagination - count contacts with this campaignId
+    const total = await Contact.countDocuments({ campaignIds: campaignId });
     
     // Now fetch call statistics for each contact
     const contactsWithStats = await Promise.all(contacts.map(async (contact) => {
