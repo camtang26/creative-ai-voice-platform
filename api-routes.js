@@ -352,4 +352,10 @@ export function registerApiRoutes(server, twilioClient, activeCalls) {
   }));
   
   // Transcript route is likely registered within db/api/transcript-api.js via initializeMongoDB
+  
+  // Admin endpoint to fix historical terminatedBy values
+  server.post('/api/admin/fix-terminated-by', asyncHandler(async (request, reply) => {
+    const adminApi = require('./db/api/admin.api.js');
+    return await adminApi.fixTerminatedByValues(request, reply);
+  }));
 }
