@@ -111,7 +111,7 @@ export function determineCallStatus(data) {
 
     // If there are user messages in the transcript, assume completed (held)
     if (transcript && transcript.some(msg => msg.role === 'user' && msg.message)) {
-      return 'completed'; // Or 'held' if you have that status
+      return 'completed'; // This will be mapped to 'held' for outcome field
     }
 
     // Check for voicemail indicators in the last agent message
@@ -323,11 +323,27 @@ async function processFinalCallData(callSid, conversationId) {
   const name = extractName(elevenLabsFullData);
   const phoneNumber = extractPhoneNumber(elevenLabsFullData);
 
+  // Map status to valid outcome enum values
+  const mapStatusToOutcome = (status) => {
+    switch(status) {
+      case 'completed':
+        return 'held'; // 'completed' maps to 'held' (successful conversation)
+      case 'voicemail':
+        return 'voicemail';
+      case 'no-answer':
+        return 'no-answer';
+      case 'failed':
+        return 'failed';
+      default:
+        return 'unknown';
+    }
+  };
+
   const callData = {
     callSid,
     conversationId, // Ensure this is saved
     status: status, // Use status derived from API response
-    outcome: status, // Use the same derived status for outcome
+    outcome: mapStatusToOutcome(status), // Map to valid outcome enum
     to: phoneNumber !== 'Unknown' ? phoneNumber : undefined,
     contactName: name !== 'Unknown' ? name : undefined,
     duration: duration > 0 ? duration : undefined,

@@ -271,8 +271,13 @@ export function registerApiMiddleware(server) {
   // REMOVED explicit OPTIONS * handler to prevent duplication error.
   // Assuming CORS preflight is handled elsewhere (e.g., by @fastify/cors or implicitly).
   
-  // Apply rate limiting to all API routes
+  // Apply rate limiting to all API routes (excluding WebSocket routes)
   server.addHook('onRequest', (request, reply, done) => {
+    // Skip WebSocket routes to prevent "Reply already sent" errors
+    if (request.routeOptions && request.routeOptions.websocket) {
+      return done();
+    }
+    
     if (request.routeOptions && request.routeOptions.url && request.routeOptions.url.startsWith('/api/')) {
       rateLimitMiddleware(request, reply, done);
     } else {
