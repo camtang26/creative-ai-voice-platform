@@ -285,7 +285,7 @@ export async function registerCampaignApiRoutes(fastify, options = {}) {
   fastify.get('/api/db/campaigns/:campaignId/contacts', async (request, reply) => {
     try {
       const { campaignId } = request.params;
-      const { page, limit } = request.query;
+      const { page, limit, refresh } = request.query;
       
       if (!campaignId) {
         return reply.code(400).send({
@@ -298,16 +298,20 @@ export async function registerCampaignApiRoutes(fastify, options = {}) {
       // Generate cache key
       const cacheKey = `campaign_${campaignId}_contacts_${page || 1}_${limit || 20}`;
       
-      // Try to get data from cache
-      const cachedData = getCacheValue(cacheKey);
-      if (cachedData) {
-        console.log(`[MongoDB] Using cached campaign contacts data for ${campaignId}`);
-        return {
-          success: true,
-          data: cachedData,
-          cached: true,
-          timestamp: new Date().toISOString()
-        };
+      // Try to get data from cache (skip if refresh is true)
+      if (!refresh || refresh !== 'true') {
+        const cachedData = getCacheValue(cacheKey);
+        if (cachedData) {
+          console.log(`[MongoDB] Using cached campaign contacts data for ${campaignId}`);
+          return {
+            success: true,
+            data: cachedData,
+            cached: true,
+            timestamp: new Date().toISOString()
+          };
+        }
+      } else {
+        console.log(`[MongoDB] Cache refresh requested for campaign contacts ${campaignId}`);
       }
       
       // Build pagination
