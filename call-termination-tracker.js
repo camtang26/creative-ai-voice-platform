@@ -67,12 +67,12 @@ function determineTerminatedBy(source, reason, metadata) {
   
   // Machine detection
   if (source === 'amd' || reason.includes('machine_detected')) {
-    return 'amd_machine';
+    return 'system'; // System terminated for answering machine
   }
   
   // Timeout scenarios
   if (reason === 'inactivity' || reason === 'duration-limit') {
-    return 'system_timeout';
+    return 'system'; // System timeout
   }
   
   // WebSocket disconnection
@@ -93,26 +93,26 @@ function determineTerminatedBy(source, reason, metadata) {
           return 'user'; // Very short call, user likely hung up immediately
         }
         if (metadata.hasTranscript) {
-          return 'normal_completion'; // Normal conversation end
+          return 'agent'; // Normal conversation end with agent
         }
-        return 'unknown';
+        return 'user'; // Default to user for completed calls
       case 'busy':
-        return 'user_busy';
+        return 'system'; // System terminated - line was busy
       case 'no-answer':
-        return 'user_no_answer';
+        return 'system'; // System terminated - no answer
       case 'failed':
-        return 'system_error';
+        return 'system'; // System error
       case 'canceled':
-        return 'system_canceled';
+        return 'system'; // System canceled
     }
   }
   
   // Default cases
   if (reason === 'normal' || reason === 'completed') {
-    return 'normal_completion';
+    return 'agent'; // Normal completion assumed to be agent
   }
   
-  return 'unknown';
+  return 'system'; // Default to system for unknown cases
 }
 
 /**

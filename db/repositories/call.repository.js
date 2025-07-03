@@ -121,10 +121,15 @@ export async function updateCallStatus(callSid, status, metadata = {}) {
         if (status === 'failed' || status === 'canceled') {
           updateData.terminatedBy = 'system';
         } else if (status === 'no-answer') {
-          updateData.terminatedBy = 'timeout';
+          updateData.terminatedBy = 'system'; // System terminated - no answer
+        } else if (status === 'busy') {
+          updateData.terminatedBy = 'system'; // System terminated - busy
         } else if (updateData.duration && updateData.duration < 3) {
           // Very short calls likely ended by recipient
           updateData.terminatedBy = 'user';
+        } else if (status === 'completed' && updateData.duration && updateData.duration > 30) {
+          // Longer completed calls likely ended by agent
+          updateData.terminatedBy = 'agent';
         }
       }
     }

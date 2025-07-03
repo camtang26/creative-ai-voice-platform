@@ -937,7 +937,7 @@ export default function CampaignPageEnhanced({ params }: CampaignPageProps) {
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground border-t pt-2">
-                        <p className="font-medium mb-1">Understanding the columns:</p>
+                        <div className="font-medium mb-1">Understanding the columns:</div>
                         <ul className="space-y-1 ml-4">
                           <li>• <strong>Total Attempts:</strong> All call attempts including those that failed in the backend</li>
                           <li>• <strong>Live Calls:</strong> Calls that actually rang on the recipient's phone (excludes technical failures)</li>
