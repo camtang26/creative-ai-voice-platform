@@ -87,6 +87,18 @@ export function registerWebSocketProxy(fastify, options = {}) {
             activeCalls.set(callSid, callInfo);
           }
           
+          // CRITICAL: Save conversation ID to database immediately
+          if (callSid && conversationId) {
+            try {
+              const { updateCallStatus } = await import('./db/repositories/call.repository.js');
+              await updateCallStatus(callSid, null, { conversationId });
+              console.log(`[WebSocket Proxy] Saved conversation ID ${conversationId} to database for call ${callSid}`);
+            } catch (dbError) {
+              console.error(`[WebSocket Proxy] ERROR: Failed to save conversation ID to database for call ${callSid}:`, dbError);
+              // Continue anyway - the webhook handler might save it later
+            }
+          }
+          
           // Configure WebSocket with optimized settings
           const wsOptions = {
             perMessageDeflate: false,

@@ -12,6 +12,7 @@ import { createOrUpdateTranscriptFromElevenLabs } from './repositories/transcrip
 import { logEvent } from './repositories/callEvent.repository.js';
 import { emitTranscriptUpdate, emitTranscriptMessage } from '../socket-server.js';
 import mongoose from 'mongoose'; // Import mongoose for error checking
+import Call from './models/call.model.js'; // Import Call model for database searches
 
 // Reference to the active calls map (will be kept for backward compatibility)
 let activeCalls = null;
@@ -480,9 +481,29 @@ async function processFinalCallData(callSid, conversationId) {
      // Extract IDs early for logging/association
      conversationId = extractConversationId(webhookData);
      callSid = extractCallSid(webhookData);
-     if (conversationId && !callSid && activeCalls) {
-       callSid = findCallSidByConversationId(conversationId);
-       console.log(`[Webhook] Found call SID ${callSid} for conversation ID ${conversationId} from active calls map.`);
+     if (conversationId && !callSid) {
+       // First try active calls map
+       if (activeCalls) {
+         callSid = findCallSidByConversationId(conversationId);
+         if (callSid) {
+           console.log(`[Webhook] Found call SID ${callSid} for conversation ID ${conversationId} from active calls map.`);
+         }
+       }
+       
+       // If not found in active calls, search the database
+       if (!callSid) {
+         try {
+           const call = await Call.findOne({ conversationId });
+           if (call) {
+             callSid = call.callSid;
+             console.log(`[Webhook] Found call SID ${callSid} for conversation ID ${conversationId} from database.`);
+           } else {
+             console.warn(`[Webhook] No call found in database for conversation ID ${conversationId}`);
+           }
+         } catch (dbError) {
+           console.error(`[Webhook] Error searching database for conversation ID ${conversationId}:`, dbError);
+         }
+       }
      }
 
      // Update call with conversation ID if possible
