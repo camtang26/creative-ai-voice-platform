@@ -1,6 +1,6 @@
 import twilio from 'twilio';
 import Call from './db/models/call.model.js';
-import { initializeMongoDB } from './db/mongodb-integration.js';
+import { initializeMongoDB } from './db/index.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
