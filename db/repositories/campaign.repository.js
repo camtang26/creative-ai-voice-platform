@@ -357,15 +357,31 @@ export async function getCampaignContacts(campaignId, pagination = {}) {
         campaignId: campaignId
       }).select('status answeredBy terminatedBy outcome duration');
       
-      // Calculate live call count (calls that actually went through)
+      // Debug logging
+      if (calls.length > 0) {
+        console.log(`[MongoDB] Found ${calls.length} calls for contact ${contact.phoneNumber} in campaign ${campaignId}`);
+      }
+      
+      // Calculate live call count (calls that actually rang/connected)
+      // These are calls that made it past the initial attempt phase
       const liveCallCount = calls.filter(call => 
-        call.status !== 'initiated' && 
-        call.status !== 'queued' &&
-        call.status !== 'failed'
+        // Include calls that rang or were answered
+        call.status === 'ringing' || 
+        call.status === 'in-progress' ||
+        call.status === 'completed' ||
+        call.status === 'busy' ||
+        call.status === 'no-answer' ||
+        // Also include based on answeredBy field (indicates call connected)
+        call.answeredBy !== null
       ).length;
       
       // Get the last call for this contact
       const lastCall = calls.length > 0 ? calls[calls.length - 1] : null;
+      
+      // Log for debugging
+      if (lastCall && (lastCall.answeredBy || lastCall.terminatedBy)) {
+        console.log(`[MongoDB] Contact ${contact.phoneNumber} last call: answeredBy=${lastCall.answeredBy}, terminatedBy=${lastCall.terminatedBy}`);
+      }
       
       // Determine answered by from the last call
       let answeredBy = null;
