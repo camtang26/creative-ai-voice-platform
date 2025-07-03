@@ -71,6 +71,8 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { RealTimeCampaignMonitor } from '@/components/real-time-campaign-monitor'
 import { RealTimeCallMonitor } from '@/components/real-time-call-monitor'
+import { AnsweredByBadge } from '@/components/answered-by-badge'
+import { TerminatedByBadge } from '@/components/terminated-by-badge'
 import { CampaignConfig } from '@/lib/types'
 import { fetchCampaign, startCampaign, pauseCampaign, cancelCampaign } from '@/lib/mongodb-api'
 import { getApiUrl } from '@/lib/api'
@@ -187,8 +189,12 @@ export default function CampaignPageEnhanced({ params }: CampaignPageProps) {
     name: string
     status: string
     callCount: number
+    liveCallCount: number
     lastContacted: string | null
     lastCallResult: string | null
+    answeredBy: string | null
+    terminatedBy: string | null
+    lastCallDuration: number | null
   }
   
   // State for campaign stats and call data
@@ -230,22 +236,26 @@ export default function CampaignPageEnhanced({ params }: CampaignPageProps) {
       // Use the actual campaign data from MongoDB
       if (!campaign) return
       
-      // Calculate stats from the campaign data
-      const totalContacts = campaign.contactCount || 0
-      const completedCalls = campaign.callsCompleted || 0
-      const successfulCalls = campaign.callsSuccessful || 0
-      const failedCalls = campaign.callsFailed || 0
-      const inProgressCalls = campaign.callsInProgress || 0
-      const pendingCalls = campaign.callsQueued || 0
+      // Get total contacts from the campaign's stats or contactIds length
+      const totalContacts = campaign.stats?.totalContacts || campaign.contactIds?.length || 0
       
-      const progress = totalContacts > 0 ? Math.round((completedCalls / totalContacts) * 100) : 0
-      const averageDuration = campaign.averageCallDuration || 0
-      const successRate = completedCalls > 0 ? Math.round((successfulCalls / completedCalls) * 100) : 0
+      // Get call statistics from campaign stats
+      const completedCalls = campaign.stats?.callsCompleted || 0
+      const answeredCalls = campaign.stats?.callsAnswered || 0
+      const failedCalls = campaign.stats?.callsFailed || 0
+      const callsPlaced = campaign.stats?.callsPlaced || 0
+      
+      // Calculate derived stats
+      const inProgressCalls = campaign.callsInProgress || 0
+      const pendingCalls = totalContacts - callsPlaced
+      const progress = totalContacts > 0 ? Math.round((callsPlaced / totalContacts) * 100) : 0
+      const averageDuration = campaign.stats?.averageDuration || 0
+      const successRate = answeredCalls > 0 ? Math.round((answeredCalls / callsPlaced) * 100) : 0
       
       setCampaignStats({
         totalContacts,
-        completedCalls,
-        successfulCalls,
+        completedCalls: callsPlaced,
+        successfulCalls: answeredCalls,
         failedCalls,
         inProgressCalls,
         pendingCalls,
@@ -542,7 +552,10 @@ export default function CampaignPageEnhanced({ params }: CampaignPageProps) {
                   <CardContent>
                     <div className="text-2xl font-bold">{campaignStats.failedCalls}</div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {Math.round(campaignStats.failedCalls / campaignStats.totalContacts * 100)}% of total contacts
+                      {campaignStats.totalContacts > 0 
+                        ? `${Math.round(campaignStats.failedCalls / campaignStats.totalContacts * 100)}% of total contacts`
+                        : 'No contacts yet'
+                      }
                     </p>
                   </CardContent>
                 </Card>
@@ -781,9 +794,11 @@ export default function CampaignPageEnhanced({ params }: CampaignPageProps) {
                             <TableHead>Name</TableHead>
                             <TableHead>Phone Number</TableHead>
                             <TableHead>Status</TableHead>
-                            <TableHead className="text-center">Call Count</TableHead>
+                            <TableHead className="text-center">Total Attempts</TableHead>
+                            <TableHead className="text-center">Live Calls</TableHead>
+                            <TableHead>Answered By</TableHead>
+                            <TableHead>Terminated By</TableHead>
                             <TableHead>Last Contact</TableHead>
-                            <TableHead>Last Result</TableHead>
                             <TableHead></TableHead>
                           </TableRow>
                         </TableHeader>
@@ -800,9 +815,28 @@ export default function CampaignPageEnhanced({ params }: CampaignPageProps) {
                                 <ContactStatusBadge status={contact.status} />
                               </TableCell>
                               <TableCell className="text-center">
-                                <Badge variant={contact.callCount > 0 ? 'default' : 'outline'}>
+                                <Badge variant={contact.callCount > 0 ? 'secondary' : 'outline'}>
                                   {contact.callCount}
                                 </Badge>
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <Badge variant={contact.liveCallCount > 0 ? 'default' : 'outline'}>
+                                  {contact.liveCallCount || 0}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                {contact.answeredBy ? (
+                                  <AnsweredByBadge answeredBy={contact.answeredBy} />
+                                ) : (
+                                  <span className="text-sm text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {contact.terminatedBy ? (
+                                  <TerminatedByBadge terminatedBy={contact.terminatedBy} />
+                                ) : (
+                                  <span className="text-sm text-muted-foreground">-</span>
+                                )}
                               </TableCell>
                               <TableCell>
                                 {contact.lastContacted ? (
@@ -811,15 +845,6 @@ export default function CampaignPageEnhanced({ params }: CampaignPageProps) {
                                   </span>
                                 ) : (
                                   <span className="text-sm text-muted-foreground">Never</span>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                {contact.lastCallResult ? (
-                                  <Badge variant="outline" className="text-xs">
-                                    {contact.lastCallResult.replace('_', ' ')}
-                                  </Badge>
-                                ) : (
-                                  '-'
                                 )}
                               </TableCell>
                               <TableCell>

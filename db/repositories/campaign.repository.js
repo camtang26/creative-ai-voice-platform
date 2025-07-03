@@ -325,24 +325,81 @@ export async function getCampaignContacts(campaignId, pagination = {}) {
       throw new Error('Campaign ID is required');
     }
     
-    const { page = 1, limit = 20 } = pagination;
+    const { page = 1, limit = 50 } = pagination;
+    
+    // First get the campaign to get its contactIds
+    const campaign = await Campaign.findById(campaignId);
+    if (!campaign) {
+      throw new Error(`Campaign not found with ID: ${campaignId}`);
+    }
     
     // Calculate skip value for pagination
     const skip = (page - 1) * limit;
     
-    // Find contacts for the campaign
-    const contacts = await Contact.find({ campaignIds: campaignId })
+    // Find ALL contacts that are in the campaign's contactIds array
+    // This shows all originally validated contacts, not just those with calls
+    const contacts = await Contact.find({ _id: { $in: campaign.contactIds } })
       .sort({ priority: -1, createdAt: -1 })
       .skip(skip)
       .limit(limit);
     
-    // Get total count for pagination
-    const total = await Contact.countDocuments({ campaignIds: campaignId });
+    // Get total count for pagination - use the campaign's contactIds length
+    const total = campaign.contactIds.length;
+    
+    // Now fetch call statistics for each contact
+    const contactsWithStats = await Promise.all(contacts.map(async (contact) => {
+      // Import Call model at the top of the function if not already imported
+      const Call = (await import('../models/call.model.js')).default;
+      
+      // Get all calls for this contact's phone number in this campaign
+      const calls = await Call.find({
+        to: contact.phoneNumber,
+        campaignId: campaignId
+      }).select('status answeredBy terminatedBy outcome duration');
+      
+      // Calculate live call count (calls that actually went through)
+      const liveCallCount = calls.filter(call => 
+        call.status !== 'initiated' && 
+        call.status !== 'queued' &&
+        call.status !== 'failed'
+      ).length;
+      
+      // Get the last call for this contact
+      const lastCall = calls.length > 0 ? calls[calls.length - 1] : null;
+      
+      // Determine answered by from the last call
+      let answeredBy = null;
+      if (lastCall) {
+        if (lastCall.answeredBy) {
+          answeredBy = lastCall.answeredBy;
+        } else if (lastCall.status === 'no-answer') {
+          answeredBy = 'no-answer';
+        } else if (lastCall.status === 'busy') {
+          answeredBy = 'busy';
+        } else if (lastCall.status === 'failed') {
+          answeredBy = 'failed';
+        }
+      }
+      
+      return {
+        _id: contact._id,
+        phoneNumber: contact.phoneNumber,
+        name: contact.name || 'Unknown',
+        status: contact.status,
+        callCount: contact.callCount || 0, // Total attempts from backend
+        liveCallCount: liveCallCount, // Calls that actually connected
+        lastContacted: contact.lastCallDate || contact.lastContacted,
+        lastCallResult: contact.lastCallResult,
+        answeredBy: answeredBy,
+        terminatedBy: lastCall?.terminatedBy || null,
+        lastCallDuration: lastCall?.duration || null
+      };
+    }));
     
     console.log(`[MongoDB] Retrieved ${contacts.length} contacts for campaign ${campaignId} (page ${page}, total: ${total})`);
     
     return {
-      contacts,
+      contacts: contactsWithStats,
       pagination: {
         page,
         limit,
