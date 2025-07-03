@@ -16,6 +16,7 @@ import {
   terminateCall
 } from './enhanced-call-handler.js';
 import { fixTerminatedByValues } from './db/api/admin.api.js';
+import { fixTerminatedByWithVoiceInsights } from './db/api/admin-voice-insights.api.js';
 
 /**
  * Register enhanced API routes with standardized response formats and error handling
@@ -357,5 +358,10 @@ export function registerApiRoutes(server, twilioClient, activeCalls) {
   // Admin endpoint to fix historical terminatedBy values
   server.post('/api/admin/fix-terminated-by', asyncHandler(async (request, reply) => {
     return await fixTerminatedByValues(request, reply);
+  }));
+  
+  // Admin endpoint to fix terminatedBy using Voice Insights
+  server.post('/api/admin/fix-terminated-by-voice-insights', asyncHandler(async (request, reply) => {
+    return await fixTerminatedByWithVoiceInsights(request, reply);
   }));
 }

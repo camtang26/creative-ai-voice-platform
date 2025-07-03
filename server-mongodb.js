@@ -42,6 +42,7 @@ import { trackTermination, getTerminationInfo } from './call-termination-tracker
 import recordingHandler from './recording-handler.js';
 import callQualityMetrics from './call-quality-metrics.js';
 import { registerApiRoutes } from './api-routes.js';
+import { getTerminationFromVoiceInsights } from './twilio-voice-insights.js';
 import { registerRecordingApiRoutes } from './db/api/recording-api.js'; // ADDED Import
 // Removed import for registerElevenLabsApiRoutes
 import { registerApiMiddleware } from './api-middleware.js';
@@ -1273,6 +1274,48 @@ server.post('/call-status-callback', async (request, reply) => {
       callInfo.endTime = new Date();
       if (callInfo.startTime) { callInfo.duration = Math.round((callInfo.endTime - new Date(callInfo.startTime)) / 1000); }
       
+      // Fetch actual call details from Twilio to get "Who Hung Up" data
+      let whoHungUp = null;
+      try {
+        if (twilioClient && CallStatus === 'completed') {
+          console.log(`[Twilio] Fetching call details for ${CallSid} to get Who Hung Up data`);
+          const callDetails = await twilioClient.calls(CallSid).fetch();
+          
+          // Twilio provides answeredBy in the call details
+          if (callDetails.answeredBy) {
+            await getCallRepository().updateCallStatus(CallSid, null, {
+              answeredBy: callDetails.answeredBy
+            });
+          }
+          
+          // Get Voice Insights data if available (this is where "Who Hung Up" lives)
+          // For now, we'll parse it from the subresource URIs or use heuristics
+          const duration = callDetails.duration;
+          const direction = callDetails.direction;
+          
+          // Determine who hung up based on call characteristics
+          // This is a temporary solution until we implement full Voice Insights
+          if (CallStatus === 'completed' && duration) {
+            // Default to 'agent' for completed calls unless we have evidence otherwise
+            whoHungUp = 'agent';
+            
+            // Very short calls are likely user hangups
+            if (duration < 10) {
+              whoHungUp = 'user';
+            }
+            
+            // If we have existing termination info from ElevenLabs, use that
+            const existingTermination = getTerminationInfo(CallSid);
+            if (existingTermination && existingTermination.source === 'elevenlabs_webhook') {
+              // ElevenLabs terminated means AI agent completed
+              whoHungUp = 'agent';
+            }
+          }
+        }
+      } catch (twilioError) {
+        console.error(`[Twilio] Error fetching call details:`, twilioError);
+      }
+      
       // Track call termination if not already tracked
       const existingTermination = getTerminationInfo(CallSid);
       if (!existingTermination) {
@@ -1282,21 +1325,31 @@ server.post('/call-status-callback', async (request, reply) => {
           duration: callInfo.duration,
           hasTranscript: !!callInfo.transcriptId,
           from: callInfo.from,
-          to: callInfo.to
+          to: callInfo.to,
+          whoHungUp: whoHungUp
         });
       }
       
       // Get final termination info to save to database
       const terminationInfo = getTerminationInfo(CallSid);
-      if (terminationInfo) {
+      if (terminationInfo || whoHungUp) {
         // Update database with terminatedBy
         try {
-          await getCallRepository().updateCallStatus(CallSid, null, {
-            terminatedBy: terminationInfo.terminatedBy,
-            terminationReason: terminationInfo.reason,
-            terminationSource: terminationInfo.source
-          });
-          console.log(`[MongoDB] Updated call ${CallSid} with termination info: ${terminationInfo.terminatedBy}`);
+          const updateData = {};
+          if (terminationInfo) {
+            updateData.terminatedBy = terminationInfo.terminatedBy;
+            updateData.terminationReason = terminationInfo.reason;
+            updateData.terminationSource = terminationInfo.source;
+          }
+          
+          // Override with actual Twilio data if we have it
+          if (whoHungUp) {
+            updateData.terminatedBy = whoHungUp;
+            updateData.terminationSource = 'twilio_call_details';
+          }
+          
+          await getCallRepository().updateCallStatus(CallSid, null, updateData);
+          console.log(`[MongoDB] Updated call ${CallSid} with termination info: ${updateData.terminatedBy}`);
         } catch (error) {
           console.error(`[MongoDB] Error updating termination info:`, error);
         }
